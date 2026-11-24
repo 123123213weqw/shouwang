@@ -1,0 +1,1844 @@
+{
+ "assets/ooqo-title-itch.png": {
+  "box": [
+   29,
+   43,
+   572,
+   283
+  ],
+  "inner": [
+   259,
+   171,
+   321,
+   211
+  ],
+  "measure": {
+   "area": 18791,
+   "asym": 1.664307,
+   "box": [
+    30,
+    44,
+    570,
+    282
+   ],
+   "comps": 6,
+   "gap": 25,
+   "hole_min": 9,
+   "holes": 5,
+   "thin": 0.811665,
+   "tint": 130
+  },
+  "size": [
+   630,
+   368
+  ]
+ },
+ "assets/sprites/FlowMap.png": {
+  "box": [
+   0,
+   0,
+   64,
+   64
+  ],
+  "inner": null,
+  "measure": {
+   "area": 4096,
+   "asym": 0.0,
+   "box": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.0,
+   "tint": 17
+  },
+  "size": [
+   64,
+   64
+  ]
+ },
+ "assets/sprites/algae.png": {
+  "box": [
+   64,
+   88,
+   126,
+   155
+  ],
+  "inner": null,
+  "measure": {
+   "area": 6020,
+   "asym": 1.192691,
+   "box": [
+    64,
+    88,
+    126,
+    155
+   ],
+   "comps": 3,
+   "gap": 17,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.66495,
+   "tint": 255
+  },
+  "size": [
+   256,
+   256
+  ]
+ },
+ "assets/sprites/bubble-particle.png": {
+  "box": [
+   7,
+   7,
+   119,
+   110
+  ],
+  "inner": [
+   19,
+   19,
+   113,
+   104
+  ],
+  "measure": {
+   "area": 3894,
+   "asym": 0.134566,
+   "box": [
+    7,
+    7,
+    119,
+    110
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 65,
+   "holes": 1,
+   "thin": 0.842578,
+   "tint": 255
+  },
+  "size": [
+   134,
+   125
+  ]
+ },
+ "assets/sprites/characters/body.png": {
+  "box": [
+   66,
+   56,
+   105,
+   154
+  ],
+  "inner": null,
+  "measure": {
+   "area": 11794,
+   "asym": 0.21299,
+   "box": [
+    66,
+    57,
+    105,
+    152
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.185179,
+   "tint": 255
+  },
+  "size": [
+   236,
+   248
+  ]
+ },
+ "assets/sprites/characters/bomber.png": {
+  "box": [
+   58,
+   73,
+   119,
+   102
+  ],
+  "inner": null,
+  "measure": {
+   "area": 6915,
+   "asym": 0.707737,
+   "box": [
+    59,
+    73,
+    117,
+    101
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 7,
+   "holes": 1,
+   "thin": 0.45799,
+   "tint": 255
+  },
+  "size": [
+   236,
+   248
+  ]
+ },
+ "assets/sprites/characters/default.png": {
+  "box": [
+   59,
+   70,
+   118,
+   108
+  ],
+  "inner": null,
+  "measure": {
+   "area": 8220,
+   "asym": 0.394161,
+   "box": [
+    60,
+    71,
+    116,
+    106
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 23,
+   "holes": 2,
+   "thin": 0.340146,
+   "tint": 255
+  },
+  "size": [
+   236,
+   248
+  ]
+ },
+ "assets/sprites/characters/evil.png": {
+  "box": [
+   37,
+   77,
+   156,
+   98
+  ],
+  "inner": null,
+  "measure": {
+   "area": 8722,
+   "asym": 0.437056,
+   "box": [
+    38,
+    78,
+    154,
+    96
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 17,
+   "holes": 2,
+   "thin": 0.347053,
+   "tint": 255
+  },
+  "size": [
+   236,
+   248
+  ]
+ },
+ "assets/sprites/characters/eye.png": {
+  "box": [
+   52,
+   69,
+   131,
+   110
+  ],
+  "inner": null,
+  "measure": {
+   "area": 8541,
+   "asym": 0.812317,
+   "box": [
+    53,
+    70,
+    129,
+    108
+   ],
+   "comps": 2,
+   "gap": 7,
+   "hole_min": 27,
+   "holes": 1,
+   "thin": 0.491277,
+   "tint": 255
+  },
+  "size": [
+   236,
+   248
+  ]
+ },
+ "assets/sprites/characters/ikke.png": {
+  "box": [
+   54,
+   69,
+   122,
+   114
+  ],
+  "inner": null,
+  "measure": {
+   "area": 9361,
+   "asym": 0.423245,
+   "box": [
+    55,
+    69,
+    121,
+    113
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 25,
+   "holes": 1,
+   "thin": 0.284158,
+   "tint": 255
+  },
+  "size": [
+   236,
+   248
+  ]
+ },
+ "assets/sprites/characters/yv.png": {
+  "box": [
+   40,
+   58,
+   150,
+   137
+  ],
+  "inner": null,
+  "measure": {
+   "area": 10181,
+   "asym": 0.100383,
+   "box": [
+    41,
+    59,
+    148,
+    136
+   ],
+   "comps": 2,
+   "gap": 8,
+   "hole_min": 25,
+   "holes": 1,
+   "thin": 0.342108,
+   "tint": 255
+  },
+  "size": [
+   236,
+   248
+  ]
+ },
+ "assets/sprites/foliages/algae-1.png": {
+  "box": [
+   50,
+   125,
+   134,
+   108
+  ],
+  "inner": [
+   83,
+   0,
+   255,
+   255
+  ],
+  "measure": {
+   "area": 3317,
+   "asym": 1.992765,
+   "box": [
+    51,
+    126,
+    132,
+    106
+   ],
+   "comps": 2,
+   "gap": 41,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.662345,
+   "tint": 255
+  },
+  "size": [
+   256,
+   256
+  ]
+ },
+ "assets/sprites/foliages/algae-2.png": {
+  "box": [
+   74,
+   137,
+   92,
+   94
+  ],
+  "inner": [
+   0,
+   0,
+   255,
+   184
+  ],
+  "measure": {
+   "area": 2781,
+   "asym": 1.451996,
+   "box": [
+    75,
+    138,
+    91,
+    92
+   ],
+   "comps": 2,
+   "gap": 12,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.676016,
+   "tint": 255
+  },
+  "size": [
+   256,
+   256
+  ]
+ },
+ "assets/sprites/foliages/algae-3.png": {
+  "box": [
+   63,
+   152,
+   150,
+   85
+  ],
+  "inner": [
+   0,
+   0,
+   255,
+   152
+  ],
+  "measure": {
+   "area": 4014,
+   "asym": 0.935725,
+   "box": [
+    63,
+    152,
+    149,
+    85
+   ],
+   "comps": 3,
+   "gap": 16,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.682113,
+   "tint": 255
+  },
+  "size": [
+   256,
+   256
+  ]
+ },
+ "assets/sprites/particle-small.png": {
+  "box": [
+   0,
+   1,
+   16,
+   15
+  ],
+  "inner": null,
+  "measure": {
+   "area": 176,
+   "asym": 0.113636,
+   "box": [
+    0,
+    1,
+    16,
+    15
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.926136,
+   "tint": 255
+  },
+  "size": [
+   16,
+   16
+  ]
+ },
+ "assets/sprites/particle.png": {
+  "box": [
+   0,
+   2,
+   119,
+   110
+  ],
+  "inner": null,
+  "measure": {
+   "area": 10429,
+   "asym": 0.028958,
+   "box": [
+    0,
+    2,
+    119,
+    110
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.165021,
+   "tint": 255
+  },
+  "size": [
+   119,
+   115
+  ]
+ },
+ "assets/sprites/peer.png": {
+  "box": [
+   87,
+   40,
+   81,
+   181
+  ],
+  "inner": null,
+  "measure": {
+   "area": 9369,
+   "asym": 0.276017,
+   "box": [
+    87,
+    41,
+    81,
+    179
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.297684,
+   "tint": 255
+  },
+  "size": [
+   256,
+   256
+  ]
+ },
+ "assets/sprites/rect.png": {
+  "box": [
+   0,
+   0,
+   1,
+   1
+  ],
+  "inner": null,
+  "measure": {
+   "area": 1,
+   "asym": 2.0,
+   "box": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.0,
+   "tint": 255
+  },
+  "size": [
+   1,
+   1
+  ]
+ },
+ "assets/sprites/shadow.png": {
+  "box": [
+   0,
+   0,
+   119,
+   96
+  ],
+  "inner": null,
+  "measure": {
+   "area": 9119,
+   "asym": 0.065577,
+   "box": [
+    0,
+    0,
+    119,
+    95
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.175129,
+   "tint": 0
+  },
+  "size": [
+   119,
+   96
+  ]
+ },
+ "assets/sprites/star.png": {
+  "box": [
+   8,
+   8,
+   240,
+   240
+  ],
+  "inner": null,
+  "measure": {
+   "area": 29759,
+   "asym": 0.040257,
+   "box": [
+    8,
+    8,
+    240,
+    240
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.15807,
+   "tint": 255
+  },
+  "size": [
+   256,
+   256
+  ]
+ },
+ "assets/sprites/tile.png": {
+  "box": [
+   19,
+   17,
+   123,
+   122
+  ],
+  "inner": [
+   35,
+   32,
+   125,
+   123
+  ],
+  "measure": {
+   "area": 5981,
+   "asym": 0.150142,
+   "box": [
+    20,
+    17,
+    122,
+    122
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 85,
+   "holes": 1,
+   "thin": 0.582177,
+   "tint": 255
+  },
+  "size": [
+   160,
+   160
+  ]
+ },
+ "assets/sprites/tilesarray.png": {
+  "box": [
+   13,
+   6,
+   1067,
+   127
+  ],
+  "cells": [
+   {
+    "box": [
+     13,
+     30,
+     138,
+     103
+    ],
+    "inner": null,
+    "measure": {
+     "area": 10437,
+     "asym": 0.270001,
+     "box": [
+      13,
+      31,
+      137,
+      101
+     ],
+     "comps": 1,
+     "gap": null,
+     "hole_min": null,
+     "holes": 0,
+     "thin": 0.189231,
+     "tint": 0
+    },
+    "size": [
+     156,
+     136
+    ]
+   },
+   {
+    "box": [
+     30,
+     22,
+     97,
+     103
+    ],
+    "inner": null,
+    "measure": {
+     "area": 6103,
+     "asym": 0.427659,
+     "box": [
+      30,
+      23,
+      96,
+      101
+     ],
+     "comps": 1,
+     "gap": null,
+     "hole_min": null,
+     "holes": 0,
+     "thin": 0.29592,
+     "tint": 255
+    },
+    "size": [
+     156,
+     136
+    ]
+   },
+   {
+    "box": [
+     24,
+     70,
+     109,
+     62
+    ],
+    "inner": [
+     0,
+     0,
+     155,
+     73
+    ],
+    "measure": {
+     "area": 4362,
+     "asym": 0.415406,
+     "box": [
+      24,
+      70,
+      108,
+      61
+     ],
+     "comps": 1,
+     "gap": null,
+     "hole_min": null,
+     "holes": 0,
+     "thin": 0.325768,
+     "tint": 0
+    },
+    "size": [
+     156,
+     136
+    ]
+   },
+   {
+    "box": [
+     16,
+     22,
+     131,
+     108
+    ],
+    "inner": [
+     77,
+     68,
+     87,
+     82
+    ],
+    "measure": {
+     "area": 6166,
+     "asym": 0.807006,
+     "box": [
+      16,
+      22,
+      131,
+      108
+     ],
+     "comps": 5,
+     "gap": 6,
+     "hole_min": 13,
+     "holes": 1,
+     "thin": 0.68602,
+     "tint": 255
+    },
+    "size": [
+     156,
+     136
+    ]
+   },
+   {
+    "box": [
+     14,
+     22,
+     127,
+     105
+    ],
+    "inner": [
+     65,
+     53,
+     91,
+     104
+    ],
+    "measure": {
+     "area": 4998,
+     "asym": 1.232493,
+     "box": [
+      14,
+      22,
+      127,
+      105
+     ],
+     "comps": 2,
+     "gap": 3,
+     "hole_min": null,
+     "holes": 0,
+     "thin": 0.653461,
+     "tint": 255
+    },
+    "size": [
+     156,
+     136
+    ]
+   },
+   {
+    "box": [
+     28,
+     6,
+     109,
+     113
+    ],
+    "inner": [
+     63,
+     30,
+     99,
+     78
+    ],
+    "measure": {
+     "area": 4730,
+     "asym": 0.861734,
+     "box": [
+      28,
+      7,
+      109,
+      111
+     ],
+     "comps": 1,
+     "gap": null,
+     "hole_min": 9,
+     "holes": 3,
+     "thin": 0.808879,
+     "tint": 255
+    },
+    "size": [
+     156,
+     136
+    ]
+   },
+   {
+    "box": [
+     18,
+     39,
+     126,
+     76
+    ],
+    "inner": null,
+    "measure": {
+     "area": 5994,
+     "asym": 0.555889,
+     "box": [
+      18,
+      40,
+      126,
+      75
+     ],
+     "comps": 1,
+     "gap": null,
+     "hole_min": 13,
+     "holes": 2,
+     "thin": 0.409243,
+     "tint": 255
+    },
+    "size": [
+     156,
+     136
+    ]
+   }
+  ],
+  "inner": [
+   545,
+   68,
+   555,
+   82
+  ],
+  "measure": {
+   "area": 42790,
+   "asym": 1.358542,
+   "box": [
+    13,
+    7,
+    1067,
+    125
+   ],
+   "comps": 12,
+   "gap": 3,
+   "hole_min": 9,
+   "holes": 6,
+   "thin": 0.443491,
+   "tint": 0
+  },
+  "size": [
+   1092,
+   136
+  ]
+ },
+ "assets/sprites/ui/actions/back.png": {
+  "box": [
+   81,
+   72,
+   141,
+   155
+  ],
+  "inner": [
+   154,
+   156,
+   201,
+   207
+  ],
+  "measure": {
+   "area": 9070,
+   "asym": 0.892613,
+   "box": [
+    81,
+    72,
+    141,
+    155
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.440573,
+   "tint": 255
+  },
+  "size": [
+   311,
+   316
+  ]
+ },
+ "assets/sprites/ui/actions/combooo.png": {
+  "box": [
+   100,
+   97,
+   110,
+   113
+  ],
+  "inner": [
+   108,
+   147,
+   196,
+   167
+  ],
+  "measure": {
+   "area": 8743,
+   "asym": 0.234016,
+   "box": [
+    100,
+    98,
+    109,
+    112
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 13,
+   "holes": 3,
+   "thin": 0.391399,
+   "tint": 255
+  },
+  "size": [
+   311,
+   316
+  ]
+ },
+ "assets/sprites/ui/actions/dollar.png": {
+  "box": [
+   103,
+   71,
+   107,
+   174
+  ],
+  "inner": null,
+  "measure": {
+   "area": 8694,
+   "asym": 0.57787,
+   "box": [
+    103,
+    72,
+    106,
+    172
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 17,
+   "holes": 2,
+   "thin": 0.478836,
+   "tint": 255
+  },
+  "size": [
+   311,
+   316
+  ]
+ },
+ "assets/sprites/ui/actions/eat-fish.png": {
+  "box": [
+   72,
+   80,
+   168,
+   156
+  ],
+  "inner": null,
+  "measure": {
+   "area": 9383,
+   "asym": 1.408718,
+   "box": [
+    73,
+    80,
+    166,
+    155
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.440051,
+   "tint": 255
+  },
+  "size": [
+   311,
+   316
+  ]
+ },
+ "assets/sprites/ui/actions/magnet.png": {
+  "box": [
+   76,
+   69,
+   157,
+   178
+  ],
+  "inner": [
+   134,
+   96,
+   173,
+   186
+  ],
+  "measure": {
+   "area": 11479,
+   "asym": 0.648314,
+   "box": [
+    76,
+    69,
+    156,
+    178
+   ],
+   "comps": 4,
+   "gap": 8,
+   "hole_min": 13,
+   "holes": 3,
+   "thin": 0.582106,
+   "tint": 255
+  },
+  "size": [
+   311,
+   316
+  ]
+ },
+ "assets/sprites/ui/actions/portal.png": {
+  "box": [
+   90,
+   112,
+   131,
+   108
+  ],
+  "inner": [
+   151,
+   157,
+   161,
+   173
+  ],
+  "measure": {
+   "area": 6166,
+   "asym": 0.807006,
+   "box": [
+    90,
+    112,
+    131,
+    108
+   ],
+   "comps": 5,
+   "gap": 6,
+   "hole_min": 13,
+   "holes": 1,
+   "thin": 0.68602,
+   "tint": 255
+  },
+  "size": [
+   311,
+   316
+  ]
+ },
+ "assets/sprites/ui/actions/umbrella.png": {
+  "box": [
+   79,
+   81,
+   152,
+   154
+  ],
+  "inner": null,
+  "measure": {
+   "area": 12450,
+   "asym": 0.840482,
+   "box": [
+    79,
+    82,
+    152,
+    152
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.277751,
+   "tint": 255
+  },
+  "size": [
+   311,
+   316
+  ]
+ },
+ "assets/sprites/ui/cross.png": {
+  "box": [
+   34,
+   42,
+   310,
+   271
+  ],
+  "inner": null,
+  "measure": {
+   "area": 18212,
+   "asym": 1.716231,
+   "box": [
+    35,
+    43,
+    309,
+    269
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.258676,
+   "tint": 255
+  },
+  "size": [
+   379,
+   355
+  ]
+ },
+ "assets/sprites/ui/lock.png": {
+  "box": [
+   108,
+   107,
+   95,
+   101
+  ],
+  "inner": null,
+  "measure": {
+   "area": 6799,
+   "asym": 0.283277,
+   "box": [
+    109,
+    108,
+    94,
+    100
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 9,
+   "holes": 1,
+   "thin": 0.261215,
+   "tint": 255
+  },
+  "size": [
+   311,
+   316
+  ]
+ },
+ "assets/sprites/ui/nine-patch-border.png": {
+  "box": [
+   32,
+   32,
+   247,
+   251
+  ],
+  "inner": [
+   52,
+   53,
+   258,
+   258
+  ],
+  "measure": {
+   "area": 15443,
+   "asym": 0.234022,
+   "box": [
+    33,
+    33,
+    245,
+    249
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 183,
+   "holes": 1,
+   "thin": 0.472447,
+   "tint": 255
+  },
+  "size": [
+   311,
+   316
+  ]
+ },
+ "assets/sprites/ui/nine-patch.png": {
+  "box": [
+   32,
+   33,
+   247,
+   251
+  ],
+  "inner": null,
+  "measure": {
+   "area": 56132,
+   "asym": 0.036699,
+   "box": [
+    33,
+    34,
+    245,
+    249
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.069265,
+   "tint": 255
+  },
+  "size": [
+   311,
+   316
+  ]
+ },
+ "assets/sprites/ui/ooqo-title.png": {
+  "box": [
+   52,
+   42,
+   995,
+   493
+  ],
+  "inner": [
+   452,
+   265,
+   561,
+   335
+  ],
+  "measure": {
+   "area": 45446,
+   "asym": 1.715266,
+   "box": [
+    52,
+    43,
+    994,
+    491
+   ],
+   "comps": 5,
+   "gap": 44,
+   "hole_min": 71,
+   "holes": 4,
+   "thin": 0.530718,
+   "tint": 255
+  },
+  "size": [
+   1098,
+   579
+  ]
+ },
+ "assets/sprites/upgrades/big-fish.png": {
+  "box": [
+   9,
+   30,
+   138,
+   103
+  ],
+  "inner": null,
+  "measure": {
+   "area": 10261,
+   "asym": 0.304649,
+   "box": [
+    9,
+    31,
+    137,
+    101
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 9,
+   "holes": 1,
+   "thin": 0.222103,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/chest.png": {
+  "box": [
+   20,
+   41,
+   115,
+   87
+  ],
+  "inner": null,
+  "measure": {
+   "area": 5873,
+   "asym": 0.404223,
+   "box": [
+    20,
+    41,
+    115,
+    87
+   ],
+   "comps": 3,
+   "gap": 12,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.439469,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/clover.png": {
+  "box": [
+   27,
+   21,
+   97,
+   103
+  ],
+  "inner": null,
+  "measure": {
+   "area": 6103,
+   "asym": 0.427659,
+   "box": [
+    27,
+    22,
+    96,
+    101
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.29592,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/combooo-1.png": {
+  "box": [
+   47,
+   58,
+   62,
+   63
+  ],
+  "inner": null,
+  "measure": {
+   "area": 2440,
+   "asym": 0.555738,
+   "box": [
+    47,
+    58,
+    61,
+    63
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 9,
+   "holes": 2,
+   "thin": 0.685656,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/combooo-2.png": {
+  "box": [
+   47,
+   58,
+   62,
+   63
+  ],
+  "inner": [
+   73,
+   64,
+   84,
+   76
+  ],
+  "measure": {
+   "area": 2514,
+   "asym": 0.310263,
+   "box": [
+    47,
+    58,
+    61,
+    63
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 7,
+   "holes": 3,
+   "thin": 0.691329,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/combooo-3.png": {
+  "box": [
+   47,
+   58,
+   62,
+   63
+  ],
+  "inner": [
+   71,
+   64,
+   83,
+   75
+  ],
+  "measure": {
+   "area": 2541,
+   "asym": 0.871311,
+   "box": [
+    47,
+    58,
+    61,
+    63
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 7,
+   "holes": 4,
+   "thin": 0.693034,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/combooo-4.png": {
+  "box": [
+   47,
+   58,
+   62,
+   63
+  ],
+  "inner": null,
+  "measure": {
+   "area": 2343,
+   "asym": 0.451558,
+   "box": [
+    47,
+    58,
+    61,
+    63
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 7,
+   "holes": 2,
+   "thin": 0.669227,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/combooo-5.png": {
+  "box": [
+   47,
+   58,
+   62,
+   63
+  ],
+  "inner": [
+   72,
+   65,
+   83,
+   97
+  ],
+  "measure": {
+   "area": 2465,
+   "asym": 0.180933,
+   "box": [
+    47,
+    58,
+    61,
+    63
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 7,
+   "holes": 3,
+   "thin": 0.712373,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/combooo-6.png": {
+  "box": [
+   47,
+   58,
+   62,
+   63
+  ],
+  "inner": null,
+  "measure": {
+   "area": 2694,
+   "asym": 0.323682,
+   "box": [
+    47,
+    58,
+    61,
+    63
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 7,
+   "holes": 3,
+   "thin": 0.610987,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/fish.png": {
+  "box": [
+   22,
+   70,
+   109,
+   62
+  ],
+  "inner": [
+   0,
+   0,
+   155,
+   72
+  ],
+  "measure": {
+   "area": 4184,
+   "asym": 0.421606,
+   "box": [
+    22,
+    70,
+    108,
+    61
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 11,
+   "holes": 1,
+   "thin": 0.412285,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/heart.png": {
+  "box": [
+   30,
+   37,
+   103,
+   85
+  ],
+  "inner": null,
+  "measure": {
+   "area": 6470,
+   "asym": 0.118083,
+   "box": [
+    30,
+    38,
+    103,
+    83
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.230603,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/portal.png": {
+  "box": [
+   12,
+   14,
+   131,
+   108
+  ],
+  "inner": [
+   68,
+   59,
+   88,
+   75
+  ],
+  "measure": {
+   "area": 6166,
+   "asym": 0.807006,
+   "box": [
+    12,
+    14,
+    131,
+    108
+   ],
+   "comps": 5,
+   "gap": 6,
+   "hole_min": 13,
+   "holes": 1,
+   "thin": 0.68602,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/star.png": {
+  "box": [
+   12,
+   11,
+   127,
+   107
+  ],
+  "inner": null,
+  "measure": {
+   "area": 7535,
+   "asym": 0.201991,
+   "box": [
+    12,
+    12,
+    126,
+    106
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.269409,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/upgrade-cane.png": {
+  "box": [
+   10,
+   22,
+   127,
+   105
+  ],
+  "inner": [
+   61,
+   50,
+   87,
+   106
+  ],
+  "measure": {
+   "area": 4998,
+   "asym": 1.232493,
+   "box": [
+    10,
+    22,
+    127,
+    105
+   ],
+   "comps": 2,
+   "gap": 3,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.653461,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/upgrade-magnet.png": {
+  "box": [
+   23,
+   6,
+   109,
+   113
+  ],
+  "inner": [
+   58,
+   0,
+   94,
+   78
+  ],
+  "measure": {
+   "area": 4730,
+   "asym": 0.861734,
+   "box": [
+    23,
+    7,
+    109,
+    111
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 9,
+   "holes": 3,
+   "thin": 0.808879,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/upgrade-shoe.png": {
+  "box": [
+   18,
+   39,
+   126,
+   76
+  ],
+  "inner": null,
+  "measure": {
+   "area": 5994,
+   "asym": 0.555889,
+   "box": [
+    18,
+    40,
+    126,
+    75
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": 13,
+   "holes": 2,
+   "thin": 0.409243,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/upgrades/upgrade-umbrella.png": {
+  "box": [
+   25,
+   15,
+   106,
+   106
+  ],
+  "inner": null,
+  "measure": {
+   "area": 5985,
+   "asym": 0.837093,
+   "box": [
+    25,
+    15,
+    105,
+    106
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.393818,
+   "tint": 255
+  },
+  "size": [
+   156,
+   136
+  ]
+ },
+ "assets/sprites/voronoi.png": {
+  "box": [
+   0,
+   0,
+   2048,
+   2048
+  ],
+  "inner": null,
+  "measure": {
+   "area": 4194304,
+   "asym": 0.0,
+   "box": [
+    0,
+    0,
+    2048,
+    2048
+   ],
+   "comps": 1,
+   "gap": null,
+   "hole_min": null,
+   "holes": 0,
+   "thin": 0.0,
+   "tint": 0
+  },
+  "size": [
+   2048,
+   2048
+  ]
+ },
+ "icon.svg": {
+  "svg_root": {
+   "attrib": {
+    "height": "128",
+    "width": "128"
+   },
+   "tag": "{http://www.w3.org/2000/svg}svg"
+  }
+ }
+}

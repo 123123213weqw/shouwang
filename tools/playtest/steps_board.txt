@@ -1,0 +1,20 @@
+# 棋盘上的东西：进游戏 → 第 1 关放一轮 → 跳到棋盘最大的第 12 关再放一轮。每轮都量大小、截图、连拍。
+# 用法（在沙盒根目录）: tools/playtest/agent.sh <标签> drive tools/playtest/steps_board.txt <前缀>
+sleep 2
+call pad_adapter.gd debug_unlock_all
+click_btn PlayButton
+sleep 5
+call pad_adapter.gd debug_pick_character 0
+sleep 12
+call pad_adapter.gd debug_spawn_all 0
+sleep 3
+rects
+snap L1
+burst L1
+call pad_adapter.gd debug_goto_level 12
+sleep 14
+call pad_adapter.gd debug_spawn_all 0
+sleep 3
+rects
+snap L12
+burst L12

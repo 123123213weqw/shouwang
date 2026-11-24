@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=守望
+Comment=江南水乡的守夜棋局
+Exec=@HOME@/apps/shouwang/launch.sh
+Icon=@HOME@/apps/shouwang/icon.png
+Terminal=false
+Categories=Game;
+StartupNotify=false

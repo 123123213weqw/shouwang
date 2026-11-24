@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="CharacterResource" load_steps=7 format=3 uid="uid://b0v358lg7qpbk"]
+
+[ext_resource type="Texture2D" uid="uid://cifkscdayb3qe" path="res://assets/sprites/characters/default.png" id="1_8j8q6"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/default_body.png" id="body_tex"]
+[ext_resource type="Script" uid="uid://bxsukocx6neog" path="res://scripts/character_resource.gd" id="1_hrhmk"]
+[ext_resource type="Texture2D" uid="uid://dtftqwpvc5vtl" path="res://assets/sprites/ui/actions/umbrella.png" id="1_ucav4"]
+[ext_resource type="Script" uid="uid://b71n7qcf355ov" path="res://scripts/object_resource.gd" id="2_tkahy"]
+[ext_resource type="Resource" uid="uid://kxqpuauin4u4" path="res://resources/upgrades/umbrella.tres" id="3_h3sb3"]
+
+[resource]
+script = ExtResource("1_hrhmk")
+character_name = "守夜人"
+head_sprite = ExtResource("1_8j8q6")
+body_sprite = ExtResource("body_tex")
+active_effect_sprite = ExtResource("1_ucav4")
+description = "技能：点灯，多来两盏河灯"
+max_moves_left = 5
+active_effect = 3
+value = 2.0
+active_cooldown = 4
+locked = false
+banned_upgrades = Array[ExtResource("2_tkahy")]([ExtResource("3_h3sb3")])
+metadata/_custom_type_script = "uid://bxsukocx6neog"

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/level_resource.gd" id="1_lr"]
+
+[resource]
+script = ExtResource("1_lr")
+level_name = "堡墙"
+chapter = 3
+map = Array[String](["xxxxxxx", "x..P..x", "x.....x", "x.xx.xx", ".S....."])
+base_color = Color(0.80, 0.20, 0.13, 1)
+fish_before_end_portal = 12
+starting_credits = 7

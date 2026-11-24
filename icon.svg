@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">
+  <rect x="2" y="2" width="124" height="124" rx="18" fill="#0F2E33" stroke="#06191D" stroke-width="4"/>
+  <path d="M20 111h16M92 111h16" fill="none" stroke="#3FA79B" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="64" cy="19" r="4" fill="none" stroke="#E9B94C" stroke-width="2.5"/>
+  <rect x="59" y="23" width="10" height="9" rx="3" fill="#E9B94C"/>
+  <rect x="46" y="30" width="36" height="9" rx="3" fill="#E9B94C"/>
+  <ellipse cx="64" cy="63" rx="39" ry="29" fill="#E2533C"/>
+  <path d="M64 34v58M49 36q-13 27 0 54M79 36q13 27 0 54M35 46q-8 17 0 34M93 46q8 17 0 34" fill="none" stroke="#C2412E" stroke-width="2.4" stroke-linecap="round"/>
+  <rect x="49" y="88" width="30" height="8" rx="3" fill="#E9B94C"/>
+  <path d="M64 96v8" fill="none" stroke="#E9B94C" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="64" cy="105" r="3.2" fill="#E9B94C"/>
+  <path d="M61 108l-1 10M64 108.5v11M67 108l1 10" fill="none" stroke="#E2533C" stroke-width="3" stroke-linecap="round"/>
+  <path d="M45.0 52.2L47.1 49.5L62.0 48.7L60.2 44.9L64.2 43.0L66.8 48.5L80.6 47.8L83.0 50.3L81.8 58.2L77.4 57.5L78.1 52.3L50.0 53.9L50.8 58.0L46.4 58.9ZM74.4 66.0L74.0 81.0L71.2 83.0L60.3 80.1L61.4 75.8L69.6 78.0L69.9 65.9L48.4 65.2L48.5 60.8L70.0 61.3L70.2 55.2L74.7 55.4L74.5 61.5L80.4 61.6L80.3 66.1ZM50.8 68.7L55.1 67.3L58.3 77.1L54.1 78.5Z" fill="#F7D774" stroke="#F7D774" stroke-width="2" stroke-linejoin="round"/>
+</svg>

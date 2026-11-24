@@ -1,0 +1,14 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# 导出的可执行文件、测试时取回来的截图
+builds/
+
+# 导出时各平台要用到的密钥都存在这个文件里，绝不进仓库
+export_credentials.cfg
+
+# 系统和编辑器的杂物
+.DS_Store
+*.tmp
+__pycache__/
