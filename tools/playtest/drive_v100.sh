@@ -27,7 +27,12 @@ RC="bash $HERE/rc.sh"
 bash "$HERE/launch_v100.sh" "$PROJECT" || exit 1
 PORT="${SW_DEBUG_PORT:-9878}"
 up=0
-for i in $(seq 1 500); do (echo > /dev/tcp/127.0.0.1/$PORT) 2>/dev/null && { up=1; break; }; sleep 1; done
+for i in $(seq 1 500); do
+	(echo > /dev/tcp/127.0.0.1/$PORT) 2>/dev/null && { up=1; break; }
+	# 脚本有编译错误的话端口永远起不来，不用干等
+	grep -a -q "is not compiling\|Failed to create an autoload" "$LOG" 2>/dev/null && break
+	sleep 1
+done
 if [ "$up" != 1 ]; then
 	echo "500 秒内调试端口没有起来。日志末尾："; tail -n 12 "$LOG" | cut -c1-200
 	bash "$HERE/stop_v100.sh" "$PROJECT"; exit 1
@@ -38,6 +43,8 @@ if grep -q "llvmpipe" "$LOG" && [ "${SW_RENDERER:-gl}" = nvidia ]; then
 	echo "警告：这个实例没能用上显卡，落到软件渲染上了（启动和帧率都会差很多）"
 fi
 rcc() { RC_WAIT="${RC_WAIT:-1}" RC_READ="${RC_READ:-5}" $RC "$@" 2>&1 | grep -v '^$'; }
+OUT="$RUN/shots/${P}_steps.out"       # 每一步的输出留一份，收尾时在它里面找"没过"
+run_steps() {
 while IFS= read -r line || [ -n "$line" ]; do
 	line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
 	case "$line" in ""|\#*) continue ;; esac
@@ -78,8 +85,19 @@ while IFS= read -r line || [ -n "$line" ]; do
 		*) echo "不认识的步骤: $cmd" ;;
 	esac
 done < "$STEPS"
+}
+run_steps | tee "$OUT"
 echo "== 日志里的报错: SCRIPT ERROR=$(grep -c 'SCRIPT ERROR' "$LOG")   ERROR=$(grep -c '^ERROR' "$LOG")"
 sed "s/\x1b\[[0-9;]*m//g" "$LOG" | grep "SPAWNABLE" | head -n 2 | cut -c1-1200
 sed "s/\x1b\[[0-9;]*m//g" "$LOG" | grep -A4 "SCRIPT ERROR\|^ERROR" | head -n 24 | cut -c1-220
 cp "$LOG" "$RUN/shots/${P}_run.log"
 bash "$HERE/stop_v100.sh" "$PROJECT"
+# 哪一步没过，退出码就不是 0：日志里有报错；或者某一步调的检查报了"没过"（卡片版面、棋盘出框这些）。
+# 屏幕上的文字里本来就有"一关没过"这种话，所以只认 RESULT 开头的结论和方括号里的那一种
+fail=0
+errs=$(grep -c 'SCRIPT ERROR' "$LOG"); others=$(grep -c '^ERROR' "$LOG")
+[ "$errs" = 0 ] && [ "$others" = 0 ] || { echo "[没过] 日志里有报错"; fail=1; }
+grep -a -q -E "RESULT [^：]*：没过|^\[没过\]" "$OUT" && { echo "[没过] 有一步的检查没过："; grep -a -E "RESULT [^：]*：没过|^\[没过\]" "$OUT" | sort | uniq -c | head -n 6; fail=1; }
+grep -a -q "^不认识的步骤" "$OUT" && { echo "[没过] 步骤文件里有不认识的步骤"; fail=1; }
+[ "$fail" = 0 ] && echo "RESULT 界面操作（$P）：通过" || echo "RESULT 界面操作（$P）：没过"
+exit $fail

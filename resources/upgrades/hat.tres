@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ObjectResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/object_resource.gd" id="1_hat"]
+[ext_resource type="Texture2D" path="res://assets/sprites/upgrades/hat.png" id="2_hat"]
+
+[resource]
+script = ExtResource("1_hat")
+texture = ExtResource("2_hat")
+score = 0.0
+effect = 10
+value = 1.0
+description = "斗笠：挡一次踩空"

@@ -7,7 +7,7 @@
 script = ExtResource("1_3inxq")
 texture = ExtResource("2_ueujb")
 score = 0.0
-effect = 1
+effect = 2
 value = 3.0
-description = "变出几盏河灯！"
+description = "纸伞：下一跳跳得特别远"
 metadata/_custom_type_script = "uid://b71n7qcf355ov"

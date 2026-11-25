@@ -43,7 +43,8 @@ func _input(event: InputEvent) -> void:
 
 func move_to(tile: Tile):
 	if is_jumping: return;
-	if main.moves_left <= 0: return
+	# 步数是 0 以后只还能跳到不花步数的格子（有灯、有道具、开了的水车、补给格）
+	if main.moves_left <= 0 and not main.step_is_free(tile): return
 	last_position = global_position
 	jump_launch_audio.play()
 	target_tile = tile

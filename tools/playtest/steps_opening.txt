@@ -1,0 +1,13 @@
+# 开场动画：播着的时侯查一回（在播、声音放出来了、标题音乐压低了），播完了再查一回（声音收了、音乐回来了）。
+# 必须让游戏一起来就动手：SW_BOOT_WAIT=1 SW_OPENING=D tools/playtest/agent.sh a7 drive tools/playtest/steps_opening.txt opening
+# SW_OPENING 指定播哪一个（不写就是设置里的；默认每次随机）。smoke 也能用这个文件：先 export，再 smoke
+sleep 1
+call pad_adapter.gd debug_opening_state
+snap 01_playing
+sleep 1
+call pad_adapter.gd debug_opening_state
+snap 02_playing
+sleep 6
+call pad_adapter.gd debug_opening_state
+snap 03_finished
+ui

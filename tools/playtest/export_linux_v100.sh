@@ -56,6 +56,13 @@ CODE=$?
 echo "导出退出码 $CODE；日志: ERROR=$(grep -c '^ERROR' /tmp/sw_export.log) SCRIPT ERROR=$(grep -c 'SCRIPT ERROR' /tmp/sw_export.log) WARNING=$(grep -c '^WARNING' /tmp/sw_export.log)"
 sed "s/\x1b\[[0-9;]*m//g" /tmp/sw_export.log | grep -A3 "^ERROR\|SCRIPT ERROR" | head -n 24 | cut -c1-200
 sed "s/\x1b\[[0-9;]*m//g" /tmp/sw_export.log | grep "^WARNING" | sed 's/0x[0-9a-f]*//g' | cut -c1-170 | sort | uniq -c | sort -rn | head -n 8
+# 脚本有编译错误的时侯，Godot 照样把包导出来（包里的脚本跑不起来）。这种包不能留，也不能报成功
+errs=$(grep -c 'SCRIPT ERROR\|^ERROR' /tmp/sw_export.log)
+if [ "$errs" != 0 ]; then
+	echo "导出的时侯有 $errs 条报错，这个包不能用：删掉 $OUT"
+	rm -f "$OUT"
+	exit 1
+fi
 if [ -s "$OUT" ]; then
 	ls -la "$OUT" | awk '{print "产物: " $5 " 字节  " $9}'
 	file "$OUT" | cut -c1-160

@@ -8,5 +8,5 @@ level_name = "十字河"
 chapter = 1
 map = Array[String](["  ...  ", "  ...  ", ".S....P", "  ...  ", "  ...  "])
 base_color = Color(0.13, 0.52, 0.44, 1)
-fish_before_end_portal = 9
+fish_before_end_portal = 6
 starting_credits = 6

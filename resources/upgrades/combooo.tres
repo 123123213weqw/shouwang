@@ -15,4 +15,5 @@ alternate_textures = Array[CompressedTexture2D]([ExtResource("2_q3aw0"), ExtReso
 score = 0.0
 effect = 7
 value = 3.0
+description = "莲蓬：连击 +3"
 metadata/_custom_type_script = "uid://b71n7qcf355ov"

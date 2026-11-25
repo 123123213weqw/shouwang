@@ -1,0 +1,20 @@
+# 导出包自检：按目录列出来读的方案、按路径读的道具和鱼，在包里都读得到；方案选择页里六套都在。
+# 给 agent.sh 的 smoke 用（先 export）：tools/playtest/agent.sh a7 smoke tools/playtest/steps_export.txt f_smoke_export
+# 结尾换回"灯谱"：选方案会写存档
+sleep 4
+call pad_adapter.gd debug_export_check
+click_btn RulesetButton
+sleep 2
+ui
+call ruleset_picker.gd debug_picker_layout
+snap picker
+click_btn RulesetOption_rush
+sleep 1
+call pad_adapter.gd debug_export_check
+snap picked_rush
+click_btn RulesetOption_dealt
+sleep 1
+click_btn RulesetReturnButton
+sleep 2
+call pad_adapter.gd debug_export_check
+snap back_to_title

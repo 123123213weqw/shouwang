@@ -21,9 +21,28 @@ class_name TitleControl extends Control
 @onready var settings_container: Control = $CanvasLayer/TitleControl/SettingsContainer
 @onready var settings_return_button: Button = $CanvasLayer/TitleControl/SettingsContainer/SettingsReturnButton
 
+@onready var ui_root: Control = $CanvasLayer/TitleControl     # 标题页所有界面的根，方案选择面板挂在它下面
+
+## 标题页按钮列里的"方案"按钮和它点开的方案选择面板。场景里没有它们，是 _ready() 里用代码加的
+var ruleset_button: Button
+var ruleset_picker: RulesetPicker
+
+const BUTTON := preload("res://scenes/uis/button.tscn")
+const RULESET_BUTTON_SIZE := 36            # "方案 · 灯谱"是次要的入口，字比上面两个小一号
 
 @export var character_resources: Array[CharacterResource]
 const CHARACTER_SELECT_CONTROL = preload("res://scenes/uis/character_select_control.tscn")
+
+## 给别的模块用的三个入口。节点在场景里叫什么、放在哪，只有这个脚本知道；
+## 开场动画、设置页要动它们，只调这三个方法，不在别处写节点路径（改了场景名也不会悄悄失灵）
+func logo_image() -> CanvasItem:
+	return $CanvasLayer/TitleControl/Panel/Title/TextureRect as CanvasItem
+
+func menu_buttons() -> Control:
+	return buttons_container
+
+func music_player() -> AudioStreamPlayer:
+	return get_node_or_null("MainTitle2") as AudioStreamPlayer
 
 func _ready() -> void:
 	Game.characters = character_resources
@@ -39,9 +58,39 @@ func _ready() -> void:
 	settings_button.pressed.connect(func(): show_settings())
 	settings_return_button.pressed.connect(func(): return_to_title())
 	SceneManager.scene_transition_control.close()
+	_add_ruleset_ui()
 	update_characters()
 	character_description.text = ""
-	
+
+## 在"长夜"后面加一个"方案"按钮，再建方案选择面板（挂在 CanvasLayer/TitleControl 下，画在最上面）。
+## 面板开着的时候标题页的按钮和标志都藏起来，按"返回"再回到标题页
+func _add_ruleset_ui() -> void:
+	ruleset_button = BUTTON.instantiate() as Button
+	ruleset_button.name = "RulesetButton"
+	ruleset_button.add_theme_font_size_override("font_size", RULESET_BUTTON_SIZE)
+	buttons_container.add_child(ruleset_button)
+	buttons_container.move_child(ruleset_button, endless_button.get_index() + 1)
+	# 多了一个按钮，这一列比原来高了 50 多个像素，16:9 的画面（逻辑高度只有 648）里放不下，"设置"会贴到底下的署名。
+	# 所以行间距从 16 收到 10，整列 297 像素；再让它从固定的高度往下排（原来是在这一列里居中）。
+	# 离标志的字底还是 32 像素（和原来一样）。底下的署名那一行后来去掉了，这里的间距留着不动
+	buttons_container.add_theme_constant_override("separation", 10)
+	buttons_container.alignment = BoxContainer.ALIGNMENT_BEGIN
+	buttons_container.offset_top = -17.0
+	buttons_container.offset_bottom = 285.0
+
+	ruleset_picker = RulesetPicker.new()
+	ruleset_picker.name = "RulesetPicker"
+	ui_root.add_child(ruleset_picker)
+	ruleset_button.pressed.connect(show_rulesets)
+	ruleset_picker.selected.connect(update_ruleset_button)
+	ruleset_picker.closed.connect(return_to_title)
+	update_ruleset_button()
+
+## "方案"按钮上写的是现在选的方案，例如"方案 · 灯谱"
+func update_ruleset_button() -> void:
+	var r: Ruleset = Game.ruleset
+	ruleset_button.text = "方案 · %s" % (r.title if r != null and r.title != "" else "—")
+
 func update_characters():
 	for child in characters_container.get_children():
 		child.queue_free()
@@ -74,11 +123,18 @@ func select_character():
 	title.set_visible(true)
 	
 func return_to_title():
+	ruleset_picker.close()
 	character_select.set_visible(false)
 	leader_board_container_control_container.set_visible(false)
 	settings_container.set_visible(false)
 	buttons_container.set_visible(true)
 	title.set_visible(true)
+	
+## 打开方案选择面板。面板在正中，会压住标志，所以按钮和标志都先藏起来
+func show_rulesets():
+	buttons_container.set_visible(false)
+	title.set_visible(false)
+	ruleset_picker.open()
 	
 func show_settings():
 	buttons_container.set_visible(false)

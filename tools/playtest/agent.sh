@@ -12,6 +12,9 @@
 #   flow [campaign|endless] [前缀]     过关流程：真实地走完第一关（和最后一关），中间的关卡确认都能载入
 #   aspect [分辨率] [前缀]   主线 12 关各载入一遍，量棋盘是不是整个在画面里（默认 1152x720，掌机的比例）
 #   mechanics [前缀]         长夜模式的格子机制：补给格加步数、脆格碎掉后长回来、结算面板和本机成绩
+#   auto [campaign|endless] [1|2] [最多打到第几关] [前缀]
+#   opening [A|B|D] [秒数] [每秒几张]   录一段开场动画（真正的开机画面），帧取回到 builds/opening/<方案>/
+#                             机器人真机玩一局。1 = 照着摆好的路线走（必须一步不错、关关都过）；2 = 贪心打法（随手玩的玩家的下限）
 #   drive <步骤文件> [前缀]  按步骤文件操作游戏并截图（步骤怎么写见 drive_v100.sh 的开头）
 #   export                  在 V100 上把工程导出成 Linux 可执行文件（给掌机用），放在 V100 的 shouwang-agents/<标签>/shouwang.x86_64
 #   fetch                   把导出的可执行文件取回到本地 builds/linux/shouwang.x86_64
@@ -19,8 +22,11 @@
 #   pull <前缀>             把 V100 上这个标签的截图取回来（文件名以 <前缀>_ 开头的）
 #   stop                    只停掉这个标签在 V100 上的游戏
 #   clean                   停掉并删掉 V100 上这个标签的目录（做完以后一定要执行，base 不用删）
-#   all                     一轮完整回归：import → boards → flow campaign → flow endless → aspect → mechanics，哪一步没过就停在那一步
+#   all                     一轮完整回归：import → boards → flow campaign → flow endless → aspect → mechanics → auto campaign 1，哪一步没过就停在那一步
 # 截图取回到 $SW_OUT（默认 builds/shots/<标签>/）。开了游戏的命令哪一步没过，退出码就不是 0。
+# 临时指定玩法方案：SW_RULESET=hard tools/playtest/agent.sh a7 auto campaign 2（六套的 id 见 resources/rulesets/）
+# 机器人每一步都打进日志（查它为什么跳不到的时侯用）：SW_AUTO_TRACE=1 tools/playtest/agent.sh a7 auto campaign 1
+# 让机器人换关后只等 0.2 秒（平时 1.5 秒），试它在灯还没摆完的时侯会不会乱动：SW_AUTO_EAGER=1 tools/playtest/agent.sh a7 auto campaign 1
 # 渲染方式默认是游戏真正用的 Forward+（跑在服务器自带的显卡上，一个实例占 264 MB 显存）；SW_RENDERER=gl 是软件 OpenGL，不碰显卡
 TAG="$1"; CMD="$2"
 case "$TAG" in
@@ -40,18 +46,25 @@ export SW_THREADS=5 SW_DISPLAYS="$((200 + IDX)) $((210 + IDX)) $((220 + IDX)) $(
 # 默认用游戏真正的渲染方式（Forward+，跑在服务器自带的 NVIDIA 显卡上）。不要去设 SW_GPU：这台机器上编号 1 是软件渲染、
 # 编号 2 起不来，只有默认的第 0 块卡可靠。不想碰显卡就设 SW_RENDERER=gl（软件 OpenGL，画面略有差别）
 export SW_RES="${SW_RES:-1152x720}" SW_RENDERER="${SW_RENDERER:-nvidia}"
+export SW_AUTO_TRACE="${SW_AUTO_TRACE:-}"    # 设了（任何值）就把自动试玩的机器人每一步都打进游戏日志
+export SW_AUTO_EAGER="${SW_AUTO_EAGER:-}"    # 设了（任何值）机器人换关后只等 0.2 秒就动手（平时 1.5 秒）
+export SW_OPENING="${SW_OPENING:-}"          # 临时指定开场动画（A / B / C / D），不写存档
+export SW_BOOT_WAIT="${SW_BOOT_WAIT:-}"      # 游戏起来以后第一步之前等几秒才动手（平时 6 秒；查开场的时侯设 1）
+export SW_OPENING_TRACE="${SW_OPENING_TRACE:-}"   # 设了就把开场每一处创建的时刻打进日志（查卡顿用）
+export SW_RULESET="${SW_RULESET:-}"          # 临时指定玩法方案（灯谱 dealt / 流水 flow / 长明 hard / 万灯 party / 疾走 rush / 旧灯 legacy），不写存档
 pull() {
 	mkdir -p "$OUT"
 	rsync -a -e "$SSH" --include "${1}_*" --exclude '*' "WZU_V100:$REMOTE/shots/" "$OUT/" && echo "截图已取回到 ${OUT}（文件名以 ${1}_ 开头）"
 }
-ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER"
+ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER SW_RULESET=$SW_RULESET SW_AUTO_TRACE=$SW_AUTO_TRACE SW_AUTO_EAGER=$SW_AUTO_EAGER SW_OPENING=$SW_OPENING SW_BOOT_WAIT=$SW_BOOT_WAIT SW_OPENING_TRACE=$SW_OPENING_TRACE"
 BIN="$REMOTE/shouwang.x86_64"
 EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --exclude *.tmp --exclude __pycache__ --exclude tools/playtest"
-[ "$TAG" != base ] && EXCLUDE="$EXCLUDE --exclude assets/audio"
+# 原作的两首曲子和音效很大，建环境的时侯从 base 复制过来，平时同步不传；开场动画的声音是我们自己的、很小，照常同步
+[ "$TAG" != base ] && EXCLUDE="$EXCLUDE --include assets/audio/opening --include 'assets/audio/opening/***' --exclude 'assets/audio/*'"
 case "$CMD" in
 	setup)
 		$SSH WZU_V100 "mkdir -p $REMOTE/project $REMOTE/bin $REMOTE/shots; if [ '$TAG' != base ] && [ ! -e $REMOTE/project/project.godot ] && [ -d $ROOTS/base/project ]; then cp -a $ROOTS/base/project/. $REMOTE/project/; fi" \
-			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100}.sh "WZU_V100:$REMOTE/bin/" \
+			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100,autoplay_v100,record_opening_v100}.sh "WZU_V100:$REMOTE/bin/" \
 			&& echo "V100 上的环境已建好：${REMOTE}（端口 ${SW_DEBUG_PORT}，渲染线程 ${SW_THREADS}）" ;;
 	sync)
 		rsync -a --delete $EXCLUDE -e "$SSH" "$ROOT/" "WZU_V100:$REMOTE/project/" \
@@ -66,10 +79,17 @@ $G --headless --path . --import > "$R/import2.log" 2>&1
 e=$(grep -c 'SCRIPT ERROR' "$R/import2.log"); o=$(grep -c '^ERROR' "$R/import2.log")
 echo "导入: SCRIPT ERROR=$e ERROR=$o（都应为 0）"
 sed 's/\x1b\[[0-9;]*m//g' "$R/import2.log" | grep -A4 'SCRIPT ERROR\|^ERROR' | head -n 20 | cut -c1-220
-[ "$e" = 0 ] && [ "$o" = 0 ]
+# 再不开窗口启动一回（跑三帧就退）：自动加载的脚本和主场景都会被编译一遍。
+# 导入那一遍只处理资源，脚本里有编译错误它不一定报（2026-11-25 就这样导出过一个脚本跑不起来的包）
+timeout 90 $G --headless --path . --quit-after 3 > "$R/boot.log" 2>&1
+p=$(grep -c 'SCRIPT ERROR\|is not compiling\|Failed to create an autoload' "$R/boot.log")
+echo "启动检查: 脚本报错 $p 条（应为 0）"
+sed 's/\x1b\[[0-9;]*m//g' "$R/boot.log" | grep -A4 'SCRIPT ERROR\|is not compiling\|Failed to create an autoload' | head -n 24 | cut -c1-220
+[ "$e" = 0 ] && [ "$o" = 0 ] && [ "$p" = 0 ]
 REMOTE_SH
 		code=$?
-		rsync -a -e "$SSH" --exclude '.godot/' --exclude 'assets/audio/' --include '*/' --include '*.import' --include '*.uid' --exclude '*' "WZU_V100:$REMOTE/project/" "$ROOT/"
+		# 原作音频的 .import 本来就在仓库里，不用取；开场声音的 .import 是新导入出来的，要取回来
+		rsync -a -e "$SSH" --exclude '.godot/' --include 'assets/audio/opening/' --include 'assets/audio/opening/*.import' --exclude 'assets/audio/*' --include '*/' --include '*.import' --include '*.uid' --exclude '*' "WZU_V100:$REMOTE/project/" "$ROOT/"
 		exit $code ;;
 	boards)
 		$SSH WZU_V100 bash -s "$REMOTE" <<'REMOTE_SH'
@@ -77,10 +97,16 @@ G=~/apps/godot/Godot_v4.7.2-stable_linux.x86_64
 cd "$1/project" || exit 1
 $G --headless --path . --script res://tools/test_boards.gd > "$1/boards.log" 2>&1
 code=$?
-grep -a 'RESULT\|^FAIL' "$1/boards.log" | head -n 30
+errs=$(grep -a -c 'SCRIPT ERROR\|^ERROR: Failed to load' "$1/boards.log")
+grep -a 'RESULT\|^FAIL\|SCRIPT ERROR' "$1/boards.log" | head -n 30 | cut -c1-220
 grep -a '共检查' "$1/boards.log"
-[ "$code" = 0 ] && echo "RESULT 棋盘自动测试：通过" || echo "RESULT 棋盘自动测试：没过（退出码 $code，完整日志在 $1/boards.log）"
-[ "$code" = 0 ]
+# 测试脚本中途崩掉的时候 Godot 照样可能以 0 退出，所以日志里有没有脚本报错也要看
+if [ "$code" = 0 ] && [ "$errs" = 0 ] && grep -a -q 'RESULT failures=0' "$1/boards.log"; then
+	echo "RESULT 棋盘自动测试：通过"
+else
+	echo "RESULT 棋盘自动测试：没过（退出码 $code，脚本报错 $errs 条，完整日志在 $1/boards.log）"
+	exit 1
+fi
 REMOTE_SH
 		;;
 	drive)
@@ -101,6 +127,19 @@ REMOTE_SH
 		$SSH WZU_V100 "SW_RES=$RES $ENVS bash $REMOTE/bin/aspect_v100.sh $REMOTE/project $PREFIX $RES" | cut -c1-400
 		code=${PIPESTATUS[0]}
 		pull "$PREFIX"
+		exit $code ;;
+	auto)
+		MODE="${3:-campaign}"; BOT="${4:-1}"; MAXL="${5:-999}"; PREFIX="${6:-auto_${MODE}_$BOT}"
+		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/autoplay_v100.sh $REMOTE/project $MODE $BOT $MAXL $PREFIX" | cut -c1-400
+		code=${PIPESTATUS[0]}
+		pull "$PREFIX"
+		exit $code ;;
+	opening)
+		WHICH="${3:-A}"; SECS="${4:-4.8}"; FPS="${5:-20}"
+		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/record_opening_v100.sh $REMOTE/project $WHICH $SECS $FPS" | cut -c1-300
+		code=${PIPESTATUS[0]}
+		mkdir -p "$ROOT/builds/opening/$WHICH" && rm -f "$ROOT/builds/opening/$WHICH/"*.jpg
+		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_opening_$WHICH/" "$ROOT/builds/opening/$WHICH/" && echo "帧已取回到 builds/opening/$WHICH/（$(ls "$ROOT/builds/opening/$WHICH" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_opening.sh $WHICH"
 		exit $code ;;
 	mechanics)
 		PREFIX="${3:-mechanics}"
@@ -130,7 +169,7 @@ REMOTE_SH
 	clean)
 		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/stop_v100.sh $REMOTE/project; rm -rf $REMOTE /tmp/sw_snap_$TAG.jpg /tmp/sw_snap_$TAG.png /tmp/sw_snap_${TAG}_P*.png; echo \"已删除 V100 上的 $REMOTE\"" ;;
 	all)
-		for step in import boards "flow campaign" "flow endless" aspect mechanics; do
+		for step in import boards "flow campaign" "flow endless" aspect mechanics "auto campaign 1"; do
 			echo "========== $step =========="
 			"$0" "$TAG" $step || { echo "RESULT 完整回归：没过，停在「$step」"; exit 1; }
 		done

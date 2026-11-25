@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Ruleset" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ruleset.gd" id="1_rs"]
+
+[resource]
+script = ExtResource("1_rs")
+id = "hard"
+title = "长明"
+summary = "给熟手：步数从第一关一路带到最后一关，每过一关只补一步。\n跳贴得更紧、道具更少，一关没过就从头再来。"
+lamp_mode = 0
+gap_add = 0.1
+items_add = -1
+moves_add = -1
+moves_carry = true
+moves_bonus = 1
+retry_level = false

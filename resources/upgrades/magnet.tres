@@ -9,5 +9,5 @@ texture = ExtResource("2_r1kjg")
 score = 0.0
 effect = 3
 value = 2.0
-description = "河灯靠过来！"
+description = "捞网：河灯都向你挪两格"
 metadata/_custom_type_script = "uid://b71n7qcf355ov"

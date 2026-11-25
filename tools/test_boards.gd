@@ -8,6 +8,9 @@ extends SceneTree
 ##   2. 无尽模式：前 80 关，每关按固定的随机种子生成 20 张，检查能走的格子四方向连成一片、
 ##      传送门离起点足够远、格子不越界、特殊格的数量不超过设定、格子数不少于设定、
 ##      起点旁边至少有两个能走的格子（开局就有得选）
+##   3. 摆一局河灯：巡夜 12 关各按固定种子摆一局，长夜抽几更各摆几十局。每一局都从头走一遍核对
+##      （每跳够得着、不重复、带沟的地方不靠道具过不去、最后一盏灯收完能进水车），照着路线走必须一步不错就过；
+##      再让"随手玩"的机器人（BoardSim）每关打 200 局，报出它的过关率、一步没错的比例和平均踩空次数
 ## 退出码：全部通过为 0，否则为 1。
 
 const CAMPAIGN := [
@@ -23,6 +26,7 @@ var failures := 0
 func _init() -> void:
 	test_campaign()
 	test_endless()
+	test_deals()
 	print("RESULT failures=%d" % failures)
 	quit(1 if failures > 0 else 0)
 
@@ -195,3 +199,103 @@ func test_endless() -> void:
 				n + 1, float(sum_tiles) / SAMPLES, float(sum_walk) / SAMPLES, float(sum_crumble) / SAMPLES,
 				float(sum_blocked) / SAMPLES, float(sum_spring) / SAMPLES, float(sum_dist) / SAMPLES, p.fish])
 	print("共检查 %d 张随机棋盘，其中 %d 张的起点旁边有不少于两个能走的格子" % [boards, roomy_starts])
+
+func test_deals() -> void:
+	var greedy_plays := 200
+	print("\n==== 摆一局河灯：巡夜 %d 关各摆固定的一局，再让随手玩的机器人每关打 %d 局 ====" % [CAMPAIGN.size(), greedy_plays])
+	var rng := RandomNumberGenerator.new()
+	for li in CAMPAIGN.size():
+		var name: String = CAMPAIGN[li]
+		var res := load("res://resources/campaign/%s.tres" % name) as LevelResource
+		if res == null or res.map.is_empty():
+			fail("%s: 读不到关卡" % name)
+			continue
+		var board := BoardGen.parse_map(res.map)
+		if board.start.x < 0:
+			fail("%s: 没有起点，摆不了" % name)
+			continue
+		var opt := BoardGen.campaign_opt(li, res.fish_before_end_portal)
+		var seed := 7000 + li * 37
+		rng.seed = seed
+		var d := BoardGen.deal(board, opt, rng)
+		if d.is_empty():
+			fail("%s: 摆不出来（%s）" % [name, BoardGen.last_fail])
+			print("   最后一次卡在：" + BoardGen._last_fail_detail)
+			continue
+		var check := BoardGen.check_deal(board, d, opt)
+		if not check.ok:
+			fail("%s: 摆出来的这一局走不通：%s" % [name, check.error])
+		# 照着路线走（道具的副作用也算在内）：必须一步不错，收完就能进水车
+		var fsim := BoardSim.from_deal(board, d, 5, BoardGen.BASE_REACH, true)
+		var follow := fsim.follow(d.route)
+		if not follow.won or follow.missteps != 0:
+			fail("%s: 照着路线走没能一步不错地过关（过了 %s，踩空 %d 次；走到第 %d 步，停在 %s，卡在 %s，收到 %d/%d 盏，连击 %.0f，步数 %d）" % [
+				name, follow.won, int(follow.missteps), int(follow.steps), fsim.pos, fsim.stuck_at, fsim.got, fsim.need, fsim.combo, fsim.moves])
+			# 一步一步重走一遍，把每一步摆出来的情况打出来
+			var trace := BoardSim.from_deal(board, d, 5, BoardGen.BASE_REACH, true)
+			for t in d.route:
+				var has := trace.things.has(t)
+				var can := trace.available().has(t)
+				print("      到 %s：上面%s，现在%s，连击 %.0f 能跳 %.2f" % [t, "有东西" if has else "空了", "够得着" if can else "够不着", trace.combo, trace.reach()])
+				if not can: break
+				trace.land(t)
+		# 随手玩：同一关换 200 个种子
+		var won := 0
+		var perfect := 0
+		var missteps := 0
+		var failed_deals := 0
+		var branches := 0
+		var attempts := 0
+		for i in greedy_plays:
+			rng.seed = seed * 1000 + i
+			var dd := BoardGen.deal(board, opt, rng)
+			if dd.is_empty():
+				failed_deals += 1
+				continue
+			branches += int(dd.branches)
+			attempts += int(dd.attempts)
+			var r := BoardSim.from_deal(board, dd, 5, BoardGen.BASE_REACH, true).run()
+			if r.won: won += 1
+			if r.won and r.missteps == 0: perfect += 1
+			missteps += int(r.missteps)
+		var dealt := greedy_plays - failed_deals
+		print("\n第 %d 关 %s（%d 格）：收 %d 盏，道具 %d 件（带沟 %d），贴极限 %.2f，绕 %.2f" % [
+			li + 1, res.level_name, board.cells.size(), int(opt.lamps), int(opt.items), int(opt.gates), float(opt.gap), float(opt.detour)])
+		print("   固定的那一局：试了 %d 回摆成，岔路 %d 处，最松的一跳还余 %.2f 格，最后一盏灯%s够得着水车" % [
+			int(d.attempts), int(check.branches), float(check.min_slack), "" if d.ends_at_portal else "不"])
+		print(BoardGen.deal_ascii(board, d))
+		print("   随手玩 %d 局：摆不出来 %d 局；摆出来的里面过关 %.0f%%，一步没错 %.0f%%，平均踩空 %.2f 次；平均岔路 %.1f 处" % [
+			greedy_plays, failed_deals, 100.0 * won / maxf(dealt, 1), 100.0 * perfect / maxf(dealt, 1), float(missteps) / maxf(dealt, 1), float(branches) / maxf(dealt, 1)])
+		if failed_deals > greedy_plays / 20:
+			fail("%s: 有 %d/%d 局摆不出来（%s）" % [name, failed_deals, greedy_plays, BoardGen.last_fail])
+
+	print("\n==== 摆一局河灯：长夜抽几更，每更摆 40 局 ====")
+	rng.seed = 20261125
+	for n in [0, 3, 6, 10, 15, 20, 30]:
+		var p := BoardGen.params(n)
+		var won := 0
+		var perfect := 0
+		var missteps := 0
+		var failed_deals := 0
+		var tries := 0
+		for i in 40:
+			var board := BoardGen.generate(n, rng)
+			var opt := BoardGen.endless_opt(n, p.fish)
+			var d := BoardGen.deal(board, opt, rng)
+			if d.is_empty():
+				failed_deals += 1
+				continue
+			var check := BoardGen.check_deal(board, d, opt)
+			if not check.ok:
+				fail("长夜第 %d 更第 %d 局：摆出来的这一局走不通：%s" % [n + 1, i + 1, check.error])
+			tries += int(d.attempts)
+			var r := BoardSim.from_deal(board, d, 5, BoardGen.BASE_REACH, true).run()
+			if r.won: won += 1
+			if r.won and r.missteps == 0: perfect += 1
+			missteps += int(r.missteps)
+		var dealt := 40 - failed_deals
+		print("第 %2d 更：收 %d 盏，道具 %d 件（带沟 %d），贴极限 %.2f  摆不出来 %d 局，平均试 %.1f 回；随手玩：过关 %.0f%%，一步没错 %.0f%%，平均踩空 %.2f" % [
+			n + 1, p.fish, int(BoardGen.endless_opt(n, p.fish).items), int(BoardGen.endless_opt(n, p.fish).gates), float(BoardGen.endless_opt(n, p.fish).gap),
+			failed_deals, float(tries) / maxf(dealt, 1), 100.0 * won / maxf(dealt, 1), 100.0 * perfect / maxf(dealt, 1), float(missteps) / maxf(dealt, 1)])
+		if failed_deals > 4:
+			fail("长夜第 %d 更：40 局里有 %d 局摆不出来（%s）" % [n + 1, failed_deals, BoardGen.last_fail])

@@ -1,0 +1,19 @@
+# 逐帧计时：开场播完以后，分别量"限 60 帧"和"不限制（交给垂直同步）"两种设置的帧时间。
+# 必须让游戏一起来就动手：SW_BOOT_WAIT=1 tools/playtest/agent.sh a7 drive tools/playtest/steps_frames.txt frames
+# 结论看"帧计时"那几行：平均多少毫秒、超过 20 毫秒和 33 毫秒的各多少帧、最差的十帧在什么时刻
+sleep 1
+call pad_adapter.gd debug_frame_stats
+sleep 6
+call pad_adapter.gd debug_frame_stats
+snap 01_after_opening
+call pad_adapter.gd debug_frame_clear
+call pad_adapter.gd debug_fps_cap 60
+sleep 6
+call pad_adapter.gd debug_frame_stats
+call pad_adapter.gd debug_frame_clear
+call pad_adapter.gd debug_fps_cap 0
+sleep 6
+call pad_adapter.gd debug_frame_stats
+call pad_adapter.gd debug_frame_clear
+sleep 4
+call pad_adapter.gd debug_frame_stats

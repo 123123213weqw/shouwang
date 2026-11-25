@@ -1,0 +1,157 @@
+# 方案选择器 + 两栏的"玩法"卡片（1152×720）。
+# 用法（在工程根目录）: tools/playtest/agent.sh a2 drive tools/playtest/steps_ruleset.txt ui2
+# 流程：标题页 → 点"方案"按钮 → 六个方案逐个点过去（每换一个拍一张）→ 只悬停不点 → 返回 →
+#       进游戏 → 第一次的卡片（"知道了"）→ 再调出来（"返回"）→ 摆好的一局 / 边收边刷 / 纯随机，键盘版和手柄版
+# 最后换回默认的"灯谱"：选方案是会写存档的，别把别的测试用的存档留成别的方案。
+# 服务器上的存档是各个测试共用的：中途为了拍第一次的卡片清过一次"看过哪些提示"（debug_tutorial_reset），
+# 结尾把三条提示都标回"看过"（debug_tutorial_hint 会顺手记进存档），别让别的测试多冒出提示条
+
+sleep 4
+size
+ui
+texts
+snap 01_title
+
+# ---------- 方案选择器 ----------
+click_btn RulesetButton
+sleep 2
+ui
+texts
+call ruleset_picker.gd debug_picker_layout
+snap 02_picker_open
+
+click_btn RulesetOption_flow
+sleep 1
+snap 03_pick_flow
+texts
+click_btn RulesetOption_hard
+sleep 1
+snap 04_pick_hard
+click_btn RulesetOption_legacy
+sleep 1
+snap 05_pick_legacy
+texts
+click_btn RulesetOption_party
+sleep 1
+snap 06_pick_party
+click_btn RulesetOption_rush
+sleep 1
+snap 07_pick_rush
+texts
+call ruleset_picker.gd debug_picker_layout
+
+# 只把鼠标停到"灯谱"上、不点：右边换成灯谱的说明，左面的选中标记还留在"疾走"上
+# 遥控的坐标是逻辑画面上的：窗口开 1152×720 时逻辑画面就是 1152×720；窗口开 1280×720 时
+# 逻辑画面是 1152×648（游戏的基准分辨率，再放大 1.11 倍），宽一样、矮 72
+# 面板 940×530 居中：第一行方案的中心 x=106+63+75=244，y=卡片顶+112+20，逻辑高 720 时是 227，648 时是 191
+move 244 227
+sleep 1
+texts
+call ruleset_picker.gd debug_picker_layout
+snap 08_hover_only
+
+click_btn RulesetOption_dealt
+sleep 1
+snap 09_pick_dealt
+click_btn RulesetReturnButton
+sleep 2
+ui
+texts
+snap 10_title_back
+
+# 再开一次、换一套再返回：确认能反复开关，标题页按钮上的方案名跟着变
+click_btn RulesetButton
+sleep 1
+snap 11_picker_again
+click_btn RulesetOption_flow
+sleep 1
+click_btn RulesetReturnButton
+sleep 2
+ui
+texts
+snap 12_title_flow
+click_btn RulesetButton
+sleep 1
+click_btn RulesetOption_dealt
+sleep 1
+click_btn RulesetReturnButton
+sleep 1
+ui
+
+# ---------- 进游戏看"玩法"卡片 ----------
+click_btn PlayButton
+sleep 5
+call pad_adapter.gd debug_pick_character 0
+sleep 12
+ui
+snap 20_game
+
+# 第一次进游戏的那张（按钮写"知道了"）：把"看过"的记录清掉，重载一次关卡
+call pad_adapter.gd debug_tutorial_reset
+call pad_adapter.gd debug_goto_level 1
+sleep 10
+ui
+snap 21_card_first
+call tutorial.gd debug_card_layout
+call tutorial.gd debug_rules_text
+click_btn TutorialCloseButton
+sleep 2
+snap 22_card_closed
+
+# 再调出来（按钮写"返回"）：摆好的一局
+call pad_adapter.gd debug_tutorial_card
+sleep 1
+snap 23_card_dealt
+call tutorial.gd debug_card_layout
+call tutorial.gd debug_rules_text
+# 方案的序号就是 resources/rulesets/ 里文件名开头的数字：0 灯谱 1 流水 2 疾走 3 万灯 4 长明 5 旧灯
+call tutorial.gd debug_ruleset 1
+sleep 1
+call pad_adapter.gd debug_tutorial_card
+sleep 1
+snap 24_card_flow
+call tutorial.gd debug_card_layout
+call tutorial.gd debug_rules_text
+
+call tutorial.gd debug_ruleset 5
+sleep 1
+call pad_adapter.gd debug_tutorial_card
+sleep 1
+snap 25_card_legacy
+call tutorial.gd debug_card_layout
+call tutorial.gd debug_rules_text
+
+# 手柄版
+call pad_adapter.gd debug_tutorial_fake_pad 1
+call tutorial.gd debug_ruleset 0
+sleep 1
+call pad_adapter.gd debug_tutorial_card
+sleep 1
+snap 26_card_pad_dealt
+call tutorial.gd debug_card_layout
+call tutorial.gd debug_rules_text
+
+call tutorial.gd debug_ruleset 1
+sleep 1
+call pad_adapter.gd debug_tutorial_card
+sleep 1
+snap 27_card_pad_flow
+call tutorial.gd debug_card_layout
+
+call tutorial.gd debug_ruleset 5
+sleep 1
+call pad_adapter.gd debug_tutorial_card
+sleep 1
+snap 28_card_pad_legacy
+call tutorial.gd debug_card_layout
+call tutorial.gd debug_rules_text
+
+# 收尾：换回默认的"灯谱"，关掉手柄模拟，关掉卡片，把三条提示标回"看过"
+call pad_adapter.gd debug_tutorial_fake_pad 0
+call tutorial.gd debug_ruleset 0
+click_btn TutorialCloseButton
+sleep 1
+call pad_adapter.gd debug_tutorial_hint 1
+call pad_adapter.gd debug_tutorial_hint 2
+call pad_adapter.gd debug_tutorial_hint 3
+call pad_adapter.gd debug_tutorial_seen

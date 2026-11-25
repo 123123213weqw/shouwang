@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Ruleset" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ruleset.gd" id="1_rs"]
+
+[resource]
+script = ExtResource("1_rs")
+id = "rush"
+title = "疾走"
+summary = "短平快：每关灯更少、路线更直，步数也少一步。一关几十秒。"
+lamp_mode = 0
+lamps_scale = 0.7
+gap_add = -0.1
+detour_add = -0.1
+moves_add = -1

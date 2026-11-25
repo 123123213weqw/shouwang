@@ -6,7 +6,7 @@
 [resource]
 script = ExtResource("1_rguya")
 texture = ExtResource("2_rguya")
-effect = 2
-value = 999.0
-description = "隔空收灯！"
+effect = 11
+value = 2.0
+description = "水车：卷走身边两格内的灯"
 metadata/_custom_type_script = "uid://b71n7qcf355ov"

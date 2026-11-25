@@ -27,6 +27,7 @@ sleep 3
 ui
 rects
 snap settings
+call settings_control.gd debug_settings_layout
 click_btn SettingsReturnButton
 sleep 2
 click_btn PlayButton

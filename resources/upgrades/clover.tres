@@ -7,7 +7,7 @@
 script = ExtResource("1_m4las")
 texture = ExtResource("2_m4las")
 score = 0.0
-effect = 8
-value = 0.05
-description = "道具出现得更多！"
+effect = 13
+value = 2.0
+description = "铜钱：身边买来两件道具"
 metadata/_custom_type_script = "uid://b71n7qcf355ov"

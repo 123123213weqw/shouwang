@@ -1,0 +1,28 @@
+# 结算面板上的"再守这一关"：走到第 3 关故意输掉 → 面板上要有这个按钮 → 点了回到这一关的开头（同一局灯、分数退回）
+# 用法: tools/playtest/agent.sh <标签> drive tools/playtest/steps_retry.txt retry
+call pad_adapter.gd debug_unlock_all
+click_btn PlayButton
+sleep 5
+call pad_adapter.gd debug_pick_character 0
+sleep 12
+click_btn TutorialCloseButton
+call pad_adapter.gd debug_goto_level 3
+sleep 12
+call pad_adapter.gd debug_deal
+call pad_adapter.gd debug_state
+call main.gd end_game
+sleep 5
+ui
+texts
+snap gameover
+click_btn RetryLevelButton
+sleep 12
+click_btn TutorialCloseButton
+call pad_adapter.gd debug_deal
+call pad_adapter.gd debug_state
+snap retried
+call pad_adapter.gd debug_autoplay 1 3
+sleep 20
+call pad_adapter.gd debug_autoplay_report
+call pad_adapter.gd debug_state
+snap after_retry

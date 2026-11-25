@@ -25,7 +25,7 @@ offset_right = 175.0
 offset_bottom = 232.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 8
 alignment = 1
 script = ExtResource("1_m8f51")
 
@@ -41,7 +41,7 @@ theme_override_constants/separation = 50
 
 [node name="Label" type="Label" parent="Master"]
 material = ExtResource("1_00hdp")
-custom_minimum_size = Vector2(100, 50)
+custom_minimum_size = Vector2(100, 46)
 layout_mode = 2
 text = "主音量"
 label_settings = SubResource("LabelSettings_t8o15")
@@ -49,7 +49,7 @@ vertical_alignment = 1
 
 [node name="MasterSlider" type="HSlider" parent="Master"]
 material = ExtResource("1_00hdp")
-custom_minimum_size = Vector2(200, 50)
+custom_minimum_size = Vector2(200, 46)
 layout_mode = 2
 mouse_default_cursor_shape = 2
 theme = ExtResource("3_xpj3o")
@@ -58,13 +58,13 @@ step = 0.01
 value = 1.0
 
 [node name="Music" type="HBoxContainer" parent="."]
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_constants/separation = 50
 
 [node name="Label" type="Label" parent="Music"]
 material = ExtResource("1_00hdp")
-custom_minimum_size = Vector2(100, 50)
+custom_minimum_size = Vector2(100, 46)
 layout_mode = 2
 text = "音乐"
 label_settings = SubResource("LabelSettings_t8o15")
@@ -72,7 +72,7 @@ vertical_alignment = 1
 
 [node name="MusicSlider" type="HSlider" parent="Music"]
 material = ExtResource("1_00hdp")
-custom_minimum_size = Vector2(200, 50)
+custom_minimum_size = Vector2(200, 46)
 layout_mode = 2
 mouse_default_cursor_shape = 2
 theme = ExtResource("3_xpj3o")
@@ -81,13 +81,13 @@ step = 0.01
 value = 1.0
 
 [node name="SFX" type="HBoxContainer" parent="."]
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_constants/separation = 50
 
 [node name="Label" type="Label" parent="SFX"]
 material = ExtResource("1_00hdp")
-custom_minimum_size = Vector2(100, 50)
+custom_minimum_size = Vector2(100, 46)
 layout_mode = 2
 text = "音效"
 label_settings = SubResource("LabelSettings_t8o15")
@@ -95,7 +95,7 @@ vertical_alignment = 1
 
 [node name="SFXSlider" type="HSlider" parent="SFX"]
 material = ExtResource("1_00hdp")
-custom_minimum_size = Vector2(200, 50)
+custom_minimum_size = Vector2(200, 46)
 layout_mode = 2
 mouse_default_cursor_shape = 2
 theme = ExtResource("3_xpj3o")
@@ -104,7 +104,7 @@ step = 0.01
 value = 1.0
 
 [node name="Visuals" type="HBoxContainer" parent="."]
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_constants/separation = 50
 

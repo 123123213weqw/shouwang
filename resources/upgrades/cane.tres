@@ -9,5 +9,5 @@ texture = ExtResource("2_hshjn")
 score = 0.0
 effect = 4
 value = 2.0
-description = "收走最远的两盏！"
+description = "钓竿：收走最远的两盏灯"
 metadata/_custom_type_script = "uid://b71n7qcf355ov"

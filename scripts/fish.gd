@@ -137,5 +137,8 @@ func move_toward_grid_position(grid_position):
 		if not dir.length(): continue
 		var target_tile = main.grid.get_tile(current_pos - dir)
 		if not target_tile or (not target_tile.is_empty() and target_tile != main.character.target_tile): continue
+		# 一次只挪一格。原来挪完还接着试第二个方向：灯和主角不在一条线上的话，同一盏灯在这一条指令里挪两回，
+		# 会同时登记在两个格子上，收走以后另一个格子还指着它
 		move_to_grid_position(current_pos - dir)
+		return
 		

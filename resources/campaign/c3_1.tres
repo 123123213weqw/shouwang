@@ -8,5 +8,5 @@ level_name = "巷陌"
 chapter = 3
 map = Array[String](["S...x...x..P", "....x...x...", "............", "....x...x...", "....x...x..."])
 base_color = Color(0.80, 0.20, 0.13, 1)
-fish_before_end_portal = 11
+fish_before_end_portal = 14
 starting_credits = 7

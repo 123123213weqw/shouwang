@@ -1,4 +1,4 @@
-[gd_scene load_steps=78 format=3 uid="uid://cablalujd6va0"]
+[gd_scene load_steps=81 format=3 uid="uid://cablalujd6va0"]
 
 [ext_resource type="Script" uid="uid://c51dhxq6ccl4g" path="res://scripts/main.gd" id="1_fv21b"]
 [ext_resource type="Script" uid="uid://b2n4reby476q" path="res://scripts/level_resource.gd" id="2_tel4y"]
@@ -22,6 +22,9 @@
 [ext_resource type="Resource" uid="uid://cplp8dtfasksm" path="res://resources/upgrades/magnet.tres" id="12_5poiv"]
 [ext_resource type="Resource" uid="uid://kxqpuauin4u4" path="res://resources/upgrades/umbrella.tres" id="14_nvyfr"]
 [ext_resource type="Resource" uid="uid://d2acphkags8fd" path="res://resources/upgrades/clover.tres" id="L_clover"]
+[ext_resource type="Resource" uid="uid://duhkw1hqan1h7" path="res://resources/upgrades/chest.tres" id="L_chest"]
+[ext_resource type="Resource" uid="uid://b14uynij41wa7" path="res://resources/upgrades/portal.tres" id="L_wheel"]
+[ext_resource type="Resource" path="res://resources/upgrades/hat.tres" id="L_hat"]
 [ext_resource type="Resource" uid="uid://cuerunb6u1f1g" path="res://resources/end_portal.tres" id="15_cjqg0"]
 [ext_resource type="AudioStream" uid="uid://bu5q0prpba67d" path="res://assets/audio/GameOff_Mus_01 Loop.wav" id="16_ty1g6"]
 [ext_resource type="Script" uid="uid://b87jek5xw2ya2" path="res://scripts/colors.gd" id="16_vchkt"]
@@ -202,7 +205,7 @@ outline_color = Color(0, 0, 0, 1)
 script = ExtResource("1_fv21b")
 levels = Array[ExtResource("2_tel4y")]([ExtResource("L_c1_1"), ExtResource("L_c1_2"), ExtResource("L_c1_3"), ExtResource("L_c1_4"), ExtResource("L_c2_1"), ExtResource("L_c2_2"), ExtResource("L_c2_3"), ExtResource("L_c2_4"), ExtResource("L_c3_1"), ExtResource("L_c3_2"), ExtResource("L_c3_3"), ExtResource("L_c3_4")])
 fishes = Array[ExtResource("7_kmb1v")]([ExtResource("8_fuf3a"), ExtResource("9_pibwh")])
-upgrades = Array[ExtResource("7_kmb1v")]([ExtResource("10_c6pm6"), ExtResource("11_5he1u"), ExtResource("12_5poiv"), ExtResource("14_nvyfr"), ExtResource("L_clover")])
+upgrades = Array[ExtResource("7_kmb1v")]([ExtResource("10_c6pm6"), ExtResource("11_5he1u"), ExtResource("12_5poiv"), ExtResource("14_nvyfr"), ExtResource("L_clover"), ExtResource("L_chest"), ExtResource("L_wheel"), ExtResource("L_hat")])
 end_portal = ExtResource("15_cjqg0")
 
 [node name="MainTheme" type="AudioStreamPlayer" parent="."]

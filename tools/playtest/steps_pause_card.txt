@@ -1,0 +1,25 @@
+# 暂停菜单里的"玩法"按钮：弹出卡片（按钮写"返回"）→ 关掉回到暂停菜单 → 再按 Esc 回到游戏。
+# 用法（在工程根目录）: tools/playtest/agent.sh a2 drive tools/playtest/steps_pause_card.txt pause
+sleep 4
+click_btn PlayButton
+sleep 5
+call pad_adapter.gd debug_pick_character 0
+sleep 12
+key Escape
+sleep 3
+ui
+snap 01_pause
+click_btn HowToPlayButton
+sleep 2
+ui
+texts
+call tutorial.gd debug_card_layout
+snap 02_card_from_pause
+click_btn TutorialCloseButton
+sleep 2
+ui
+snap 03_back_to_pause
+key Escape
+sleep 2
+ui
+snap 04_back_to_game

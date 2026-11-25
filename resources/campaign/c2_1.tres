@@ -8,5 +8,5 @@ level_name = "断桥"
 chapter = 2
 map = Array[String](["S....ccccc....P", ".....ccccc....."])
 base_color = Color(0.70, 0.45, 0.16, 1)
-fish_before_end_portal = 9
+fish_before_end_portal = 10
 starting_credits = 6

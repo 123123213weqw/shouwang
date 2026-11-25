@@ -11,3 +11,4 @@ class_name LevelResource extends Resource
 @export var max_moves_left:= 10
 @export var fish_before_end_portal:= 10
 @export var starting_credits := 5
+@export var deal_seed := 0        # 开局摆河灯用的随机种子：0 = 按关卡序号来（巡夜里每一关是固定的一局）

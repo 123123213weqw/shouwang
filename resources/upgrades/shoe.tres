@@ -7,7 +7,7 @@
 script = ExtResource("1_rulj0")
 texture = ExtResource("2_rulj0")
 score = 0.0
-effect = 2
-value = 2.0
-description = "步数 +2！"
+effect = 9
+value = 0.5
+description = "草鞋：这一关每一跳都更远"
 metadata/_custom_type_script = "uid://b71n7qcf355ov"

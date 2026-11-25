@@ -26,8 +26,12 @@ var _burst_started := 0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	Engine.max_fps = 60
+	# 帧率交给垂直同步（跟着屏幕刷新率走）。再叠一个 60 帧的死上限，限速器先睡到 16.6 毫秒、垂直同步再等下一次刷新，
+	# 两者互相等，帧时间就会一会儿 16 毫秒一会儿 33 毫秒。要压帧率做测试就设 SW_FPS_CAP
+	var cap := OS.get_environment("SW_FPS_CAP")
+	Engine.max_fps = int(cap) if cap != "" else 0
 	_add_pad_events()
+	_record_boot()
 	if OS.get_environment("SW_DEBUG_PORT") != "": port = int(OS.get_environment("SW_DEBUG_PORT"))
 	if OS.get_environment("SW_SNAP") != "": snap_path = OS.get_environment("SW_SNAP")
 	_srv.listen(port, "127.0.0.1")
@@ -47,6 +51,9 @@ func _make_cursor() -> void:
 
 func _process(delta: float) -> void:
 	_pump_remote()
+	_frame_log(delta)
+	_autoplay_step(delta)
+	_record_tick(delta)
 	# 连拍：着色器的抖动每换到一个还没拍过的相位就拍一张（见 debug_burst）
 	if _burst_left > 0:
 		var now := Time.get_ticks_msec()
@@ -636,7 +643,7 @@ func debug_tutorial_reset() -> String:
 func debug_tutorial_card() -> String:
 	var main := get_node_or_null("/root/Main")
 	if main == null or main.tutorial == null: return "not in game"
-	main.tutorial.show_card(not Game.tutorial_seen.has("rules"))
+	main.tutorial.show_card(not Game.tutorial_seen.has(Tutorial.RULES_SEEN))
 	return "card shown"
 
 #   call pad_adapter.gd debug_tutorial_hint 2   手动弹一条提示（1 踩到空格子，2 技能充满，3 水车开了），拍图用
@@ -732,10 +739,10 @@ func debug_state() -> String:
 		if tile.is_available: available += 1
 		if tile.is_broken(): broken += 1
 	var pos: Vector2 = main.grid.world_to_grid_position(main.character.global_position)
-	return "label='%s' index=%d mode=%d tiles=%d types=%s available=%d broken=%d moves=%d combo=%d fish=%d/%d credits=%.1f pos=(%.1f,%.1f) score=%d records=%s" % [
+	return "label='%s' index=%d mode=%d tiles=%d types=%s available=%d broken=%d moves=%d combo=%d fish=%d/%d credits=%.1f pos=(%.1f,%.1f) score=%d records=%s missteps=%d shields=%d reach=%.2f dealt=%s ready=%s" % [
 		main.level_label.text, main.current_level_index, Game.game_mode, main.grid.tiles.size(), counts, available, broken,
 		main.moves_left, main.combo, main.current_fish_count, main.fish_before_end_portal, main.credits, pos.x, pos.y,
-		main.score, Game.best_records]
+		main.score, Game.best_records, main.level_missteps, main.shields, main._reach_now(), str(not main.current_deal.is_empty()), str(main.level_ready)]
 
 func debug_jump_to(tile_type: int, empty_only: int = 0) -> String:
 	var main := get_node_or_null("/root/Main")
@@ -850,3 +857,430 @@ func debug_watch() -> String:
 func debug_report() -> String:
 	if _watching: return "still watching, call again later"
 	return "\n".join(_watch_log) if _watch_log.size() > 0 else "nothing recorded"
+
+# ================================================================ 自动试玩
+## 让游戏自己玩（真机、真渲染、真计时）：调平衡和回归测试用。
+##   call pad_adapter.gd debug_autoplay 1        照着摆棋的那条路线走：必须一步不错、每关都过。哪一跳引擎说跳不到，就是摆棋的模型和引擎对不上
+##   call pad_adapter.gd debug_autoplay 2        贪心打法（BoardSim 的那套：够得着的灯里挑最近的）：当作"随手玩的玩家"的下限
+##   call pad_adapter.gd debug_autoplay 0        停
+##   第二个参数是最多打到第几关（长夜里用，免得停不下来）
+## 玩法卡片开着、正在跳、正在换关的时侯它等着。一局结束了（结算面板出来，或者打到指定的关数）自己停，
+## 并把这一局的记录打印成一行 AUTOPLAY_RESULT（JSON），debug_autoplay_report 随时能再要一份
+var _auto_mode := 0
+var _auto_max_level := 999
+var _auto_wait := 0.0
+var _auto_route_i := 0
+var _auto_serial := -1
+var _auto_report: Dictionary = {}
+var _auto_broken := 0              # 照路线走却走不到的次数（模型和引擎对不上）
+var _auto_waited := false           # 这一关等到灯摆完了才动手（换关后 1.5 秒还没载入完）
+var _auto_t0 := 0.0                 # 这一关开始载入的时刻
+var _auto_n := 0                    # 这一关里机器人走了几步
+var _auto_trace := OS.get_environment("SW_AUTO_TRACE") != ""   # 设了就把机器人每一步都打进日志
+var _auto_eager := OS.get_environment("SW_AUTO_EAGER") != ""   # 设了就换关后只等 0.2 秒：试它在灯还没摆完的时侯会不会乱动
+var _auto_bad_seen := ""            # 这一关里棋盘登记上最近一次查出的毛病（同一种只报一次）
+
+## 棋盘上的登记对不对：每盏灯只登记在一个格子上；格子指着的节点都还在，也都停在它登记的那个格子附近
+##（捞网挪灯要 0.2 秒，挪到一半的时侯灯在两个格子之间，算正常）。没问题返回空字符串
+func _board_check(main: Node) -> String:
+	var seen: Dictionary = {}
+	for t in main.grid.tiles.values():
+		if t.object == null: continue
+		if not is_instance_valid(t.object): return "格子 (%d, %d) 指着一个已经不存在的灯" % [main.to_cell(t.global_position).x, main.to_cell(t.global_position).y]
+		var here := Vector2(t.global_position.x, t.global_position.z)
+		var there := Vector2(t.object.global_position.x, t.object.global_position.z)
+		if here.distance_to(there) > main.grid.tile_size.x * 1.6:
+			return "格子 (%d, %d) 登记的灯不在它登记的格子上" % [main.to_cell(t.global_position).x, main.to_cell(t.global_position).y]
+		if not seen.has(t.object): seen[t.object] = 0
+		seen[t.object] = int(seen[t.object]) + 1
+	for fish in seen:
+		if int(seen[fish]) > 1: return "同一盏灯登记在 %d 个格子上" % int(seen[fish])
+	return ""
+
+func debug_autoplay(mode: int, max_level: int = 999) -> String:
+	var main := get_node_or_null("/root/Main")
+	_auto_mode = clampi(mode, 0, 2)
+	_auto_max_level = max_level
+	_auto_wait = 1.0
+	_auto_route_i = 0
+	_auto_serial = -1
+	_auto_broken = 0
+	_auto_report = {"mode": _auto_mode, "levels": [], "broken": 0, "ruleset": Game.ruleset.id if Game.ruleset else "", "max": _auto_max_level}
+	if _auto_mode == 0: return "autoplay off"
+	return "autoplay mode %d%s" % [_auto_mode, "" if main == null else " (already in game: the report counts from the current level)"]
+
+func debug_autoplay_report() -> String:
+	return JSON.stringify(_auto_report)
+
+## 现在选哪套方案（0 起，按文件名排）。只对之后开的局生效
+func debug_ruleset(index: int) -> String:
+	if index < 0 or index >= Game.rulesets.size(): return "no ruleset %d (there are %d)" % [index, Game.rulesets.size()]
+	var r: Ruleset = Game.rulesets[index]
+	Game.select_ruleset(r)
+	return "ruleset %d: %s (%s)" % [index, r.id, r.title]
+
+## 排查用：导出包里该读到的都读到了没有。包里没被别的资源引用的文本资源是转成二进制的，
+## 按目录列名字再读的那几处最容易漏（2026-11-25 方案就因此在包里一套都没读到，只剩代码里的默认值）
+func debug_export_check() -> String:
+	var problems: Array[String] = []
+	if Game.rulesets.size() < 6:
+		problems.append("方案只读到 %d 套（应有 6 套）" % Game.rulesets.size())
+	for r in Game.rulesets:
+		if r.title == "" or r.summary == "": problems.append("方案 %s 没读全" % r.id)
+	var paths := [
+		"res://resources/upgrades/combooo.tres", "res://resources/upgrades/umbrella.tres", "res://resources/upgrades/shoe.tres",
+		"res://resources/upgrades/hat.tres", "res://resources/upgrades/cane.tres", "res://resources/upgrades/magnet.tres",
+		"res://resources/upgrades/portal.tres", "res://resources/upgrades/chest.tres", "res://resources/upgrades/clover.tres",
+		"res://resources/fishes/fish.tres", "res://resources/fishes/big_fish.tres", "res://resources/heart.tres"]
+	for path in paths:
+		var res = load(path)
+		if res == null or not res is ObjectResource:
+			problems.append("读不到 %s" % path)
+	for key in Opening.NAMES:
+		var stream = load("res://assets/audio/opening/open%s.wav" % key)
+		if stream == null or not stream is AudioStream or stream.get_length() < 4.0:
+			problems.append("读不到开场 %s 的声音" % key)
+	# 设置里选的开场得是认得的；随机要三个都抽得到，不连着两次一样
+	if Game.opening != "random" and Game.opening != "off" and not Opening.NAMES.has(Game.opening):
+		problems.append("设置里选的开场不认识：%s" % Game.opening)
+	var counts := {}
+	var last := ""
+	var repeats := 0
+	for i in 400:
+		var w := Game.pick_opening(last)
+		if w == last: repeats += 1
+		counts[w] = int(counts.get(w, 0)) + 1
+		last = w
+	if counts.size() != Opening.NAMES.size() or repeats != 0:
+		problems.append("随机开场不对：抽到 %d 种，连着重复 %d 次" % [counts.size(), repeats])
+	if problems.is_empty():
+		return "RESULT 导出包自检：通过（%d 套方案，%d 件东西的资源，%d 段开场的声音都读到了）" % [Game.rulesets.size(), paths.size(), Opening.NAMES.size()]
+	return "RESULT 导出包自检：没过，%d 处：%s" % [problems.size(), "；".join(problems)]
+
+# ================================================================ 逐帧计时（查"不够顺滑"用）
+## 每一帧花了多少毫秒都记下来（最多 30000 帧，够一分多钟）。统计见 debug_frame_stats
+var _frames: Array = []
+var _frames_on := true
+var _opening_seen := ""        # 这一局开局真的播过哪个开场（空是没有播）。开场自己播的时侯记下来，给检查用
+
+func _frame_log(delta: float) -> void:
+	if not _frames_on or _frames.size() >= 30000: return
+	_frames.append([Time.get_ticks_msec() / 1000.0, delta * 1000.0])
+
+## 排查用：这些帧的时间都花在哪。报平均、中位数、最差的几帧，以及超过 20 毫秒（掉到 50 帧以下）、
+## 超过 33 毫秒（掉到 30 帧以下）的各有多少帧，最差的十帧在什么时刻（秒，从游戏启动算）
+##   call pad_adapter.gd debug_frame_stats
+func debug_frame_stats() -> String:
+	if _frames.is_empty(): return "还没有记录到帧"
+	var ms: Array = []
+	for f in _frames: ms.append(float(f[1]))
+	var sorted := ms.duplicate()
+	sorted.sort()
+	var n := sorted.size()
+	var total := 0.0
+	for v in ms: total += v
+	var over20 := 0
+	var over33 := 0
+	for v in ms:
+		if v > 20.0: over20 += 1
+		if v > 33.0: over33 += 1
+	# 最差的十帧（按毫秒挑，记下时刻）
+	var worst: Array = _frames.duplicate()
+	worst.sort_custom(func(a, b): return float(a[1]) > float(b[1]))
+	var picks := PackedStringArray()
+	for i in mini(10, worst.size()):
+		picks.append("%.2fs:%.0fms" % [float(worst[i][0]), float(worst[i][1])])
+	return "帧计时：%d 帧，平均 %.1f 毫秒（%.0f 帧/秒），中位 %.1f，95%% 不超过 %.1f，最差 %.1f；超过 20 毫秒 %d 帧，超过 33 毫秒 %d 帧；最差的十帧 %s；帧率上限 %d" % [
+		n, total / n, 1000.0 * n / maxf(total, 0.001), sorted[n / 2], sorted[int(n * 0.95)], sorted[n - 1], over20, over33, " ".join(picks), Engine.max_fps]
+
+## 清空记录，从现在重新开始数
+func debug_frame_clear() -> String:
+	_frames.clear()
+	return "帧计时已清空"
+
+## 帧率上限：0 是交给垂直同步（跟着屏幕的刷新率走），60 是死限 60。开着垂直同步又限 60 帧，两者会打架
+func debug_fps_cap(n: int) -> String:
+	Engine.max_fps = n
+	return "帧率上限 %d（0 表示不限制，交给垂直同步）" % n
+
+## 排查用：开场动画此刻的状态——在不在播、播的哪一个、声音放出来没有、标题页的音乐压低了没有。
+## 播着的时侯查一回、播完了再查一回，没过的会报出来
+##   call pad_adapter.gd debug_opening_state
+## 开场动画播起来的时侯调一下：记下播的是哪一个。debug_opening_state 靠它判断"这一局到底播过没有"
+func note_opening_played(id: String) -> void:
+	_opening_seen = id
+
+func debug_opening_state() -> String:
+	var scene := get_tree().current_scene
+	var opening: Node = null
+	# 按类型找开场那一层（它挂在标题页的根上）。不按名字找：设置页里也有叫"开场"的东西
+	if scene != null:
+		for child in scene.get_children():
+			if child is Opening:
+				opening = child
+				break
+	var voice: AudioStreamPlayer = scene.find_child("OpeningVoice", true, false) as AudioStreamPlayer if scene != null else null
+	var music: AudioStreamPlayer = scene.get_node_or_null("MainTitle2") as AudioStreamPlayer if scene != null else null
+	var narration: AudioStreamPlayer = scene.find_child("OpeningNarration", true, false) as AudioStreamPlayer if scene != null else null
+	var problems: Array[String] = []
+	var music_db := music.volume_db if music != null else 0.0
+	if music == null:
+		problems.append("找不到标题页的音乐（MainTitle2）")
+	var playing := opening != null
+	if playing:
+		if voice == null or not is_instance_valid(voice) or not voice.playing:
+			problems.append("开场在播，声音没放出来")
+		if music != null and music_db > -6.0:
+			problems.append("开场在播，标题音乐没有压低（%.1f 分贝）" % music_db)
+	else:
+		if voice != null and is_instance_valid(voice) and voice.playing and voice.volume_db > -40.0:
+			problems.append("开场已经结束，声音还在响")
+		if music != null and absf(music_db) > 0.5:
+			problems.append("开场结束了，标题音乐没有回到原来的音量（%.1f 分贝）" % music_db)
+		if narration != null and is_instance_valid(narration) and narration.playing:
+			problems.append("开场已经结束，旁白还在说")
+	# 硬要求：这一局得真的播过开场。设置里是"不播"才允许没播；否则一次都没播就是没过
+	#（有一次类型转换写错了，开场根本没播，这个检查却因为"没在播的时候什么都不要求"连着三次报通过）
+	if _opening_seen == "" and Game.opening != "off":
+		problems.append("这一局没有播过开场（设置里是 %s，应该播）" % Game.opening)
+	if problems.is_empty():
+		var what := "没在播（这一局播过%s）" % _opening_seen if not playing else "播着%s，第 %.1f 秒" % [str(opening.variant), float(opening._elapsed)]
+		var said := "" if narration == null else "；旁白%s" % ("在说" if narration.playing else "说过了")
+		return "RESULT 开场状态：通过（%s；音乐 %.1f 分贝%s；设置里选的是 %s，上一次播的是 %s）" % [what, music_db, said, Game.opening, Game.opening_last]
+	return "RESULT 开场状态：没过，%d 处：%s" % [problems.size(), "；".join(problems)]
+
+## 这一关摆好的那一局，画成字符画
+func debug_deal() -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null: return "not in game"
+	if main.current_deal.is_empty(): return "this level has no deal (lamps are spawned as you go)"
+	return BoardGen.deal_ascii(main.current_board(), main.current_deal)
+
+func _autoplay_level_start(main: Node, label: String) -> void:
+	_auto_route_i = 0
+	_auto_n = 0
+	_auto_bad_seen = ""
+	_auto_serial = main.level_serial
+	_auto_report.levels.append({"level": main.current_level_index + 1, "name": label, "missteps": [], "score0": main.score})
+
+func _autoplay_step(delta: float) -> void:
+	if _auto_mode == 0: return
+	var main := get_node_or_null("/root/Main")
+	if main == null or not is_instance_valid(main.character) or main.tutorial == null: return
+	if main.final_score_control.visible:
+		var done: bool = main.final_score_control.completed.visible and not main.is_endless()
+		_autoplay_finish("completed" if done else "game over")
+		return
+	if main.tutorial.card_open() or main.character.is_jumping: return
+	if main.grid.tiles.is_empty(): return
+	if main.level_serial != _auto_serial:
+		_autoplay_level_start(main, main.level_label.text)
+		_auto_wait = 0.2 if _auto_eager else 1.5
+		_auto_t0 = main.get_time()
+		_auto_waited = false
+		return
+	if main.current_level_index + 1 > _auto_max_level and _auto_max_level != 999:
+		_autoplay_finish("reached level limit %d" % _auto_max_level)
+		return
+	_auto_wait -= delta
+	if _auto_wait > 0.0: return
+	# 这一关还在载入（灯一件一件往下落，要一秒多；机器忙的时侯更久）：等它载入完再动手。
+	# 不等的话，机器人会在灯只摆了一半的时侯就跳出去捡，之后照着路线走就对不上了
+	if not main.level_ready:
+		if not _auto_waited:
+			_auto_waited = true
+			print("AUTOPLAY_WAIT level %d：换关后 %.1f 秒灯还没摆完（已经摆上 %d 件），等这一关载入完" % [
+				main.current_level_index + 1, main.get_time() - _auto_t0, _placed_count(main)])
+		_auto_wait = 0.1
+		return
+	if _auto_t0 > 0.0:
+		print("AUTOPLAY_LOAD level %d：换关后 %.1f 秒机器人动手%s" % [
+			main.current_level_index + 1, main.get_time() - _auto_t0, "（灯摆得慢，等过它）" if _auto_waited else ""])
+		_auto_t0 = 0.0
+		_auto_waited = false
+	# 每一步之前查一遍棋盘上的登记对不对（捞网挪过灯以后最容易出错）
+	var bad := _board_check(main)
+	if bad != "" and bad != _auto_bad_seen:
+		_auto_bad_seen = bad
+		_auto_report["board_bad"] = int(_auto_report.get("board_bad", 0)) + 1
+		print("AUTOPLAY_BOARD_BAD level %d 第 %d 步之后：%s" % [main.current_level_index + 1, _auto_n, bad])
+	_auto_wait = 0.4
+	var tile: Tile = null
+	var route_tile := false
+	if _auto_mode == 1 and not main.current_deal.is_empty():
+		var route: Array = main.current_deal.route
+		# 路线上还有东西的下一格就是下一跳（被水车卷走的灯那一格跳过去不踩）
+		while _auto_route_i < route.size():
+			var t: Tile = main.tile_at_cell(route[_auto_route_i])
+			if t != null and t.object != null:
+				tile = t
+				break
+			_auto_route_i += 1
+		if tile != null:
+			route_tile = true
+			_auto_route_i += 1
+			if not tile.is_available:
+				# 引擎说这一跳跳不到：摆棋的模型和引擎对不上了，记下来，改用贪心走法接着走
+				_auto_broken += 1
+				_auto_report.broken = _auto_broken
+				print("AUTOPLAY_BROKEN level %d step %d tile %s combo %.0f moves %d | 人在 %s，%s | %s" % [
+					main.current_level_index + 1, _auto_route_i, route[_auto_route_i - 1], main.combo, main.moves_left,
+					main.to_cell(main.character.global_position), "正在跳" if main.character.is_jumping else "站着", _why_not(main, tile)])
+				tile = null
+	if tile == null:
+		var sim := _live_sim(main)
+		var cell := sim.next_move()
+		if cell != sim.pos: tile = main.tile_at_cell(cell)
+	var levels: Array = _auto_report.levels
+	if tile == null:
+		_auto_wait = 1.0          # 没处可去：多半是在等脆格长回来
+		return
+	var from: Vector2i = main.to_cell(main.character.global_position)
+	var to: Vector2i = main.to_cell(tile.global_position)
+	main.character.move_to(tile)
+	if main.character.target_tile != tile:
+		# 没起跳（被同一拍的别的输入抢了先，或者步数不够）：路线上的这一步不算走过，下一拍重来
+		if route_tile: _auto_route_i -= 1
+		_auto_wait = 0.2
+		return
+	_auto_n += 1
+	if _auto_trace:
+		print("AUTOPLAY_STEP level %d 第 %d 步 %s %s → %s combo %d moves %d" % [
+			main.current_level_index + 1, _auto_n, "路线" if route_tile else "贪心", from, to, main.combo, main.moves_left])
+	if levels.size() > 0:
+		var rec: Dictionary = levels[levels.size() - 1]
+		if int(rec.missteps.size()) == 0 or int(rec.missteps.back()) != main.level_missteps:
+			rec.missteps.append(main.level_missteps)
+
+## 棋盘上现在摆着几件东西（灯和道具，不算水车）
+func _placed_count(main: Node) -> int:
+	var n := 0
+	for t in main.grid.tiles.values():
+		if t.object != null and t.object is Fish and not t.object.is_portal: n += 1
+	return n
+
+## 这一格现在为什么跳不到（"照着路线走却跳不到"的记录里带上，省得再猜）
+func _why_not(main: Node, tile: Tile) -> String:
+	var why: Array[String] = []
+	if not tile.is_landable(): why.append("这一格落不上去" if tile.is_blocked() else "这一格碎了")
+	if tile.object != null and not tile.object.is_available(): why.append("上面的东西还不能捡")
+	if tile == main.character.target_tile: why.append("人就站在这一格")
+	var here := Vector2(main.character.global_position.x, main.character.global_position.z)
+	why.append("离 %.2f 格、能跳 %.2f 格" % [Vector2(tile.global_position.x, tile.global_position.z).distance_to(here) / main.grid.tile_size.x, main._reach_now()])
+	if main.moves_left <= 0 and not main.step_is_free(tile): why.append("没步数了")
+	return "；".join(why)
+
+func _autoplay_finish(why: String) -> void:
+	var main := get_node_or_null("/root/Main")
+	_auto_mode = 0
+	_auto_report["result"] = why
+	if main != null:
+		_auto_report["score"] = main.score
+		_auto_report["reached"] = main.current_level_index + 1
+		_auto_report["retries"] = main.level_retries
+	print("AUTOPLAY_RESULT " + JSON.stringify(_auto_report))
+
+## 把现在的局面整理成 BoardSim 认的样子（贪心机器人靠它想下一跳）。钓竿、捞网、蒸笼这几种它不会用，
+## 就当成了差不多的别的东西：都只是估个下限，不求准
+func _live_sim(main: Node) -> BoardSim:
+	var sim := BoardSim.new()
+	var board: Dictionary = main.current_board()
+	sim.cells = {}
+	for cell in board.cells:
+		var t: Tile = main.tile_at_cell(cell)
+		sim.cells[cell] = BoardGen.BLOCKED if (t != null and t.is_broken()) else board.cells[cell]
+	sim.portal = board.portal
+	sim.pos = board.start
+	sim.rp = main.deal_options(1).reach
+	sim.moves = main.moves_left
+	sim.combo = float(main.combo)
+	sim.shoe = main.level_reach_bonus
+	sim.dash = main.temporary_mov_distance
+	sim.shields = main.shields
+	sim.need = main.fish_before_end_portal
+	sim.got = main.current_fish_count
+	sim.portal_free = main.ruleset != null and main.ruleset.portal_free
+	sim.spawns_lamps = not main.lamps_dealt()
+	var last: Tile = main.grid.get_tile(main.grid.world_to_grid_position(main.character.last_position))
+	sim.back = main.to_cell(last.global_position) if last else Vector2i(-99, -99)
+	for cell in board.cells:
+		var t: Tile = main.tile_at_cell(cell)
+		if t == null or t.object == null: continue
+		var fish: Fish = t.object as Fish
+		if fish == null or fish.is_portal or fish.resource == null: continue
+		sim.things[cell] = _kind_of(fish)
+	return sim
+
+func _kind_of(fish: Fish) -> int:
+	if fish.is_fish:
+		return BoardGen.Thing.BIG if fish.resource.score > 1.0 else BoardGen.Thing.LAMP
+	match fish.resource.effect:
+		ObjectResource.ObjectEffect.TemporaryMoveDistance: return BoardGen.Thing.UMBRELLA
+		ObjectResource.ObjectEffect.ReachUp: return BoardGen.Thing.SHOE
+		ObjectResource.ObjectEffect.GainCombo: return BoardGen.Thing.LOTUS
+		ObjectResource.ObjectEffect.Shield: return BoardGen.Thing.HAT
+		ObjectResource.ObjectEffect.AddMoves: return BoardGen.Thing.BOX
+		ObjectResource.ObjectEffect.CollectNear, ObjectResource.ObjectEffect.CollectFarestFishes: return BoardGen.Thing.WHEEL
+		ObjectResource.ObjectEffect.RegainMovesLeft: return BoardGen.Thing.BOX
+	return BoardGen.Thing.COIN
+
+# ================================================================ 录像 / 开场动画
+## 把画面按真实时间存下来（每秒 fps 张），事后拼成视频看。按时间而不按帧数：游戏刚启动的那一两秒帧率不满 60，
+## 按帧数存的话拼出来的视频开头会比真实的慢
+##   call pad_adapter.gd debug_record 4 20 opening      录 4 秒、每秒 20 张，存成 <目录>/opening_0000.jpg …
+##   环境变量 SW_REC 是存的目录（默认 /tmp/sw_rec）；SW_AUTOREC="秒数,每秒几张,名字" 设了的话，游戏一启动就自动开始录（录的是真正的开机画面）
+##   call pad_adapter.gd debug_opening 1               在标题页上立刻重播一遍开场动画（1 到 3 是 A、B、D；不给或者给 0 就按设置里的来）
+var _rec_left := 0.0
+var _rec_fps := 20.0
+var _rec_acc := 0.0
+var _rec_name := "rec"
+var _rec_frame := 0
+var _rec_dir := "/tmp/sw_rec"
+
+func _record_boot() -> void:
+	if OS.get_environment("SW_REC") != "": _rec_dir = OS.get_environment("SW_REC")
+	var spec := OS.get_environment("SW_AUTOREC")
+	if spec == "": return
+	var parts := spec.split(",")
+	debug_record(float(parts[0]), float(parts[1]) if parts.size() > 1 else 20.0, parts[2] if parts.size() > 2 else "boot")
+
+func debug_record(seconds: float, fps: float = 20.0, name: String = "rec") -> String:
+	if OS.get_environment("SW_REC") != "": _rec_dir = OS.get_environment("SW_REC")
+	DirAccess.make_dir_recursive_absolute(_rec_dir)
+	_rec_left = seconds
+	_rec_fps = maxf(fps, 1.0)
+	_rec_acc = 1.0          # 第一帧马上存
+	_rec_name = name
+	_rec_frame = 0
+	return "recording %.1f s at %.0f frames/s to %s/%s_*.jpg" % [seconds, _rec_fps, _rec_dir, name]
+
+func _record_tick(delta: float) -> void:
+	if _rec_left <= 0.0: return
+	_rec_left -= delta
+	_rec_acc += delta
+	if _rec_acc < 1.0 / _rec_fps: return
+	_rec_acc = fmod(_rec_acc, 1.0 / _rec_fps)
+	var img := get_viewport().get_texture().get_image()
+	img.save_jpg("%s/%s_%04d.jpg" % [_rec_dir, _rec_name, _rec_frame], 0.88)
+	_rec_frame += 1
+	if _rec_left <= 0.0: print("RECORD_DONE %s %d" % [_rec_name, _rec_frame])
+
+func debug_opening(which: int = 0) -> String:
+	var scene := get_tree().current_scene
+	if scene == null: return "no current scene"
+	for old in scene.get_children():
+		if old is Opening:
+			old._skip()
+			break
+	# 标题页场景的根节点就是 TitleControl（见 scene_manager 里同样的说明）
+	var tc := scene as TitleControl
+	if tc == null: return "not on the title screen"
+	# 遥控的参数只能是整数：1 起按 Opening.NAMES 的顺序（现在是 A、B、D），0 是设置里的那一个
+	var ids: Array = Opening.NAMES.keys()
+	if which > 0 and which > ids.size(): return "没有第 %d 个开场（一共 %d 个）" % [which, ids.size()]
+	var id: String = Game.opening if which <= 0 else str(ids[which - 1])
+	if not Opening.NAMES.has(id): return "no such opening '%s'" % id
+	var opening := Opening.new()
+	scene.add_child(opening)
+	opening.play(id, tc)
+	return "opening %s (%s) playing" % [id, Opening.NAMES[id]]
