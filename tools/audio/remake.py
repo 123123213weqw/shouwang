@@ -167,16 +167,25 @@ def periodic_air(track, duration, richness):
         # Integral cycles make phase and modulation periodic at the exact WAV boundary.
         return np.sin(2 * np.pi * round(frequency * duration) * t / duration + phase)
 
+    def sustained(frequency, wobble):
+        # Carrier crests line up with the seam, allowing a slow change between samples.
+        return oscillator(frequency, np.pi / 2 + wobble - wobble[0])
+
     drift = oscillator(7 / duration, .21)
-    drone = .0095 * oscillator(hz(38), .18 * drift)
-    drone += .0060 * oscillator(hz(45), .27 * drift + .68)
-    drone += .0034 * oscillator(hz(50), .41 * drift)
+    drone = .0095 * sustained(hz(38), .18 * drift)
+    drone += .0060 * sustained(hz(45), .27 * drift)
+    drone += .0034 * sustained(hz(50), .41 * drift)
     drone *= .86 + .14 * oscillator(4 / duration, .86)
-    air = .0016 * oscillator(136, oscillator(14 / duration))
-    air += .0011 * oscillator(249, oscillator(9 / duration, 1.01))
+    air = .0016 * sustained(136, oscillator(14 / duration))
+    air += .0011 * sustained(249, oscillator(9 / duration, 1.01))
     air *= .6 + .4 * oscillator(11 / duration, .49)
     add(track, 0, drone * richness + air, 1, -.12)
     add(track, 0, air, .58, .67)
+    # A quiet D/A resonance ties the cadence over the wrap into the next count.
+    distance = np.minimum(t, duration - t)
+    wrap = .5 + .5 * np.cos(np.pi * np.clip(distance / .94, 0, 1))
+    tie = .024 * oscillator(hz(50), np.pi / 2) + .010 * oscillator(hz(57), np.pi / 2)
+    add(track, 0, wrap * tie, richness, -.16)
 
 
 def music(title):
@@ -197,11 +206,12 @@ def music(title):
         ((.59, 72, .74), (2.07, 69, 1.11)),
     )
     game_calls = (
-        ((1.47, 69, .66), (2.78, 67, .77)),
-        ((.66, 65, .58), (2.11, 69, 1.09)),
-        ((1.01, 72, 1.17),), ((.30, 74, .54), (2.23, 69, .73)),
-        ((.80, 65, .75), (2.41, 62, 1.01)),
-        ((1.38, 67, .59), (2.61, 69, .85)),
+        ((1.53, 69, .60), (2.94, 67, .55)),
+        ((2.48, 65, .71),),
+        ((1.23, 72, .64),), ((.49, 74, .51), (2.45, 69, .66)),
+        ((2.67, 62, .74),),
+        ((1.95, 67, .72), (3.01, 65, .48)),
+        ((2.05, 69, .78),),
     )
     periodic_air(track, duration, 1.0 if title else .72)
 
@@ -212,36 +222,66 @@ def music(title):
         root, fifth, upper, top = progression[phase]
         if passage % 2 and phase in (1, 6):
             root, fifth, upper, top = progression[2 if phase == 1 else 3]
-        if bar == bars - 1:
+        if bar == bars - 2:
             root, fifth, upper, top = progression[-1]
+        elif bar == bars - 1:
+            root, fifth, upper, top = progression[4]
 
         if title:
             drums = ((.31, .117), (2.50, .045)) if phase in (0, 3, 4) else ((.39, .063),)
             blocks = ((1.00, .064), (1.44, .041), (3.29, .040))
             bass = ((.60, root, .097), (1.72, fifth, .061), (2.87, upper, .070))
         else:
-            drums = ((.30, .092), (2.68, .045)) if phase in (0, 2, 5, 7) else ((.49, .060),)
-            blocks = ((1.25, .052), (1.66, .034)) if phase % 2 == 0 else ((2.99, .041),)
-            bass = ((.68, root, .085), (2.21, fifth, .060), (3.31, upper, .048))
+            movement, measure = divmod(bar, 7)
+            # Four patrol passages trade active signals with open space for play sounds.
+            drum_measures = ((0, 2, 4), (0, 1, 3, 5), (1, 5), (0, 2, 5))[movement]
+            drums = ((.25, .080 - .007 * (movement == 2)),) if measure in drum_measures else ()
+            if movement == 1 and measure in (1, 5):
+                drums += ((2.86, .035),)
+            if measure in (0, 3):
+                blocks = ((1.18, .044), (1.62, .026))
+            elif measure in (2, 5) and movement != 2:
+                blocks = ((3.00, .032),)
+            else:
+                blocks = ()
+            bass = ((.62, root, .082), (2.08, fifth, .052))
+            if (measure + movement) % 3 != 1:
+                bass += ((3.29, upper, .040 if movement == 2 else .052),)
+        if bar == bars - 1:
+            # Resolve before the cut. Only the room and the tied fifth reach the next bar.
+            drums = ((.38, .049),) if title else ()
+            blocks = ((.94, .029),) if title else ()
+            bass = ((.50, root, .073), (1.70, fifth, .051))
         for pulse, velocity in drums:
             court(track, start + pulse * beat, drum(65 + phase * .75), velocity, -.12, True)
         for pulse, velocity in blocks:
             pan = .28 if phase % 2 == 0 else .12
             court(track, start + pulse * beat, clapper(595 + 92 * (pulse % 1)), velocity, pan, True)
         for pulse, note, velocity in bass:
-            court(track, start + pulse * beat, pluck(note, 1.45, .87), velocity, -.32, True)
-        if (title and phase in (2, 4, 6)) or (not title and passage == 2 and phase % 2):
+            note_length = 1.16 if bar == bars - 1 else 1.45
+            court(track, start + pulse * beat, pluck(note, note_length, .87), velocity, -.32, True)
+        if bar < bars - 2 and ((title and phase in (2, 4, 6)) or
+                               (not title and passage == 2 and phase % 2)):
             court(track, start + 2.47 * beat, pluck(top, 1.65, .81), .053, .48, True)
 
-        calls = title_calls if title else game_calls
-        silent = phase in ((3, 7) if title else (2, 5, 7))
-        if not silent:
-            for pulse, note, seconds in calls[(bar + 2 * passage) % len(calls)]:
-                gain = (.078 if title else .059) * (1.07 if passage == 1 else 1)
-                octave = 12 if title and bar == 9 and note <= 69 else 0
-                court(track, start + pulse * beat, flute(note + octave, seconds, passage % 2 == 1),
-                      gain, .32, True)
-    return level(track, peak_db=-6.2, rms_db=-22.0 if title else -23.0)
+        if title:
+            calls = title_calls[(bar + 2 * passage) % len(title_calls)] if phase not in (3, 7) else ()
+        elif measure in ((0, 2, 4, 5), (0, 1, 3, 6), (1, 4), (0, 2, 4, 6))[movement]:
+            calls = game_calls[(measure + 2 * movement) % len(game_calls)]
+        else:
+            calls = ()
+        if bar == bars - 2:
+            calls = ((1.21, 69, .72), (2.26, 67, .62)) if title else ((2.34, 65, .68),)
+        elif bar == bars - 1:
+            calls = ((1.37, 62, .97),)
+        for pulse, note, seconds in calls:
+            gain = (.078 if title else .054) * (1.07 if passage == 1 else 1)
+            if bar >= bars - 2:
+                gain *= .74
+            octave = 12 if title and bar == 9 and note <= 69 else 0
+            court(track, start + pulse * beat, flute(note + octave, seconds, passage % 2 == 1),
+                  gain, .32, True)
+    return level(track, peak_db=-6.2, rms_db=-22.0 if title else -25.0)
 
 
 def effects():
@@ -251,11 +291,11 @@ def effects():
         entries[name + ".wav"] = level(sound, peak, rms)
 
     for i in range(1, 5):
-        track = buffer(.16 + .008 * i, False)
-        add(track, 0, clapper(775 + 43 * i), .70)
-        add(track, .024 + .004 * i, clapper(614 + 26 * i), .28)
+        track = buffer(.145 + .007 * i, False)
+        add(track, 0, clapper(995 + 67 * i), .77)
+        add(track, .020 + .003 * i, clapper(735 + 31 * i), .41)
         t = clock(len(track) / SR)
-        save(f"Button_Click_{i:03}", track * taper(t, .002, .027), -12.7)
+        save(f"Button_Click_{i:03}", track * taper(t, .002, .026), -9.1)
     for group, root in (("A", 970), ("B", 715)):
         for i in range(1, 4):
             t = clock(.158 + .012 * i)
@@ -269,11 +309,12 @@ def effects():
         fabric = noise(t, 810 + 71 * i, 470) * np.exp(-t / .028)
         lift = sweep(len(t) / SR, 510, 1850 + 29 * i)
         save(f"Jump_Launch_{i:03}", (grip + .15 * fabric + .17 * lift) * taper(t, .006, .025), -14.6)
-        t = clock(.192 + .006 * (i % 4))
-        stone = modes(t, ((93 + 4.7 * i, .45, .054), (182 + 8 * i, .25, .042),
-                          (390 + 15 * i, .085, .034)))
-        wet = water(len(t) / SR, 1100 + 111 * i, .009)
-        save(f"Jump_Land_{i:03}", (stone + .35 * wet) * taper(t, .0041, .044), -12.2)
+        t = clock(.196 + .006 * (i % 4))
+        # Stone contact sits above the watch drum, followed by a short wet scuff.
+        stone = modes(t, ((140 + 4.8 * i, .29, .045), (289 + 12 * i, .31, .052),
+                          (575 + 19 * i, .23, .035), (966 + 23 * i, .15, .028)))
+        wet = water(len(t) / SR, 1730 + 81 * i, .011)
+        save(f"Jump_Land_{i:03}", (stone + .38 * wet) * taper(t, .0038, .047), -8.9)
 
     for i in range(1, 4):
         t = clock(.31 + .025 * i)
@@ -287,11 +328,11 @@ def effects():
         save(f"Fish_Land_{i:03}", (bead + splash) * taper(t, .004, .059), -20.2)
 
     for i, note in enumerate((74, 77, 76, 79, 81), 1):
-        track = buffer(.53 + .023 * i, False)
-        add(track, 0, bronze(note, .41 + .009 * i), .78)
-        add(track, .071 + .004 * i, bronze(note + (5 if i % 2 == 0 else 7), .39), .45)
-        add(track, .022, water(.19, 1800 + 60 * i, .012), .08)
-        save(f"Fish_Loot_{i:03}", track * taper(clock(len(track) / SR), .003, .057), -12.0)
+        track = buffer(.46 + .023 * i, False)
+        add(track, 0, bronze(note + 2, .37 + .009 * i), .78)
+        add(track, .050 + .004 * i, bronze(note + (7 if i % 2 == 0 else 9), .35), .58)
+        add(track, .022, water(.17, 2000 + 70 * i, .011), .10)
+        save(f"Fish_Loot_{i:03}", track * taper(clock(len(track) / SR), .003, .051), -8.5)
 
     upgrade = buffer(.69, False)
     add(upgrade, 0, clapper(572), .38)
@@ -301,13 +342,13 @@ def effects():
     save("Upgrade_Loot ST", upgrade * taper(clock(.69), .004, .082), -9.6)
 
     portal = buffer(.89, False)
-    add(portal, 0, clapper(422), .53)
-    add(portal, .082, clapper(521), .41)
-    add(portal, .096, drum(76, .72), .59)
-    add(portal, .143, water(.59, 1120, .075), .39)
-    add(portal, .243, bronze(69, .56), .41)
-    add(portal, .301, bronze(74, .51), .34)
-    save("Portal_Loot ST", portal * taper(clock(.89), .004, .093), -8.5)
+    add(portal, 0, clapper(514), .58)
+    add(portal, .072, clapper(668), .50)
+    add(portal, .092, drum(91, .66), .43)
+    add(portal, .120, water(.59, 1460, .049), .47)
+    add(portal, .213, bronze(69, .56), .47)
+    add(portal, .285, bronze(74, .51), .37)
+    save("Portal_Loot ST", portal * taper(clock(.89), .004, .093), -7.5)
     return entries
 
 
@@ -379,21 +420,28 @@ def openings():
 def preview(title, game, sfx):
     demo = buffer(25.0)
     mark = SR * 5
-    title_t = clock(5.0)
-    gameplay_t = clock(20.0)
-    demo[:mark] = title[:mark] * taper(title_t, .035, .24)[:, None]
-    gameplay = game[:SR * 20] * taper(gameplay_t, .23, .82)[:, None]
+    half_overlap = round(.16 * SR)
+    angle = np.linspace(0, np.pi / 2, 2 * half_overlap)
+    title_excerpt = title[:mark + half_overlap].copy()
+    title_excerpt *= taper(clock(len(title_excerpt) / SR), .048, .001)[:, None]
+    title_excerpt[-2 * half_overlap:] *= np.cos(angle)[:, None]
+    demo[:len(title_excerpt)] += title_excerpt
+
+    gameplay = np.concatenate((game[-half_overlap:], game[:SR * 20]))
+    gameplay *= taper(clock(len(gameplay) / SR), .001, .90)[:, None]
+    gameplay[:2 * half_overlap] *= np.sin(angle)[:, None]
+    gameplay_t = (np.arange(len(gameplay)) - half_overlap) / SR
     cues = (
-        (9.0, "Jump_Land_004.wav", -.13, 1.40, .36),
-        (12.0, "Fish_Loot_003.wav", .15, 1.12, .26),
-        (15.0, "Button_Click_003.wav", 0.0, 1.26, .32),
-        (19.0, "Portal_Loot ST.wav", -.04, 1.10, .30),
+        (9.0, "Jump_Land_004.wav", -.13, 1.13, .30),
+        (12.0, "Fish_Loot_003.wav", .15, 1.00, .23),
+        (15.0, "Button_Click_003.wav", 0.0, 1.00, .23),
+        (19.0, "Portal_Loot ST.wav", -.04, 1.00, .21),
     )
     for at, filename, pan, gain, depth in cues:
-        duck = 1 - depth * np.exp(-.5 * ((gameplay_t - at + 5 - .09) / .19) ** 2)
+        duck = 1 - depth * np.exp(-0.5 * ((gameplay_t - at + 5 - .075) / .17) ** 2)
         gameplay *= duck[:, None]
         add(demo, at, sfx[filename], gain, pan)
-    demo[mark:] += gameplay
+    demo[mark - half_overlap:] += gameplay
     return level(demo, -6.0)
 
 
@@ -407,17 +455,24 @@ def write_wav(path, track):
 
 
 def main():
+    global RNG
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "assets" / "audio")
     parser.add_argument("--preview", type=Path, default=ROOT / "preview.wav")
     options = parser.parse_args()
+    # Independent score, effects and opening streams keep changes in one from
+    # changing random phases in the others when the project is rebuilt.
+    RNG = np.random.default_rng(SEED)
     title = music(title=True)
     write_wav(options.output / TITLE_NAME, title)
+    RNG = np.random.default_rng(SEED + 1)
     game = music(title=False)
     write_wav(options.output / GAME_NAME, game)
+    RNG = np.random.default_rng(SEED + 2)
     sfx = effects()
     for name, track in sfx.items():
         write_wav(options.output / "sfx" / name, track)
+    RNG = np.random.default_rng(SEED + 3)
     for name, track in openings():
         write_wav(options.output / "opening" / name, track)
     write_wav(options.preview, preview(title, game, sfx))
