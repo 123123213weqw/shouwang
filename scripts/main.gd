@@ -11,6 +11,8 @@ class_name Main extends Node3D
 @onready var character_moves_left_label: Label3D = $Character/SpriteContainer/CharacterMovesLeftLabel
 @onready var unlock_control_container: UnlockControlContainer = $CanvasLayer/Control/UnlockControlContainer
 @onready var final_score_control: FinalScoreControl = $CanvasLayer/Control/FinalScoreControl
+@onready var pause_menu: Control = $CanvasLayer/Control/Menu
+@onready var hud_return_button: Button = $CanvasLayer/Control/HudReturnButton
 @onready var leader_board_container_control: LeaderBoardContainerControl = $CanvasLayer/Control/FinalScoreControl/LeaderBoardContainerControl
 @onready var water: MeshInstance3D = $Water
 
@@ -162,6 +164,9 @@ func _ready() -> void:
 	tutorial.name = "Tutorial"
 	tutorial.main = self
 	$CanvasLayer/Control.add_child(tutorial)
+	hud_return_button.pressed.connect(SceneManager.load_title)
+	for overlay in [pause_menu, final_score_control, tutorial.card, SceneManager.scene_transition_control]:
+		overlay.visibility_changed.connect(_update_hud_return_visibility)
 	endless_rng.randomize()
 	character.moved.connect(handle_movement)
 
@@ -182,6 +187,16 @@ func _ready() -> void:
 	_add_retry_button()
 
 	start_time = get_time()
+
+
+func _update_hud_return_visibility() -> void:
+	hud_return_button.visible = (
+		level_ready
+		and not pause_menu.visible
+		and not final_score_control.visible
+		and not tutorial.card_open()
+		and not SceneManager.scene_transition_control.visible
+	)
 
 
 func _input(event: InputEvent) -> void:
@@ -688,6 +703,7 @@ func load_level(level: LevelResource):
 	upgrade_random.rate = upgrade_chance
 	level_serial += 1
 	level_ready = false
+	_update_hud_return_visibility()
 
 	current_level = level
 	if is_endless(): level_label.text = str("长夜 · 第 ", current_level_index + 1, " 更")
@@ -760,6 +776,7 @@ func load_level(level: LevelResource):
 	# 第一次进游戏：关卡载入完了，先把玩法讲一遍（之后不再弹）
 	tutorial.maybe_show_rules()
 	level_ready = true
+	_update_hud_return_visibility()
 
 ## 现在棋盘上的格子，整理成 BoardGen 认的样子（格子坐标是整数，从 0 起）。
 ## 顺带记下每个坐标对应哪个 Tile，摆完东西好往格子上放
