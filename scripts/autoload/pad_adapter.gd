@@ -71,7 +71,9 @@ func _process(delta: float) -> void:
 	var size: Vector2 = get_viewport().get_visible_rect().size
 	var pad_connected := Input.get_connected_joypads().size() > 0
 	_cursor.visible = pad_connected
-	if pad_connected:
+	# 正在执行一个排队的点击（遥控的 click，或者手柄的 A）：这三帧里别再推虚拟光标的位置。
+	# 中间那一帧的"移回光标处"会把按钮的按下状态取消掉——掌机接着手柄，每帧都在推，遥控的点击就一直点不动
+	if pad_connected and _click_state == 0:
 		var stick := _stick_vector()
 		if stick.length() > 0.0:
 			_cursor_pos = (_cursor_pos + stick * CURSOR_SPEED * delta).clamp(Vector2.ZERO, size)
@@ -226,6 +228,7 @@ func _handle(line: String) -> String:
 			if parts.size() < 3:
 				return "ERR usage: click x y"
 			_click_target = Vector2(parts[1].to_float(), parts[2].to_float())
+			_cursor_pos = _click_target          # 虚拟光标跟着挪过去（画面上看得见它在点哪儿）
 			_click_state = 1
 			return "OK click queued"
 		"move":
