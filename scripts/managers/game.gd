@@ -3,6 +3,10 @@ extends Node
 ## 游戏模式：CAMPAIGN 是主线关卡（打完最后一张棋盘算通关），ENDLESS 是无尽模式（棋盘随机生成，比谁走得远）
 enum GameMode { CAMPAIGN, ENDLESS }
 var game_mode: GameMode = GameMode.CAMPAIGN
+## 对战类的玩法（scripts/versus/）：记的是选了哪一个的 id（抢灯 rush、追影 shadow、夺岸 territory、轮战 blitz、对弈 duel）。
+## 空字符串是平时那两种模式
+var versus := ""
+var versus_auto := false          # 演示和自动测试用：进了对战，主角也交给机器人打。平时一直是假
 
 ## 本机最好成绩。键是 "模式/角色id"（模式是 GameMode 的整数值），值是 {"score": 分数, "level": 到达的关数}
 var best_records: Dictionary = {}

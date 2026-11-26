@@ -260,10 +260,10 @@ func _handle(line: String) -> String:
 				return "ERR usage: spawn <资源路径> [次数]"
 			return _spawn_path(parts[1], int(parts[2]) if parts.size() > 2 else 1)
 		"call":
-			# 第三个参数以后的都是整数参数
+			# 第三个参数以后：写得成整数的按整数传，其余的按文字传（录像的名字就是文字：debug_record 3 20 ring）
 			var args: Array = []
 			for extra in parts.slice(3):
-				args.append(int(extra))
+				args.append(int(extra) if extra.is_valid_int() else extra)
 			return _call(parts[1], parts[2], args)
 	return "ERR unknown command"
 
@@ -1033,6 +1033,9 @@ func debug_opening_state() -> String:
 		if music != null and music_db > -6.0:
 			problems.append("开场在播，标题音乐没有压低（%.1f 分贝）" % music_db)
 	else:
+		# 开机盖上的那块黑幕要撤：以前只有开场动画才撤它，设置里选了"不播"的话标题页一直压在黑幕底下，整个画面是黑的
+		if scene != null and get_node_or_null("/root/SceneManager/BootCover") != null:
+			problems.append("开机盖上的黑幕没有撤掉，标题页看不见")
 		if voice != null and is_instance_valid(voice) and voice.playing and voice.volume_db > -40.0:
 			problems.append("开场已经结束，声音还在响")
 		if music != null and absf(music_db) > 0.5:
@@ -1048,6 +1051,61 @@ func debug_opening_state() -> String:
 		var said := "" if narration == null else "；旁白%s" % ("在说" if narration.playing else "说过了")
 		return "RESULT 开场状态：通过（%s；音乐 %.1f 分贝%s；设置里选的是 %s，上一次播的是 %s）" % [what, music_db, said, Game.opening, Game.opening_last]
 	return "RESULT 开场状态：没过，%d 处：%s" % [problems.size(), "；".join(problems)]
+
+## 大厅那条河（标题页才有）
+##   call pad_adapter.gd debug_lobby 1 600 400     在画面上 (600, 400) 那一点荡开一圈大的
+##   call pad_adapter.gd debug_lobby 2 12          河上马上凑到 12 盏灯（给 0 回到平时那样，看等了多久）
+##   call pad_adapter.gd debug_lobby 0             一行状态：画面多大、几盏灯、几圈涟漪
+##   call pad_adapter.gd debug_lobby 3             排查用：每一盏河灯在哪、有多淡、在避让什么
+func debug_lobby(action: int, a: int = 0, b: int = 0) -> String:
+	var scene := get_tree().current_scene as TitleControl
+	if scene == null: return "不在标题页上"
+	var river: Node = scene.lobby_river()
+	if river == null: return "标题页上没有河（LobbyRiver）"
+	match action:
+		1:
+			river.debug_ripple(Vector2(a, b), 1.0)
+			return "OK 在 (%d, %d) 荡开一圈" % [a, b]
+		2:
+			river.debug_lamps(a)
+			return "OK 河上的灯：%d 盏%s" % [a, "（硬性规定）" if a > 0 else "（回到平时那样）"]
+		3:
+			return "河灯：" + str(river.debug_lamps_detail())
+		_:
+			return "RESULT 大厅的河：" + str(river.debug_state())
+
+## 游戏里的背景（进了游戏才有）
+##   call pad_adapter.gd debug_stage 0             一行状态：哪种布局、水到哪儿到头、几盏河灯
+##   call pad_adapter.gd debug_stage 1             在主角站的那个格子底下荡开一圈
+func debug_stage(action: int) -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null: return "不在游戏里"
+	var stage: Node = main.get_node_or_null("StageBackdrop")
+	if stage == null: return "游戏场景里没有背景（StageBackdrop）"
+	if action == 1:
+		stage.debug_ripple()
+		return "OK 在主角脚下荡开一圈"
+	return "RESULT 游戏里的背景：" + str(stage.debug_state())
+
+## 对战的玩法（scripts/versus/）。在标题页上调：
+##   call pad_adapter.gd debug_versus 2        直接开一局：抢灯 1、追影 2、夺岸 3、轮战 4、对弈 5（用第一位同伴，不经过选人页）
+##   call pad_adapter.gd debug_versus 2 1      同上，但主角也交给机器人打（录预览、自动测试用）
+##   call pad_adapter.gd debug_versus 0        已经在对战里：一行这一局的状况（没分出胜负时报"进行中"）
+func debug_versus(n: int, autopilot: int = 0) -> String:
+	var ids: Array = VersusBase.IDS
+	if n <= 0:
+		var main := get_node_or_null("/root/Main") as Main
+		if main == null or main.versus == null: return "不在对战的局里"
+		var state := "进行中" if not main.versus.over else ("赢了" if main.versus.won else "输了")
+		return "RESULT 对战 %s：%s｜%s" % [VersusBase.NAMES.get(Game.versus, "?"), state, main.versus.debug_state()]
+	if n > ids.size(): return "没有第 %d 个对战的玩法（一共 %d 个）" % [n, ids.size()]
+	if get_tree().current_scene as TitleControl == null: return "不在标题页上"
+	if Game.characters.is_empty(): return "没有角色"
+	Game.versus = ids[n - 1]
+	Game.versus_auto = autopilot != 0
+	Game.selected_character = Game.characters[0]
+	SceneManager.load_game()
+	return "开了一局%s（%s）" % [VersusBase.NAMES[Game.versus], "主角交给机器人" if Game.versus_auto else "主角自己操作"]
 
 ## 这一关摆好的那一局，画成字符画
 func debug_deal() -> String:

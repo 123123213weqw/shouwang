@@ -11,6 +11,7 @@ uniform vec2 origin = vec2(0.5, 0.5);
 uniform float soft = 0.2;          // 边缘的柔和程度
 uniform float flash = 0.0;         // 亮一下：0 到 1
 uniform float ghost = 0.0;         // 还没亮起来的那部分透出一点虚影（0 到 1）
+uniform float alpha = 1.0;         // 整张剪影有多实。这个着色器自己算最终的颜色，节点的 modulate 管不到它，要淡只能调这里
 
 void fragment() {
 	vec3 displacement = texture(texture_flow_map, UV / wobble_size + vec2(float(int(TIME * 8.0) % 10) / 10.0)).xyz;
@@ -29,5 +30,5 @@ void fragment() {
 	}
 	float a = tex.a * max(lit, ghost * 0.22);
 	vec3 rgb = mix(tex.rgb * color, vec3(1.0, 0.98, 0.9), clamp(flash, 0.0, 1.0));
-	COLOR = vec4(rgb, a);
+	COLOR = vec4(rgb, a * alpha);
 }

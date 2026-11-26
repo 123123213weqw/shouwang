@@ -44,13 +44,22 @@ func drop_boot_cover() -> void:
 		_boot.queue_free()
 	_boot = null
 
+## 不播开场的时侯撤掉开机那块黑：等底下那一幕画过三帧（着色器编译的钱在黑幕底下花掉）再撤。
+## 以前只有开场动画才撤它——设置里选了"不播"，标题页就一直压在黑幕底下，整个画面是黑的
+##（2026-11-26 录大厅的河、用"不播"起来看时发现的；debug_opening_state 现在会查这一条）
+func _drop_boot_cover_soon() -> void:
+	for i in 3:
+		await get_tree().process_frame
+	drop_boot_cover()
+
 ## 开机第一幕是标题页的话，播开场动画（设置里可以关掉）。从游戏里回到标题页的不播
 func _play_opening() -> void:
-	if current_scene == null or Game.opening == "" or Game.opening == "off": return
+	var title_control := current_scene as TitleControl
+	if title_control == null or Game.opening == "" or Game.opening == "off":
+		_drop_boot_cover_soon()
+		return
 	# 标题页场景的根节点挂的就是 TitleControl 这个脚本（CanvasLayer/TitleControl 只是它下面的一个容器，没有脚本）。
 	# 开场要调它的三个方法（标志、按钮、音乐），所以直接用根节点；不是标题页就不播
-	var title_control := current_scene as TitleControl
-	if title_control == null: return
 	var which: String = Game.roll_opening() if Game.opening == "random" else Game.opening
 	var opening := Opening.new()
 	opening.name = "Opening"

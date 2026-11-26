@@ -44,6 +44,8 @@ const BASE_CREDITS_GAIN := 0.6
 const BASE_UPGRADE_CHANCE := 0.1
 
 var ruleset: Ruleset                 # 这局用的玩法方案（标题页里选的）
+var versus: VersusBase               # 对战类的玩法（scripts/versus/）：进了对战的局才有，平时是空
+var free_moves := false               # 跳格子不花步数。对战里有的玩法这样
 var current_deal: Dictionary = {}    # 开局摆好的那一局（河灯摆好的方案里用）；空 = 这一关是边收边刷的
 var _thing_resources: Dictionary = {}   # 摆棋时路线上每样东西用哪个资源（键是 BoardGen.Thing 的编号）
 var _cell_tiles: Dictionary = {}        # 格子坐标（整数）→ Tile
@@ -71,6 +73,7 @@ func is_endless() -> bool:
 
 ## 这一局的第一关
 func first_level() -> LevelResource:
+	if versus != null: return versus.first_level()
 	if is_endless(): return endless_level(0)
 	return levels[current_level_index]
 
@@ -156,6 +159,9 @@ func _ready() -> void:
 	upgrade_random = FixedRandom.new()
 	ruleset = Game.ruleset
 	if ruleset == null: ruleset = Ruleset.new()
+	# 对战类的玩法：选了哪一个记在 Game.versus 里，没选就是空。它得在载入关卡之前就挂上
+	versus = VersusBase.create(Game.versus)
+	if versus != null: add_child(versus)
 	_load_thing_resources()
 	# 新手教程放在界面层的最后面，画在所有界面之上
 	tutorial = Tutorial.new()
@@ -218,6 +224,7 @@ func load_character(res: CharacterResource):
 
 		
 func next_level():
+	if versus != null and versus.next_board(): return      # 对战：接下来怎样由它定
 	print("Level ", current_level_index, " : ", get_time() - start_time)
 	start_time = get_time()
 	current_deal = {}
@@ -325,13 +332,14 @@ func update_tiles_color():
 		var tile_pos = Vector2(tile.global_position.x, tile.global_position.z)
 		var in_reach = tile_pos.distance_to(character_pos) / grid.tile_size.x <= max_distance
 		# 步数是 0 以后，只有不花步数的格子还能跳
-		var affordable = moves_left > 0 or step_is_free(tile)
+		var affordable = free_moves or moves_left > 0 or step_is_free(tile)
 		tile.is_available = tile.is_landable() and (not tile.object or tile.object.is_available()) and tile != character.target_tile and (in_reach or tile == back_tile) and affordable
 		tile.update_color()
 		tile.is_last_position = false
 	if active_control.is_charged and Game.selected_character.active_effect == CharacterResource.ActiveEffect.ReturnToLastPosition:
 		var tile = grid.get_tile(grid.world_to_grid_position(character.last_position))
 		if tile: tile.is_last_position = true
+	if versus != null: versus.filter_tiles()
 
 ## 现在能跳多远（格）：连击、草鞋、纸伞都算上
 func _reach_now() -> float:
@@ -339,6 +347,7 @@ func _reach_now() -> float:
 
 ## 跳到这一格花不花步数：上面有东西（灯、道具、开了的水车）都不花，还没用过的补给格也不花
 func step_is_free(tile: Tile) -> bool:
+	if free_moves: return true
 	if tile.object != null: return tile.object.is_available()
 	if tile.is_spring_ready(): return true
 	return portal_open_free()
@@ -355,6 +364,7 @@ func update_moves_left():
 	character_moves_left_label.text = str(moves_left)
 	
 func handle_movement():
+	if versus != null and versus.handle_landing(): return      # 对战：这个玩法自己处理落地
 	temporary_mov_distance = 0.0
 
 	# 刚离开的如果是脆格，它现在碎掉
@@ -404,6 +414,7 @@ func handle_movement():
 	if not lamps_dealt() and not current_fish_count >= fish_before_end_portal:
 		gain_credits()
 
+	if versus != null: versus.after_landing()
 	is_free_move = false
 
 
@@ -690,7 +701,8 @@ func load_level(level: LevelResource):
 	level_ready = false
 
 	current_level = level
-	if is_endless(): level_label.text = str("长夜 · 第 ", current_level_index + 1, " 更")
+	if versus != null: level_label.text = versus.title()
+	elif is_endless(): level_label.text = str("长夜 · 第 ", current_level_index + 1, " 更")
 	else: level_label.text = str("第 ", current_level_index + 1, " 关 · ", level.level_name)
 
 	final_score_control.set_visible(false)
@@ -733,7 +745,7 @@ func load_level(level: LevelResource):
 
 	# 河灯：开局摆好的一局。摆不出来（不该发生）就退回边收边刷
 	var dealt := false
-	if ruleset != null and ruleset.lamp_mode == Ruleset.LampMode.DEALT:
+	if (versus == null or versus.uses_deal()) and ruleset != null and ruleset.lamp_mode == Ruleset.LampMode.DEALT:
 		dealt = await place_deal(level)
 
 	update_tiles_color()
@@ -743,7 +755,7 @@ func load_level(level: LevelResource):
 
 	await SceneManager.scene_transition_control.close()
 
-	if not dealt:
+	if not dealt and (versus == null or versus.uses_deal()):
 		# 边收边刷：步数没带满进来的话放一个蒸笼；再按关卡里的资源数刷灯
 		if moves_left < max_moves_left:
 			var heart_tile = grid.get_empty_tiles().pick_random()
@@ -757,8 +769,11 @@ func load_level(level: LevelResource):
 		update_tiles_color()
 
 	on_enter_level.emit()
-	# 第一次进游戏：关卡载入完了，先把玩法讲一遍（之后不再弹）
-	tutorial.maybe_show_rules()
+	if versus != null:
+		versus.on_level_ready()          # 对战：摆对手、开始计时。平时那套玩法说明不弹
+	else:
+		# 第一次进游戏：关卡载入完了，先把玩法讲一遍（之后不再弹）
+		tutorial.maybe_show_rules()
 	level_ready = true
 
 ## 现在棋盘上的格子，整理成 BoardGen 认的样子（格子坐标是整数，从 0 起）。
@@ -798,6 +813,7 @@ func deal_options(lamps: int) -> Dictionary:
 	opt.gates = mini(int(opt.gates), int(opt.items))
 	var ch := Game.selected_character
 	opt.reach = BoardGen.reach_params(BASE_MAX_MOVE_DISTANCE + ch.max_move_distance, BASE_MOVE_PER_COMBO * ch.move_per_combo, BASE_MAX_COMBO_DISTANCE + ch.max_combo_move_distance)
+	if versus != null: versus.tune_deal(opt)          # 对战：摆法按它的规矩改
 	return opt
 
 ## 摆一局河灯：巡夜里每一关是固定的一局（练的就是它），长夜每次现摆。摆好了返回 true
@@ -992,8 +1008,8 @@ func unlock_character(cr: CharacterResource):
 func end_game():
 	moves_left = 0
 
-	# 不再上传到网上的排行榜，只和本机的最好成绩比
-	var run_key := Game.record_run(Game.selected_character, score, current_level_index + 1)
+	# 不再上传到网上的排行榜，只和本机的最好成绩比。对战的局不记（它有自己的输赢）
+	var run_key := "" if versus != null else Game.record_run(Game.selected_character, score, current_level_index + 1)
 
 	final_score_control.set_visible(true)
 	# 结算的标题（灯火熄了 / 守到天明）和左上角的关卡标签在同一个位置，叠在一起看不清：出结算的时候把关卡标签藏起来
@@ -1003,11 +1019,12 @@ func end_game():
 	if is_endless(): final_score_control.game_over.text = str("长夜未尽
 守到了第 ", current_level_index + 1, " 更")
 	else: final_score_control.game_over.text = "灯火暗了"
+	if versus != null: final_score_control.game_over.text = versus.result_text()
 	final_score_control.animate()
 
 	# 巡夜里、方案允许的时侯：这一关可以原地再来
 	var retry: Node = final_score_control.buttons_container.get_node_or_null("RetryLevelButton")
-	if retry: retry.visible = not is_endless() and ruleset != null and ruleset.retry_level
+	if retry: retry.visible = versus == null and not is_endless() and ruleset != null and ruleset.retry_level
 
 	leader_board_container_control.update()
 	leader_board_container_control.set_current(run_key)

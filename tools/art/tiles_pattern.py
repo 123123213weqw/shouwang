@@ -380,6 +380,17 @@ def tile_colors(time):
     return out
 
 
+_FLOW = None
+
+
+def _flow():
+    """抖动用的流图（assets/sprites/FlowMap.png），0 到 1 的数组"""
+    global _FLOW
+    if _FLOW is None:
+        _FLOW = np.asarray(Image.open(os.path.join(ROOT, "assets/sprites/FlowMap.png")).convert("RGB"), dtype=np.float32) / 255.0
+    return _FLOW
+
+
 def simulate(cell_alphas, box, phase, time):
     """照 scene_transition.gdshader 的算法，把 7 格花纹铺到屏幕上的一块（box = x, y, 宽, 高）上。
     返回 (颜色, 透明度) 两个数组。只是近似：图案随时间换序号的算法按 time 那一刻算"""
@@ -390,8 +401,8 @@ def simulate(cell_alphas, box, phase, time):
     idx = np.maximum(cx.astype(np.int64) + cy.astype(np.int64) * 2, 0)
     index = (idx + int(time / 5) + idx // 4) % 7
     pux, puy = rx - cx, ry - cy                                                                     # 格内坐标
-    # 抖动：FlowMap 按 UV / 2 取（横坐标再加上相位的偏移），乘 0.02 × 5
-    flow = np.asarray(Image.open(os.path.join(ROOT, "assets/sprites/FlowMap.png")).convert("RGB"), dtype=np.float32) / 255.0
+    # 抖动：FlowMap 按 UV / 2 取（横坐标再加上相位的偏移），乘 0.02 × 5（流图只读一次，连着模拟很多帧的时候省时间）
+    flow = _flow()
     fx = np.clip((ux / 2 + phase / 10.0) * 64 - 0.5, 0, 63.001)
     fy = np.clip(uy / 2 * 64 - 0.5, 0, 63.001)
     ix, iy = fx.astype(np.int32), fy.astype(np.int32)

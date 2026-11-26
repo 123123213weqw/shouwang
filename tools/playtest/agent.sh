@@ -14,6 +14,8 @@
 #   mechanics [前缀]         长夜模式的格子机制：补给格加步数、脆格碎掉后长回来、结算面板和本机成绩
 #   auto [campaign|endless] [1|2] [最多打到第几关] [前缀]
 #   opening [A|B|D] [秒数] [每秒几张]   录一段开场动画（真正的开机画面），帧取回到 builds/opening/<方案>/
+#   lobby [秒数=20] [每秒几张=20]   录一段大厅（标题页）的背景：那条夜里的河、河上的灯、指针划过和挪焦点时荡开的涟漪，
+#                             帧取回到 builds/lobby/rec/，再拼视频：tools/playtest/assemble_lobby.sh
 #                             机器人真机玩一局。1 = 照着摆好的路线走（必须一步不错、关关都过）；2 = 贪心打法（随手玩的玩家的下限）
 #   drive <步骤文件> [前缀]  按步骤文件操作游戏并截图（步骤怎么写见 drive_v100.sh 的开头）
 #   export                  在 V100 上把工程导出成 Linux 可执行文件（给掌机用），放在 V100 的 shouwang-agents/<标签>/shouwang.x86_64
@@ -26,6 +28,11 @@
 # 截图取回到 $SW_OUT（默认 builds/shots/<标签>/）。开了游戏的命令哪一步没过，退出码就不是 0。
 # 临时指定玩法方案：SW_RULESET=hard tools/playtest/agent.sh a7 auto campaign 2（六套的 id 见 resources/rulesets/）
 # 机器人每一步都打进日志（查它为什么跳不到的时侯用）：SW_AUTO_TRACE=1 tools/playtest/agent.sh a7 auto campaign 1
+# 游戏里背景的三种布局（1 长河、2 远岸、3 月下；平时是月下）：SW_STAGE=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_stage.txt 远岸
+#   versus <1..5> [秒数=24] [每秒几张=20]   录一局对战（1 抢灯、2 追影、3 夺岸、4 轮战、5 对弈），主角交给机器人打，
+#                             帧取回到 builds/versus/<编号>/，再拼视频：tools/playtest/assemble_versus.sh <编号>
+#   stage <布局 1|2|3> [秒数=18] [每秒几张=20]   录一段游戏里的背景：进游戏、在棋盘上跳几下（河灯在漂、落地荡开的那圈），
+#                             帧取回到 builds/stage/<布局>/，再拼视频：tools/playtest/assemble_stage.sh <布局>
 # 让机器人换关后只等 0.2 秒（平时 1.5 秒），试它在灯还没摆完的时侯会不会乱动：SW_AUTO_EAGER=1 tools/playtest/agent.sh a7 auto campaign 1
 # 渲染方式默认是游戏真正用的 Forward+（跑在服务器自带的显卡上，一个实例占 264 MB 显存）；SW_RENDERER=gl 是软件 OpenGL，不碰显卡
 TAG="$1"; CMD="$2"
@@ -52,11 +59,12 @@ export SW_OPENING="${SW_OPENING:-}"          # 临时指定开场动画（A / B 
 export SW_BOOT_WAIT="${SW_BOOT_WAIT:-}"      # 游戏起来以后第一步之前等几秒才动手（平时 6 秒；查开场的时侯设 1）
 export SW_OPENING_TRACE="${SW_OPENING_TRACE:-}"   # 设了就把开场每一处创建的时刻打进日志（查卡顿用）
 export SW_RULESET="${SW_RULESET:-}"          # 临时指定玩法方案（灯谱 dealt / 流水 flow / 长明 hard / 万灯 party / 疾走 rush / 旧灯 legacy），不写存档
+export SW_STAGE="${SW_STAGE:-}"              # 游戏里背景的布局：1 长河、2 远岸、3 月下；不写是平时用的「月下」，给 0 是原来那块网纹的水
 pull() {
 	mkdir -p "$OUT"
 	rsync -a -e "$SSH" --include "${1}_*" --exclude '*' "WZU_V100:$REMOTE/shots/" "$OUT/" && echo "截图已取回到 ${OUT}（文件名以 ${1}_ 开头）"
 }
-ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER SW_RULESET=$SW_RULESET SW_AUTO_TRACE=$SW_AUTO_TRACE SW_AUTO_EAGER=$SW_AUTO_EAGER SW_OPENING=$SW_OPENING SW_BOOT_WAIT=$SW_BOOT_WAIT SW_OPENING_TRACE=$SW_OPENING_TRACE"
+ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER SW_RULESET=$SW_RULESET SW_AUTO_TRACE=$SW_AUTO_TRACE SW_AUTO_EAGER=$SW_AUTO_EAGER SW_OPENING=$SW_OPENING SW_BOOT_WAIT=$SW_BOOT_WAIT SW_OPENING_TRACE=$SW_OPENING_TRACE SW_STAGE=$SW_STAGE"
 BIN="$REMOTE/shouwang.x86_64"
 EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --exclude *.tmp --exclude __pycache__ --exclude tools/playtest"
 # 原作的两首曲子和音效很大，建环境的时侯从 base 复制过来，平时同步不传；开场动画的声音是我们自己的、很小，照常同步
@@ -64,7 +72,7 @@ EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --
 case "$CMD" in
 	setup)
 		$SSH WZU_V100 "mkdir -p $REMOTE/project $REMOTE/bin $REMOTE/shots; if [ '$TAG' != base ] && [ ! -e $REMOTE/project/project.godot ] && [ -d $ROOTS/base/project ]; then cp -a $ROOTS/base/project/. $REMOTE/project/; fi" \
-			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100,autoplay_v100,record_opening_v100}.sh "WZU_V100:$REMOTE/bin/" \
+			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100,autoplay_v100,record_opening_v100,record_lobby_v100,record_stage_v100,record_versus_v100}.sh "WZU_V100:$REMOTE/bin/" \
 			&& echo "V100 上的环境已建好：${REMOTE}（端口 ${SW_DEBUG_PORT}，渲染线程 ${SW_THREADS}）" ;;
 	sync)
 		rsync -a --delete $EXCLUDE -e "$SSH" "$ROOT/" "WZU_V100:$REMOTE/project/" \
@@ -140,6 +148,27 @@ REMOTE_SH
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/opening/$WHICH" && rm -f "$ROOT/builds/opening/$WHICH/"*.jpg
 		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_opening_$WHICH/" "$ROOT/builds/opening/$WHICH/" && echo "帧已取回到 builds/opening/$WHICH/（$(ls "$ROOT/builds/opening/$WHICH" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_opening.sh $WHICH"
+		exit $code ;;
+	lobby)
+		SECS="${3:-20}"; FPS="${4:-20}"
+		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/record_lobby_v100.sh $REMOTE/project $SECS $FPS" | cut -c1-300
+		code=${PIPESTATUS[0]}
+		mkdir -p "$ROOT/builds/lobby/rec" && rm -f "$ROOT/builds/lobby/rec/"*.jpg
+		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_lobby/" "$ROOT/builds/lobby/rec/" && echo "帧已取回到 builds/lobby/rec/（$(ls "$ROOT/builds/lobby/rec" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_lobby.sh $FPS"
+		exit $code ;;
+	stage)
+		N="${3:-1}"; SECS="${4:-18}"; FPS="${5:-20}"
+		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/record_stage_v100.sh $REMOTE/project $N $SECS $FPS" | cut -c1-300
+		code=${PIPESTATUS[0]}
+		mkdir -p "$ROOT/builds/stage/$N" && rm -f "$ROOT/builds/stage/$N/"*.jpg
+		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_stage_$N/" "$ROOT/builds/stage/$N/" && echo "帧已取回到 builds/stage/$N/（$(ls "$ROOT/builds/stage/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_stage.sh $N $FPS"
+		exit $code ;;
+	versus)
+		N="${3:-1}"; SECS="${4:-24}"; FPS="${5:-20}"
+		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/record_versus_v100.sh $REMOTE/project $N $SECS $FPS" | cut -c1-300
+		code=${PIPESTATUS[0]}
+		mkdir -p "$ROOT/builds/versus/$N" && rm -f "$ROOT/builds/versus/$N/"*.jpg
+		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_versus_$N/" "$ROOT/builds/versus/$N/" && echo "帧已取回到 builds/versus/$N/（$(ls "$ROOT/builds/versus/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_versus.sh $N"
 		exit $code ;;
 	mechanics)
 		PREFIX="${3:-mechanics}"

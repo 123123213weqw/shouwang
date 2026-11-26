@@ -22,10 +22,14 @@ class_name TitleControl extends Control
 @onready var settings_return_button: Button = $CanvasLayer/TitleControl/SettingsContainer/SettingsReturnButton
 
 @onready var ui_root: Control = $CanvasLayer/TitleControl     # 标题页所有界面的根，方案选择面板挂在它下面
+@onready var _lobby_river: Node = $CanvasLayer/LobbyRiver     # 标题页的背景：一条夜里的河（scripts/uis/lobby_river.gd）
 
 ## 标题页按钮列里的"方案"按钮和它点开的方案选择面板。场景里没有它们，是 _ready() 里用代码加的
 var ruleset_button: Button
 var ruleset_picker: RulesetPicker
+## 同样是 _ready() 里加的：按钮列最上面那一行里的"对战"按钮，和它点开的对战选择面板（scripts/versus/ 里五种玩法选一个）
+var versus_button: Button
+var versus_picker: VersusPicker
 
 const BUTTON := preload("res://scenes/uis/button.tscn")
 const RULESET_BUTTON_SIZE := 36            # "方案 · 灯谱"是次要的入口，字比上面两个小一号
@@ -33,8 +37,8 @@ const RULESET_BUTTON_SIZE := 36            # "方案 · 灯谱"是次要的入�
 @export var character_resources: Array[CharacterResource]
 const CHARACTER_SELECT_CONTROL = preload("res://scenes/uis/character_select_control.tscn")
 
-## 给别的模块用的三个入口。节点在场景里叫什么、放在哪，只有这个脚本知道；
-## 开场动画、设置页要动它们，只调这三个方法，不在别处写节点路径（改了场景名也不会悄悄失灵）
+## 给别的模块用的四个入口。节点在场景里叫什么、放在哪，只有这个脚本知道；
+## 开场动画、设置页、调试遥控要动它们，只调这几个方法，不在别处写节点路径（改了场景名也不会悄悄失灵）
 func logo_image() -> CanvasItem:
 	return $CanvasLayer/TitleControl/Panel/Title/TextureRect as CanvasItem
 
@@ -43,6 +47,9 @@ func menu_buttons() -> Control:
 
 func music_player() -> AudioStreamPlayer:
 	return get_node_or_null("MainTitle2") as AudioStreamPlayer
+
+func lobby_river() -> Node:
+	return get_node_or_null("CanvasLayer/LobbyRiver")
 
 func _ready() -> void:
 	Game.characters = character_resources
@@ -61,15 +68,49 @@ func _ready() -> void:
 	_add_ruleset_ui()
 	update_characters()
 	character_description.text = ""
+	_lobby_river.follow_menu(buttons_container)
+	_lobby_river.avoid(logo_image())
+	_lobby_start.call_deferred()
 
-## 在"长夜"后面加一个"方案"按钮，再建方案选择面板（挂在 CanvasLayer/TitleControl 下，画在最上面）。
+## 标题页露出来的那一下（开场动画收完）：河面从标志底下荡开一圈。
+## 开场那一层是 SceneManager 稍后才挂到标题页上的，所以要等这一帧过了再去找它；没播开场就现在荡
+func _lobby_start() -> void:
+	var centre := Vector2.ZERO
+	var logo := logo_image() as Control
+	if logo != null: centre = logo.get_global_rect().get_center()
+	var opening := get_node_or_null("Opening")
+	if opening != null and not opening.is_queued_for_deletion() and opening.has_signal("finished"):
+		opening.finished.connect(func() -> void: _lobby_river.wake(centre))
+	else:
+		_lobby_river.wake(centre)
+
+## 按钮列最上面一行放三种去处："巡夜""长夜""对战"（竖着排六个按钮放不下，所以并成一行）；"长夜"后面另起一行是"方案"。
+## 再建方案选择面板和对战选择面板（都挂在 CanvasLayer/TitleControl 下，画在最上面）。
 ## 面板开着的时候标题页的按钮和标志都藏起来，按"返回"再回到标题页
 func _add_ruleset_ui() -> void:
+	var modes := HBoxContainer.new()
+	modes.name = "ModesRow"
+	modes.add_theme_constant_override("separation", 10)
+	buttons_container.add_child(modes)
+	buttons_container.move_child(modes, 0)
+	for b: Button in [play_button, endless_button]:
+		buttons_container.remove_child(b)
+		modes.add_child(b)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	versus_button = BUTTON.instantiate() as Button
+	versus_button.name = "VersusButton"
+	versus_button.text = "对战"
+	versus_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	modes.add_child(versus_button)
+	# 一行放三个按钮，这一列得比原来宽一些（原来是 314）
+	buttons_container.offset_left = 386.0
+	buttons_container.offset_right = -386.0
+
 	ruleset_button = BUTTON.instantiate() as Button
 	ruleset_button.name = "RulesetButton"
 	ruleset_button.add_theme_font_size_override("font_size", RULESET_BUTTON_SIZE)
 	buttons_container.add_child(ruleset_button)
-	buttons_container.move_child(ruleset_button, endless_button.get_index() + 1)
+	buttons_container.move_child(ruleset_button, modes.get_index() + 1)
 	# 多了一个按钮，这一列比原来高了 50 多个像素，16:9 的画面（逻辑高度只有 648）里放不下，"设置"会贴到底下的署名。
 	# 所以行间距从 16 收到 10，整列 297 像素；再让它从固定的高度往下排（原来是在这一列里居中）。
 	# 离标志的字底还是 32 像素（和原来一样）。底下的署名那一行后来去掉了，这里的间距留着不动
@@ -84,6 +125,12 @@ func _add_ruleset_ui() -> void:
 	ruleset_button.pressed.connect(show_rulesets)
 	ruleset_picker.selected.connect(update_ruleset_button)
 	ruleset_picker.closed.connect(return_to_title)
+	versus_picker = VersusPicker.new()
+	versus_picker.name = "VersusPicker"
+	ui_root.add_child(versus_picker)
+	versus_button.pressed.connect(show_versus)
+	versus_picker.chosen.connect(start_versus)
+	versus_picker.closed.connect(return_to_title)
 	update_ruleset_button()
 
 ## "方案"按钮上写的是现在选的方案，例如"方案 · 灯谱"
@@ -112,9 +159,18 @@ func update_characters():
 		nchar.rseed = i / character_resources.size()
 		i += 1.0
 		
-## 选好模式再去选角色
+## 选好模式再去选角色（巡夜、长夜：不是对战）
 func start_run(mode: int):
 	Game.game_mode = mode
+	Game.versus = ""
+	select_character()
+
+## 挑好了对战的玩法（id 见 VersusBase.IDS）：记下来，再去选同伴
+func start_versus(id: String) -> void:
+	Game.versus = id
+	Game.versus_auto = false
+	versus_picker.close()
+	return_to_title()
 	select_character()
 
 func select_character():
@@ -124,6 +180,7 @@ func select_character():
 	
 func return_to_title():
 	ruleset_picker.close()
+	versus_picker.close()
 	character_select.set_visible(false)
 	leader_board_container_control_container.set_visible(false)
 	settings_container.set_visible(false)
@@ -135,6 +192,12 @@ func show_rulesets():
 	buttons_container.set_visible(false)
 	title.set_visible(false)
 	ruleset_picker.open()
+
+## 打开对战选择面板。和方案面板一样会压住标志，所以按钮和标志都先藏起来
+func show_versus() -> void:
+	buttons_container.set_visible(false)
+	title.set_visible(false)
+	versus_picker.open()
 	
 func show_settings():
 	buttons_container.set_visible(false)

@@ -1,16 +1,14 @@
-[gd_scene load_steps=35 format=3 uid="uid://dl8w77uxmq0if"]
+[gd_scene load_steps=32 format=3 uid="uid://dl8w77uxmq0if"]
 
 [ext_resource type="Script" uid="uid://cxnfrff5gkkbx" path="res://scripts/uis/title_control.gd" id="1_p6dhs"]
 [ext_resource type="Shader" uid="uid://dfres2gk08qge" path="res://shaders/button.gdshader" id="2_pyl7j"]
 [ext_resource type="Texture2D" uid="uid://cxcq0prg5ar5m" path="res://assets/sprites/ui/title-logo.png" id="3_4rr2b"]
 [ext_resource type="FontFile" path="res://assets/fonts/ZCOOLKuaiLe-Regular.ttf" id="3_b3w7a"]
-[ext_resource type="CompressedTexture2DArray" uid="uid://cwvt3fxyqsfxt" path="res://assets/sprites/tilesarray.png" id="4_blk4q"]
-[ext_resource type="Shader" uid="uid://kk5eotwckwoj" path="res://shaders/scene_transition.gdshader" id="4_kcc3o"]
 [ext_resource type="Texture2D" uid="uid://px765xxxbw7f" path="res://assets/sprites/FlowMap.png" id="5_w65of"]
 [ext_resource type="Texture2D" uid="uid://ptwnvkclhydm" path="res://assets/sprites/upgrades/fish.png" id="7_hiwto"]
 [ext_resource type="AudioStream" uid="uid://dlbr15o2xmvfg" path="res://assets/audio/GameOff_Mus_02 MainTitle 143bpm Loop.wav" id="9_pmcd8"]
 [ext_resource type="Resource" uid="uid://dtswsmddjfa73" path="res://resources/characters/nohz.tres" id="11_8magm"]
-[ext_resource type="Texture2D" uid="uid://dep7pgsiwc7x3" path="res://assets/sprites/rect.png" id="11_fgbvm"]
+[ext_resource type="Script" path="res://scripts/uis/lobby_river.gd" id="21_river"]
 [ext_resource type="Script" uid="uid://bxsukocx6neog" path="res://scripts/character_resource.gd" id="13_blk4q"]
 [ext_resource type="Resource" uid="uid://b0v358lg7qpbk" path="res://resources/characters/default.tres" id="14_8magm"]
 [ext_resource type="Resource" uid="uid://cljw1d0fw8t6b" path="res://resources/characters/ikk.tres" id="15_pmcd8"]
@@ -23,15 +21,6 @@
 [ext_resource type="PackedScene" uid="uid://fgs77dbhgmfo" path="res://scenes/uis/character_select_control.tscn" id="19_vjr5h"]
 [ext_resource type="Texture2D" uid="uid://dt3i0nx6owjfj" path="res://assets/sprites/ui/actions/back.png" id="20_fgbvm"]
 [ext_resource type="PackedScene" uid="uid://blwxqm5ndheeg" path="res://scenes/uis/leader_board_container_control.tscn" id="20_vjr5h"]
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_vjr5h"]
-shader = ExtResource("4_kcc3o")
-shader_parameter/textures = ExtResource("4_blk4q")
-shader_parameter/texture_size = Vector2(156, 136)
-shader_parameter/screen_size = Vector2(1160, 650)
-shader_parameter/alpha = 1.0
-shader_parameter/fsize = 2.245
-shader_parameter/texture_flow_map = ExtResource("5_w65of")
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hiwto"]
 content_margin_left = 0.0
@@ -136,14 +125,15 @@ bus = &"Music"
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
-[node name="TextureRect" type="TextureRect" parent="CanvasLayer"]
-material = SubResource("ShaderMaterial_vjr5h")
+[node name="LobbyRiver" type="Control" parent="CanvasLayer"]
+layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-texture = ExtResource("11_fgbvm")
+mouse_filter = 2
+script = ExtResource("21_river")
 
 [node name="TitleControl" type="Control" parent="CanvasLayer"]
 layout_mode = 3

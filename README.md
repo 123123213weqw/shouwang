@@ -45,6 +45,22 @@
 
 长夜是无尽模式，棋盘和灯每次现摆，越往后越大、路线越长。步数从上一更带过去，每更补一步。
 
+### 对战
+
+标题页最上面一行的「对战」里有五种，都是跟一个对手（或者跟时间）争胜负。棋盘、跳格子、连击、道具都和平时一样，只是多了一个对手，输赢的规矩各不相同。选一种，再选同伴，就开局。
+
+| 玩法 | 跟谁斗 | 怎么分胜负 |
+|---|---|---|
+| 抢灯 | 对手（朱砂色） | 一张棋盘上两个人同时跳，灯谁先踩到归谁，踩到的灯染上自己的颜色。不花步数，收得越多跳得越远。灯抢完或一分钟到，灯多的人赢 |
+| 追影 | 影子 | 平时的规则，身后有个影子沿着一条一步不错的路线匀速走。它甩开你三盏灯（它走过的步数比你收的灯多三）你就输了；你先进水车就赢 |
+| 夺岸 | 熄灯人 | 不摆灯。你踩过的格子上点起一盏灯，对手走到哪儿就把身边一圈的灯吹灭。限时之内让七成格子同时亮着就赢 |
+| 轮战 | 一炷香 | 平时的规则，香一共 45 秒，连着过棋盘，过一张香接长 15 秒。香烧完为止，过的棋盘越多分越高 |
+| 对弈 | 对手 | 一张棋盘轮流跳，一次一跳，踩到的灯归自己、留在原地上色，谁也不能再落在那格。踩了空格，对手就连跳一次。灯分完，灯多的人赢 |
+
+对手的脑子就是自动试玩的那个「随手玩」机器人（`BoardSim` 的贪心打法：够得着的灯里挑最近的），所以它是下限，多想一步就赢得过它。现在两个机器人对打：抢灯 6 比 5，对弈 7 比 3（先手很占便宜），追影、夺岸、轮战都赢得了。平衡还没有细调。
+
+代码在 `scripts/versus/`：`versus_base.gd` 是共用的（对手这个角色、头顶那一行战况、计时、结算的说法、找路），其余五个各管自己的规则。`main.gd` 只在几个关键的地方问一句这个玩法（用哪张棋盘、要不要摆灯、主角落地谁来处理、哪些格子能跳、进水车以后怎样）；平时那两种模式不带它，玩法一点没变。标题页的选择面板是 `scripts/uis/versus_picker.gd`。
+
 ### 六位角色
 
 | 角色 | 技能 | 怎么解锁 |
@@ -161,6 +177,66 @@ python3 tools/audio/voice.py A      # 收拾干净（去底噪、掐空白、对
 
 放进去以后不用改任何东西：开场播到第 0.3 秒时这句放出来，开场自己的声音轻一截，说完回来。没有这个文件就不放。
 
+## 背景：一条夜里的河
+
+标题页和游戏里是同一条河，全是实时算的，没有背景图：暗底、几道细细的水纹（弯弯曲曲、断断续续，从远处往近处流）、暖色的河灯。河灯用的是 `assets/sprites/upgrades/fish.png` 那张涂鸦（开场「一灯破夜」里飞进标志的也是它），底下一团暖光、一道倒影，火苗会晃。
+
+### 标题页
+
+`scripts/uis/lobby_river.gd`，水面在 `shaders/lobby_river.gdshader` 里算。右上角是水里的月影，底下一道月光，水纹走进月光里会亮起来。
+
+| 动一下 | 河面的反应 |
+|---|---|
+| 鼠标、手指划过水面 | 划过的地方起涟漪，附近的水纹亮一点，像提着灯照着 |
+| 菜单的焦点挪到哪个按钮 | 那个按钮底下荡开一圈；点一下是一圈大的 |
+| 开场动画收完 | 从标志底下荡开一圈，像那盏灯刚落回河里 |
+| 一直没人动 | 河上的灯每 8 秒多一盏，最多 14 盏；一动就回到 6 盏上下 |
+
+河灯漂到标志和菜单后面会让开（看不见），过去了再亮回来。
+
+### 游戏里的布局
+
+`scripts/stage_backdrop.gd` 挂在 `scenes/main.tscn` 里、界面那一层的前面，只读游戏里的水面、主角、棋盘和镜头，玩法不依赖它。水面是 `shaders/stage_water.gdshader`：真三维的水面，水纹画在世界上，远近的透视自己对。远岸的天空是 `shaders/stage_sky.gdshader`。三种布局共用这一套，只是光从哪来、装饰放在哪不一样：
+
+| 布局 | 画面 |
+|---|---|
+| 1 长河 | 整个画面都是水；月影钉在左侧的空处，月光贴着那一侧往近处流 |
+| 2 远岸 | 水到远处就到头了，顶上让出一条天空：一轮月亮、三层远山、山脚下的雾 |
+| 3 月下 | 棋盘底下一汪月光；水纹在那一汪里让开，边上才亮 |
+
+主角落到哪个格子，哪个格子底下就荡开一圈：水面上那一圈（落在棋盘中间时会被四周的格子挡住），加上格子面上的一圈淡环（画在最上层，站在哪儿都看得见）。
+
+河的底色还是跟着章节和连击走：`colors.gd` 每一帧按 `water_color`、`light_foam_color`、`dark_foam_color` 这三个参数改它，参数名没换；只是往墨色里压了一截，是夜里的河。
+
+平时用的是**月下**。另外两种（和原来那块铺满网纹的水）都留着，用环境变量 `SW_STAGE` 临时换着看（录预览、对比的时候用）：
+
+```bash
+SW_STAGE=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_stage.txt 远岸   # 1 长河、2 远岸、3 月下、0 原来的网纹；进第 1、8、12 关各截一张，再量帧时间
+tools/playtest/agent.sh a7 stage 2                                               # 录一段进游戏、在棋盘上跳几下的
+tools/playtest/assemble_stage.sh 2                                               # 拼成 builds/stage/stage2.mp4
+tools/playtest/assemble_stage_all.sh                                             # 三种都录过以后，拼一段三个并排的
+```
+
+标题页那条河：
+
+```bash
+tools/playtest/agent.sh a7 lobby                                                     # 录 20 秒：没人动 → 指针划过 → 挪菜单焦点
+tools/playtest/assemble_lobby.sh                                                     # 拼成 builds/lobby/lobby.mp4，带标题音乐
+SW_OPENING=off tools/playtest/agent.sh a7 drive tools/playtest/steps_lobby.txt lobby   # 截图、量帧时间
+```
+
+`SW_OPENING=off` 是临时当成设置里选了「不播」。这时开机的黑幕要撤掉、标题页看得见，用 `steps_no_opening.txt` 查（以前只有开场动画才撤这块黑幕，选「不播」的话整个画面是黑的）。
+
+河灯这一份两边共用：`scripts/uis/river_lamps.gd`。
+
+对战：
+
+```bash
+tools/playtest/agent.sh a7 versus 2                                                   # 录一局追影
+tools/playtest/assemble_versus.sh 2                                                   # 拼成 builds/versus/对战2.mp4，带游戏里的音乐
+SW_OPENING=off tools/playtest/agent.sh a7 drive tools/playtest/steps_versus.txt versus   # 标题页的"对战"入口和选择面板
+```
+
 ## 操作
 
 | | 键盘鼠标 | 手柄 |
@@ -176,7 +252,7 @@ python3 tools/audio/voice.py A      # 收拾干净（去底噪、掐空白、对
 
 要用 Godot 4.7.2，导出模板也是这个版本。用编辑器打开 `project.godot`，按 F5。
 
-存档在用户数据目录下的 `Godot/app_userdata/守望/` 里：解锁的角色、本机成绩、看没看过哪条新手教程、选的方案和开场动画、开场上一次播的是哪个。
+存档在用户数据目录下的 `Godot/app_userdata/守望/` 里：解锁的角色、本机成绩、看没看过哪条新手教程、选的方案和开场动画、开场上一次播的是哪个。对战的局不记成绩，选了哪种对战也不存（每次从标题页选）。
 
 游戏启动时会在本机 `127.0.0.1:9878` 开一个调试端口，自动测试靠它驱动游戏。它只监听本机。本机成绩也只存在本机，不往任何服务器发。
 
@@ -189,6 +265,9 @@ python3 tools/audio/voice.py A      # 收拾干净（去底噪、掐空白、对
 | `scripts/board_sim.gd` | 一个"随手玩"的机器人，调难度和自动试玩都用它 |
 | `scripts/ruleset.gd`、`resources/rulesets/` | 玩法方案 |
 | `scripts/uis/opening.gd`、`shaders/opening_*.gdshader` | 开场动画 |
+| `scripts/uis/lobby_river.gd`、`river_lamps.gd`、`shaders/lobby_*.gdshader` | 标题页的背景：那条河和河上的灯 |
+| `scripts/stage_backdrop.gd`、`shaders/stage_*.gdshader` | 游戏里的背景：三种布局，平时用月下 |
+| `scripts/versus/`、`scripts/uis/versus_picker.gd` | 对战的五种玩法，和标题页的选择面板 |
 | `scripts/autoload/pad_adapter.gd` | 手柄适配、调试遥控、自动试玩的机器人、录屏 |
 | `shaders/` `materials/` | 抖动和染色 |
 | `assets/sprites/` | 贴图。都是纯白剪影，颜色在运行时乘上去 |
@@ -256,6 +335,9 @@ python3 tools/art/review.py check . assets/sprites/ui/lock.png --zoom=0.32   # �
 | `a7 auto [campaign|endless] [1|2] [最多打到第几关] [前缀]` | 机器人真机玩一局。1 = 照着摆好的路线走（必须一步不错、关关都过）；2 = 贪心打法。顺手查棋盘上的登记：一盏灯不能登记在两个格子上 |
 | `a7 drive <步骤文件> [前缀]` | 按步骤操作游戏并截图。步骤的写法见 `drive_v100.sh` 的开头。日志里有报错，或者某一步调的检查报了没过，退出码就不是 0 |
 | `a7 opening [A|B|D] [秒数] [每秒几张]` | 录一段开场动画，核对播的是不是要录的那个、声音放出来没有 |
+| `a7 lobby [秒数] [每秒几张]` | 录一段标题页的背景（那条河、河灯、划过水面和挪焦点时荡开的涟漪），帧取回到 `builds/lobby/rec/` |
+| `a7 stage <1\|2\|3> [秒数] [每秒几张]` | 录一段游戏里的背景：进游戏、在棋盘上跳几下，帧取回到 `builds/stage/<布局>/` |
+| `a7 versus <1..5> [秒数] [每秒几张]` | 录一局对战（1 抢灯、2 追影、3 夺岸、4 轮战、5 对弈），主角交给机器人打，帧取回到 `builds/versus/<编号>/` |
 | `a7 all` | 一轮完整回归（它不同步工程，先 `sync`）：`import` → `boards` → 两种过关流程 → `aspect` → `mechanics` → `auto campaign 1`，哪一步没过就停在那一步 |
 | `a7 export`、`a7 fetch` | 导出 Linux 可执行文件（日志里有报错就不出包）；取回到 `builds/linux/shouwang.x86_64` |
 | `a7 smoke <步骤文件>` | 试跑导出来的可执行文件。`steps_export.txt` 是导出包自检：方案、道具这些按路径读的资源在包里都读得到 |

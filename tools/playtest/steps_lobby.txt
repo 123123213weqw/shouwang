@@ -1,0 +1,35 @@
+# 大厅的背景（那条河）：不播开场，游戏一起来就在标题页上。
+# 看河上的灯、指针划过的水纹、荡开的涟漪、挪菜单焦点时按钮底下那一圈，再量一帧要多久。
+# SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_lobby.txt lobby
+# 换个比例再量一遍：SW_RES=1280x720 同上（前缀换成 lobby169）
+call pad_adapter.gd debug_lobby 0
+call pad_adapter.gd debug_lobby 2 9
+sleep 3
+call pad_adapter.gd debug_lobby 0
+size
+snap 01_river
+# 指针贴着水面走：走过去的地方起涟漪，附近的水纹亮起来
+move 300 620
+sleep 0.3
+move 380 590
+sleep 0.3
+move 470 560
+sleep 0.3
+move 560 520
+sleep 0.4
+snap 02_pointer
+# 月亮底下荡开一圈大的
+call pad_adapter.gd debug_lobby 1 960 200
+sleep 0.5
+snap 03_ripple
+# 挪菜单的焦点：每个按钮底下荡开一圈
+key Down
+sleep 0.4
+key Down
+sleep 0.4
+snap 04_focus
+call pad_adapter.gd debug_lobby 0
+# 一帧要多久（河和着色器都在跑）
+call pad_adapter.gd debug_frame_clear
+sleep 5
+call pad_adapter.gd debug_frame_stats
