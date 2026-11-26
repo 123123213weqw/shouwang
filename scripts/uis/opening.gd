@@ -144,7 +144,7 @@ func _sound_start() -> void:
 		_voice.name = "OpeningVoice"
 		_voice.bus = &"SFX"
 		_voice.stream = SOUNDS[variant]
-		add_child(_voice)
+		title.add_child(_voice)
 		_voice.play()
 	# 旁白：有真人录的那一句才放
 	var path := "res://assets/audio/opening/voice%s.wav" % variant
@@ -155,7 +155,7 @@ func _sound_start() -> void:
 			_narration.name = "OpeningNarration"
 			_narration.bus = &"SFX"
 			_narration.stream = line
-			add_child(_narration)
+			title.add_child(_narration)
 			_narration.play(NARRATION_AT)
 			_after(NARRATION_AT).tween_property(_voice, "volume_db", NARRATION_DUCK_DB, 0.15)
 			_after(NARRATION_AT + line.get_length()).tween_property(_voice, "volume_db", 0.0, 0.4)
@@ -164,13 +164,15 @@ func _sound_start() -> void:
 ## 音乐回到平常的音量。这两个动画挂在标题页上，开场这一层销毁了也接着走完
 func _sound_stop() -> void:
 	if is_instance_valid(_voice):
-		var tv := create_tween()
+		_voice.name = "OpeningVoiceTail"
+		var tv := _voice.create_tween()
 		tv.tween_property(_voice, "volume_db", -60.0, 0.22)
 		tv.tween_callback(_voice.queue_free)
 	if is_instance_valid(_music):
-		create_tween().tween_property(_music, "volume_db", _music_home_db, 0.35)
+		_music.create_tween().tween_property(_music, "volume_db", _music_home_db, 0.35)
 	if is_instance_valid(_narration):
-		var tn := create_tween()
+		_narration.name = "OpeningNarrationTail"
+		var tn := _narration.create_tween()
 		tn.tween_property(_narration, "volume_db", -60.0, 0.12)
 		tn.tween_callback(_narration.queue_free)
 	_voice = null
