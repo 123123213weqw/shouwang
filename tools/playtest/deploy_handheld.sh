@@ -1,6 +1,8 @@
 #!/bin/bash
-# 把 V100 上导出的游戏包装到掌机上（Legion Go，Ubuntu）。只换文件：不启动游戏，也不打断掌机上正在跑的游戏
-#（下次启动才是新的）。用法（在本机跑）：
+# 把 V100 上导出的游戏包装到掌机上（Legion Go，Ubuntu）。只换文件：不启动游戏。用法（在本机跑）：
+# 游戏正在跑的时候默认不换：导出的包是一整个可执行文件，跑着的时候把它换掉，游戏下次要读资源（比如回主菜单）
+# 就会读到半新半旧的东西，直接卡死（2026-11-26 就这么卡住过一次）。确认了要换再加 SW_FORCE=1：
+#   SW_FORCE=1 tools/playtest/deploy_handheld.sh
 #   tools/playtest/agent.sh a7 setup && tools/playtest/agent.sh a7 sync && tools/playtest/agent.sh a7 export
 #   tools/playtest/deploy_handheld.sh [V100 上的包]    默认 /home/wzu/shouwang-agents/a7/shouwang.x86_64
 # 掌机用 ~/.ssh/config 里的别名连（默认 RWKV_Tail：地址、用户名、钥匙都写在那里，这个脚本不写死；想换别名就设 SW_HANDHELD），
@@ -34,6 +36,11 @@ want=$($V100 "sha256sum $SRC" | cut -c1-64)
 [ ${#want} -eq 64 ] || { echo "V100 上找不到包：${SRC}"; exit 1; }
 size=$($V100 "stat -c %s $SRC")
 echo "要部署的包：${SRC}（${size} 字节，${want:0:16}…）"
+if [ "${SW_FORCE:-}" != 1 ] && $HH 'pgrep -x shouwang.x86_64 >/dev/null || pgrep -x newgame.x86_64 >/dev/null' >/dev/null 2>&1; then
+	echo "掌机上的游戏正在运行，不换包（换掉会让它在下次读资源时卡死）。退出游戏以后再跑这个脚本，"
+	echo "或者确认可以打断，用 SW_FORCE=1 tools/playtest/deploy_handheld.sh 强制换"
+	exit 5
+fi
 
 echo "== 掌机现在的状态（只查看）=="
 on_handheld <<'REMOTE' || { echo "掌机连不上（经 V100 跳板，别名 $ALIAS）"; exit 1; }
