@@ -6,7 +6,7 @@
 PROJECT="$1"; P="${2:-a10}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 export SW_RES="${3:-1152x720}"   # 掌机的逻辑分辨率是 1280x800（屏幕 2560x1600 的 2 倍缩放）
-RUN="${SW_RUN:-/home/wzu/shouwang-run}"; SNAP="${SW_SNAP:-/tmp/sw_snap}"; LOG="${SW_LOG:-/tmp/shouwang_run.log}"
+RUN="${SW_RUN:-$HOME/shouwang-run}"; SNAP="${SW_SNAP:-/tmp/sw_snap}"; LOG="${SW_LOG:-/tmp/shouwang_run.log}"
 PORT="${SW_DEBUG_PORT:-9878}"
 mkdir -p "$RUN/shots"
 RC="bash $HERE/rc.sh"

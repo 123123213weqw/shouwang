@@ -6,7 +6,7 @@
 # 环境变量同 launch_v100.sh（几个实例同时跑的时候各设各的）。
 PROJECT="${1%/}"; P="$2"; export SW_RES="$3"; shift 3
 HERE="$(cd "$(dirname "$0")" && pwd)"
-RUN="${SW_RUN:-/home/wzu/shouwang-run}"; SNAP="${SW_SNAP:-/tmp/sw_snap}"; LOG="${SW_LOG:-/tmp/shouwang_run.log}"
+RUN="${SW_RUN:-$HOME/shouwang-run}"; SNAP="${SW_SNAP:-/tmp/sw_snap}"; LOG="${SW_LOG:-/tmp/shouwang_run.log}"
 mkdir -p "$RUN/shots"
 RC="bash $HERE/rc.sh"
 n=$(nproc); export SW_CPUS="${SW_CPUS:-$((n-6))-$((n-1))}"

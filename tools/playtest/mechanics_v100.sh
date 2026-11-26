@@ -8,7 +8,7 @@
 # 环境变量同 launch_v100.sh（几个实例同时跑的时候各设各的）。截图写到 $SW_RUN/shots/，文件名以 <前缀>_ 开头。
 PROJECT="$1"; P="$2"
 HERE="$(cd "$(dirname "$0")" && pwd)"
-RUN="${SW_RUN:-/home/wzu/shouwang-run}"; SNAP="${SW_SNAP:-/tmp/sw_snap}"; LOG="${SW_LOG:-/tmp/shouwang_run.log}"
+RUN="${SW_RUN:-$HOME/shouwang-run}"; SNAP="${SW_SNAP:-/tmp/sw_snap}"; LOG="${SW_LOG:-/tmp/shouwang_run.log}"
 PORT="${SW_DEBUG_PORT:-9878}"
 mkdir -p "$RUN/shots"
 RC="bash $HERE/rc.sh"

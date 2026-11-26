@@ -1,7 +1,7 @@
 #!/bin/bash
 # 在 V100（没有显示器的编译服务器）上测试工程的入口。在工程根目录下用：
 #   tools/playtest/agent.sh <标签> <命令>
-# 每个标签在 V100 上有一套自己的环境（/home/wzu/shouwang-agents/<标签>/）：工程目录、调试端口、虚拟显示各用各的，
+# 每个标签在服务器上有一套自己的环境（家目录下的 shouwang-agents/<标签>/）：工程目录、调试端口、虚拟显示各用各的，
 # 互不影响，所以几个任务可以同时跑。标签是 base 或者 a1 到 a9；base 是带着音频的底版，别的标签建环境时从它复制音频，
 # 所以第一次用要先跑一次 tools/playtest/agent.sh base setup。平时只用一个标签的话用 a7。
 # 命令：
@@ -26,6 +26,13 @@
 #   clean                   停掉并删掉 V100 上这个标签的目录（做完以后一定要执行，base 不用删）
 #   all                     一轮完整回归：import → boards → flow campaign → flow endless → aspect → mechanics → auto campaign 1，哪一步没过就停在那一步
 # 截图取回到 $SW_OUT（默认 builds/shots/<标签>/）。开了游戏的命令哪一步没过，退出码就不是 0。
+# 换一台服务器跑（比如和别的任务错开）：SW_HOST 设成 ~/.ssh/config 里的别名就行，别的不用动。默认是 WZU_V100。
+#   SW_HOST=V100_222_TS tools/playtest/agent.sh a7 all
+#   （外部那台把 Xvfb 和 Vulkan 的加载库解在 ~/apps/xvfb/root/ 里：有这个目录就自动用，不用再指定）
+# 那台服务器上要有 Godot 4.7.2（默认在 ~/apps/godot/ 下，不在就用 SW_GODOT 指定）、Xvfb（默认从 PATH 里找，
+#   不在 PATH 里就用 SW_XVFB 指定）。各标签的根目录默认在家目录下的 shouwang-agents/，想放别处用 SW_ROOTS。
+#   Godot 缺动态库（比如 Vulkan 的加载库装在自己的目录里）就用 SW_LD_LIBRARY_PATH 加搜索路径。
+# 第一次在一台新服务器上用：先跑 SW_FULL=1 <标签> setup，把工程连同音频整份传过去当底版
 # 临时指定玩法方案：SW_RULESET=hard tools/playtest/agent.sh a7 auto campaign 2（六套的 id 见 resources/rulesets/）
 # 机器人每一步都打进日志（查它为什么跳不到的时侯用）：SW_AUTO_TRACE=1 tools/playtest/agent.sh a7 auto campaign 1
 # 游戏里背景的三种布局（1 长河、2 远岸、3 月下；平时是月下）：SW_STAGE=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_stage.txt 远岸
@@ -44,7 +51,11 @@ esac
 set -o pipefail
 SSH="ssh -o ConnectTimeout=30 -o BatchMode=yes -o ServerAliveInterval=15"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-ROOTS="/home/wzu/shouwang-agents"
+HOST="${SW_HOST:-WZU_V100}"           # ssh 配置里的别名。换一台服务器就设 SW_HOST
+# 各标签的根目录：默认在那台服务器自己的家目录下（问它一声 $HOME，多一次连接而已）。SW_ROOTS 可以改
+RHOME="${SW_REMOTE_HOME:-$($SSH "$HOST" 'echo $HOME' 2>/dev/null | tail -n 1)}"      # 那台服务器的家目录（问它一声，只问这一次）
+ROOTS="${SW_ROOTS:-$RHOME/shouwang-agents}"
+[ -n "$ROOTS" ] && [ "${ROOTS%/shouwang-agents}" != "$ROOTS" ] || { echo "连不上 ${HOST}，或者读不到它的家目录（可以用 SW_ROOTS、SW_REMOTE_HOME 直接指定）"; exit 1; }
 REMOTE="$ROOTS/$TAG"
 OUT="${SW_OUT:-$ROOT/builds/shots/$TAG}"
 # 每个标签一套：端口 9910+编号，最多 5 个渲染线程，虚拟显示从 200+编号 试起
@@ -58,28 +69,39 @@ export SW_AUTO_EAGER="${SW_AUTO_EAGER:-}"    # 设了（任何值）机器人换
 export SW_OPENING="${SW_OPENING:-}"          # 临时指定开场动画（A / B / C / D），不写存档
 export SW_BOOT_WAIT="${SW_BOOT_WAIT:-}"      # 游戏起来以后第一步之前等几秒才动手（平时 6 秒；查开场的时侯设 1）
 export SW_OPENING_TRACE="${SW_OPENING_TRACE:-}"   # 设了就把开场每一处创建的时刻打进日志（查卡顿用）
+export SW_GODOT="${SW_GODOT:-}"              # 服务器上 Godot 可执行文件的位置（空 = 那台服务器家目录下的 apps/godot/）
+export SW_XVFB="${SW_XVFB:-}"                # 服务器上 Xvfb 的位置（空 = PATH 里的 Xvfb）
+export SW_LD_LIBRARY_PATH="${SW_LD_LIBRARY_PATH:-}"   # 服务器上 Godot 要多找的动态库目录（空 = 不加）
+export SW_AUDIO="${SW_AUDIO:-}"              # 音频驱动（Dummy / ALSA）。不写：没有声卡也不声音频服务在跑的机器上自动用 Dummy
+# 那台服务器上自己装了 Xvfb（没装系统包、解在家目录的 apps/xvfb/root/ 里，V100_222 就是这样）：默认就用它，
+# 顺带把它那一目录里可能有的 Vulkan 加载库也带上。SW_XVFB、SW_LD_LIBRARY_PATH 给了就以给的为准
+if [ -z "${SW_XVFB:-}" ] && [ -n "$RHOME" ] && $SSH "$HOST" "test -d $RHOME/apps/xvfb/root" 2>/dev/null; then
+	SW_XVFB="$RHOME/apps/xvfb/root/usr/bin/Xvfb"
+	SW_LD_LIBRARY_PATH="${SW_LD_LIBRARY_PATH:-$RHOME/apps/xvfb/root/usr/lib/x86_64-linux-gnu}"
+fi
 export SW_RULESET="${SW_RULESET:-}"          # 临时指定玩法方案（灯谱 dealt / 流水 flow / 长明 hard / 万灯 party / 疾走 rush / 旧灯 legacy），不写存档
 export SW_STAGE="${SW_STAGE:-}"              # 游戏里背景的布局：1 长河、2 远岸、3 月下；不写是平时用的「月下」，给 0 是原来那块网纹的水
 pull() {
 	mkdir -p "$OUT"
-	rsync -a -e "$SSH" --include "${1}_*" --exclude '*' "WZU_V100:$REMOTE/shots/" "$OUT/" && echo "截图已取回到 ${OUT}（文件名以 ${1}_ 开头）"
+	rsync -a -e "$SSH" --include "${1}_*" --exclude '*' "$HOST:$REMOTE/shots/" "$OUT/" && echo "截图已取回到 ${OUT}（文件名以 ${1}_ 开头）"
 }
-ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER SW_RULESET=$SW_RULESET SW_AUTO_TRACE=$SW_AUTO_TRACE SW_AUTO_EAGER=$SW_AUTO_EAGER SW_OPENING=$SW_OPENING SW_BOOT_WAIT=$SW_BOOT_WAIT SW_OPENING_TRACE=$SW_OPENING_TRACE SW_STAGE=$SW_STAGE"
+ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER SW_RULESET=$SW_RULESET SW_AUTO_TRACE=$SW_AUTO_TRACE SW_AUTO_EAGER=$SW_AUTO_EAGER SW_OPENING=$SW_OPENING SW_BOOT_WAIT=$SW_BOOT_WAIT SW_OPENING_TRACE=$SW_OPENING_TRACE SW_STAGE=$SW_STAGE SW_GODOT=$SW_GODOT SW_XVFB=$SW_XVFB SW_LD_LIBRARY_PATH=$SW_LD_LIBRARY_PATH SW_AUDIO=$SW_AUDIO"
 BIN="$REMOTE/shouwang.x86_64"
 EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --exclude *.tmp --exclude __pycache__ --exclude tools/playtest"
 # 原作的两首曲子和音效很大，建环境的时侯从 base 复制过来，平时同步不传；开场动画的声音是我们自己的、很小，照常同步
 [ "$TAG" != base ] && EXCLUDE="$EXCLUDE --include assets/audio/opening --include 'assets/audio/opening/***' --exclude 'assets/audio/*'"
 case "$CMD" in
 	setup)
-		$SSH WZU_V100 "mkdir -p $REMOTE/project $REMOTE/bin $REMOTE/shots; if [ '$TAG' != base ] && [ ! -e $REMOTE/project/project.godot ] && [ -d $ROOTS/base/project ]; then cp -a $ROOTS/base/project/. $REMOTE/project/; fi" \
-			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100,autoplay_v100,record_opening_v100,record_lobby_v100,record_stage_v100,record_versus_v100}.sh "WZU_V100:$REMOTE/bin/" \
+		$SSH "$HOST" "mkdir -p $REMOTE/project $REMOTE/bin $REMOTE/shots; if [ '$TAG' != base ] && [ ! -e $REMOTE/project/project.godot ] && [ -d $ROOTS/base/project ]; then cp -a $ROOTS/base/project/. $REMOTE/project/; fi" \
+			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100,autoplay_v100,record_opening_v100,record_lobby_v100,record_stage_v100,record_versus_v100}.sh "$HOST:$REMOTE/bin/" \
 			&& echo "V100 上的环境已建好：${REMOTE}（端口 ${SW_DEBUG_PORT}，渲染线程 ${SW_THREADS}）" ;;
 	sync)
-		rsync -a --delete $EXCLUDE -e "$SSH" "$ROOT/" "WZU_V100:$REMOTE/project/" \
+		[ "${SW_FULL:-}" = 1 ] && EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --exclude *.tmp --exclude __pycache__ --exclude tools/playtest"   # 整份传（连音频），当底版
+		rsync -a --delete $EXCLUDE -e "$SSH" "$ROOT/" "$HOST:$REMOTE/project/" \
 			&& echo "已同步到 ${REMOTE}/project" ;;
 	# 同步过去再导入，Godot 会改写一部分 .import 文件（导入缓存的路径），也会给新脚本生成 .uid 文件：都取回来，仓库里存的才是对的
 	import)
-		$SSH WZU_V100 bash -s "$REMOTE" <<'REMOTE_SH'
+		$SSH "$HOST" bash -s "$REMOTE" <<'REMOTE_SH'
 G=~/apps/godot/Godot_v4.7.2-stable_linux.x86_64
 R="$1"; cd "$R/project" || exit 1
 $G --headless --path . --import > "$R/import1.log" 2>&1
@@ -97,10 +119,10 @@ sed 's/\x1b\[[0-9;]*m//g' "$R/boot.log" | grep -A4 'SCRIPT ERROR\|is not compili
 REMOTE_SH
 		code=$?
 		# 原作音频的 .import 本来就在仓库里，不用取；开场声音的 .import 是新导入出来的，要取回来
-		rsync -a -e "$SSH" --exclude '.godot/' --include 'assets/audio/opening/' --include 'assets/audio/opening/*.import' --exclude 'assets/audio/*' --include '*/' --include '*.import' --include '*.uid' --exclude '*' "WZU_V100:$REMOTE/project/" "$ROOT/"
+		rsync -a -e "$SSH" --exclude '.godot/' --include 'assets/audio/opening/' --include 'assets/audio/opening/*.import' --exclude 'assets/audio/*' --include '*/' --include '*.import' --include '*.uid' --exclude '*' "$HOST:$REMOTE/project/" "$ROOT/"
 		exit $code ;;
 	boards)
-		$SSH WZU_V100 bash -s "$REMOTE" <<'REMOTE_SH'
+		$SSH "$HOST" bash -s "$REMOTE" <<'REMOTE_SH'
 G=~/apps/godot/Godot_v4.7.2-stable_linux.x86_64
 cd "$1/project" || exit 1
 $G --headless --path . --script res://tools/test_boards.gd > "$1/boards.log" 2>&1
@@ -119,74 +141,74 @@ REMOTE_SH
 		;;
 	drive)
 		STEPS="$3"; PREFIX="${4:-run}"
-		scp -q -o ConnectTimeout=30 -o BatchMode=yes "$STEPS" "WZU_V100:$REMOTE/steps.txt" || exit 1
-		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/drive_v100.sh $REMOTE/project $REMOTE/steps.txt $PREFIX" | cut -c1-600
+		scp -q -o ConnectTimeout=30 -o BatchMode=yes "$STEPS" "$HOST:$REMOTE/steps.txt" || exit 1
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/drive_v100.sh $REMOTE/project $REMOTE/steps.txt $PREFIX" | cut -c1-600
 		code=${PIPESTATUS[0]}
 		pull "$PREFIX"
 		exit $code ;;
 	flow)
 		MODE="${3:-campaign}"; PREFIX="${4:-flow_$MODE}"
-		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/flowtest_v100.sh $REMOTE/project $MODE $PREFIX" | cut -c1-400
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/flowtest_v100.sh $REMOTE/project $MODE $PREFIX" | cut -c1-400
 		code=${PIPESTATUS[0]}
 		pull "$PREFIX"
 		exit $code ;;
 	aspect)
 		RES="${3:-1152x720}"; PREFIX="${4:-aspect}"
-		$SSH WZU_V100 "SW_RES=$RES $ENVS bash $REMOTE/bin/aspect_v100.sh $REMOTE/project $PREFIX $RES" | cut -c1-400
+		$SSH "$HOST" "SW_RES=$RES $ENVS bash $REMOTE/bin/aspect_v100.sh $REMOTE/project $PREFIX $RES" | cut -c1-400
 		code=${PIPESTATUS[0]}
 		pull "$PREFIX"
 		exit $code ;;
 	auto)
 		MODE="${3:-campaign}"; BOT="${4:-1}"; MAXL="${5:-999}"; PREFIX="${6:-auto_${MODE}_$BOT}"
-		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/autoplay_v100.sh $REMOTE/project $MODE $BOT $MAXL $PREFIX" | cut -c1-400
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/autoplay_v100.sh $REMOTE/project $MODE $BOT $MAXL $PREFIX" | cut -c1-400
 		code=${PIPESTATUS[0]}
 		pull "$PREFIX"
 		exit $code ;;
 	opening)
 		WHICH="${3:-A}"; SECS="${4:-4.8}"; FPS="${5:-20}"
-		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/record_opening_v100.sh $REMOTE/project $WHICH $SECS $FPS" | cut -c1-300
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_opening_v100.sh $REMOTE/project $WHICH $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/opening/$WHICH" && rm -f "$ROOT/builds/opening/$WHICH/"*.jpg
-		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_opening_$WHICH/" "$ROOT/builds/opening/$WHICH/" && echo "帧已取回到 builds/opening/$WHICH/（$(ls "$ROOT/builds/opening/$WHICH" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_opening.sh $WHICH"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_opening_$WHICH/" "$ROOT/builds/opening/$WHICH/" && echo "帧已取回到 builds/opening/$WHICH/（$(ls "$ROOT/builds/opening/$WHICH" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_opening.sh $WHICH"
 		exit $code ;;
 	lobby)
 		SECS="${3:-20}"; FPS="${4:-20}"
-		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/record_lobby_v100.sh $REMOTE/project $SECS $FPS" | cut -c1-300
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_lobby_v100.sh $REMOTE/project $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/lobby/rec" && rm -f "$ROOT/builds/lobby/rec/"*.jpg
-		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_lobby/" "$ROOT/builds/lobby/rec/" && echo "帧已取回到 builds/lobby/rec/（$(ls "$ROOT/builds/lobby/rec" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_lobby.sh $FPS"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_lobby/" "$ROOT/builds/lobby/rec/" && echo "帧已取回到 builds/lobby/rec/（$(ls "$ROOT/builds/lobby/rec" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_lobby.sh $FPS"
 		exit $code ;;
 	stage)
 		N="${3:-1}"; SECS="${4:-18}"; FPS="${5:-20}"
-		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/record_stage_v100.sh $REMOTE/project $N $SECS $FPS" | cut -c1-300
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_stage_v100.sh $REMOTE/project $N $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/stage/$N" && rm -f "$ROOT/builds/stage/$N/"*.jpg
-		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_stage_$N/" "$ROOT/builds/stage/$N/" && echo "帧已取回到 builds/stage/$N/（$(ls "$ROOT/builds/stage/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_stage.sh $N $FPS"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_stage_$N/" "$ROOT/builds/stage/$N/" && echo "帧已取回到 builds/stage/$N/（$(ls "$ROOT/builds/stage/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_stage.sh $N $FPS"
 		exit $code ;;
 	versus)
 		N="${3:-1}"; SECS="${4:-24}"; FPS="${5:-20}"
-		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/record_versus_v100.sh $REMOTE/project $N $SECS $FPS" | cut -c1-300
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_versus_v100.sh $REMOTE/project $N $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/versus/$N" && rm -f "$ROOT/builds/versus/$N/"*.jpg
-		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_versus_$N/" "$ROOT/builds/versus/$N/" && echo "帧已取回到 builds/versus/$N/（$(ls "$ROOT/builds/versus/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_versus.sh $N"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_versus_$N/" "$ROOT/builds/versus/$N/" && echo "帧已取回到 builds/versus/$N/（$(ls "$ROOT/builds/versus/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_versus.sh $N"
 		exit $code ;;
 	mechanics)
 		PREFIX="${3:-mechanics}"
-		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/mechanics_v100.sh $REMOTE/project $PREFIX" | cut -c1-900
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/mechanics_v100.sh $REMOTE/project $PREFIX" | cut -c1-900
 		code=${PIPESTATUS[0]}
 		pull "$PREFIX"
 		exit $code ;;
 	export)
-		scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT/tools/playtest/export_linux_v100.sh" "WZU_V100:$REMOTE/bin/" || exit 1
-		$SSH WZU_V100 "bash $REMOTE/bin/export_linux_v100.sh $REMOTE/project $BIN" | cut -c1-400 ;;
+		scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT/tools/playtest/export_linux_v100.sh" "$HOST:$REMOTE/bin/" || exit 1
+		$SSH "$HOST" "bash $REMOTE/bin/export_linux_v100.sh $REMOTE/project $BIN" | cut -c1-400 ;;
 	fetch)
 		mkdir -p "$ROOT/builds/linux"
-		rsync -a --partial -e "$SSH" "WZU_V100:$BIN" "$ROOT/builds/linux/shouwang.x86_64" && ls -la "$ROOT/builds/linux/shouwang.x86_64" | awk '{print "已取回到 builds/linux/shouwang.x86_64，" $5 " 字节"}' ;;
+		rsync -a --partial -e "$SSH" "$HOST:$BIN" "$ROOT/builds/linux/shouwang.x86_64" && ls -la "$ROOT/builds/linux/shouwang.x86_64" | awk '{print "已取回到 builds/linux/shouwang.x86_64，" $5 " 字节"}' ;;
 	smoke)
 		STEPS="$3"; PREFIX="${4:-smoke}"
-		$SSH WZU_V100 "test -x $BIN" || { echo "V100 上还没有导出的可执行文件，先跑 export"; exit 1; }
-		scp -q -o ConnectTimeout=30 -o BatchMode=yes "$STEPS" "WZU_V100:$REMOTE/steps.txt" || exit 1
-		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/drive_v100.sh $BIN $REMOTE/steps.txt $PREFIX" | cut -c1-600
+		$SSH "$HOST" "test -x $BIN" || { echo "V100 上还没有导出的可执行文件，先跑 export"; exit 1; }
+		scp -q -o ConnectTimeout=30 -o BatchMode=yes "$STEPS" "$HOST:$REMOTE/steps.txt" || exit 1
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/drive_v100.sh $BIN $REMOTE/steps.txt $PREFIX" | cut -c1-600
 		code=${PIPESTATUS[0]}
 		pull "$PREFIX"
 		exit $code ;;
@@ -194,9 +216,9 @@ REMOTE_SH
 		[ -n "${3:-}" ] || { echo "用法: agent.sh $TAG pull <截图前缀>"; exit 1; }
 		pull "$3" ;;
 	stop)
-		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/stop_v100.sh $REMOTE/project" ;;
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/stop_v100.sh $REMOTE/project" ;;
 	clean)
-		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/stop_v100.sh $REMOTE/project; rm -rf $REMOTE /tmp/sw_snap_$TAG.jpg /tmp/sw_snap_$TAG.png /tmp/sw_snap_${TAG}_P*.png; echo \"已删除 V100 上的 $REMOTE\"" ;;
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/stop_v100.sh $REMOTE/project; rm -rf $REMOTE /tmp/sw_snap_$TAG.jpg /tmp/sw_snap_$TAG.png /tmp/sw_snap_${TAG}_P*.png; echo \"已删除 V100 上的 $REMOTE\"" ;;
 	all)
 		for step in import boards "flow campaign" "flow endless" aspect mechanics "auto campaign 1"; do
 			echo "========== $step =========="

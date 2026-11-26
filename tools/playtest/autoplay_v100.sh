@@ -7,7 +7,7 @@
 # 退出码：机器人 1 没通关 / 没打到指定的关数、或者出现过"跳不到"、或者日志里有报错，就是 1
 PROJECT="$1"; MODE="$2"; BOT="${3:-1}"; MAX="${4:-999}"; P="${5:-auto_${MODE}_$BOT}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
-RUN="${SW_RUN:-/home/wzu/shouwang-run}"; SNAP="${SW_SNAP:-/tmp/sw_snap}"; LOG="${SW_LOG:-/tmp/shouwang_run.log}"
+RUN="${SW_RUN:-$HOME/shouwang-run}"; SNAP="${SW_SNAP:-/tmp/sw_snap}"; LOG="${SW_LOG:-/tmp/shouwang_run.log}"
 PORT="${SW_DEBUG_PORT:-9878}"
 TIMEOUT="${SW_AUTO_TIMEOUT:-1500}"
 mkdir -p "$RUN/shots"

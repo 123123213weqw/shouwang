@@ -324,6 +324,22 @@ python3 tools/art/review.py check . assets/sprites/ui/lock.png --zoom=0.32   # �
 
 本机不编译，试玩和导出都放到服务器上做。入口是 `tools/playtest/agent.sh <标签> <命令>`，在工程根目录下运行：
 
+默认在 `WZU_V100` 上跑。换一台服务器只要设 `SW_HOST`（`~/.ssh/config` 里的别名），其余照旧：
+
+```bash
+SW_HOST=V100_222_TS tools/playtest/agent.sh base setup
+SW_HOST=V100_222_TS SW_FULL=1 tools/playtest/agent.sh base sync   # 第一次：整份传过去（连音频）当底版
+SW_HOST=V100_222_TS tools/playtest/agent.sh a7 all                 # 以后和平时的用法一样
+```
+
+那台服务器上要有的东西（没有管理员权限也能备齐）：
+
+- Godot 4.7.2 在 `~/apps/godot/` 下（`SW_GODOT` 可以指到别处）；
+- Xvfb：系统里装了就从 `PATH` 里找；没装就把 `xvfb` 这个包下载下来解到 `~/apps/xvfb/root/`，工具看到这个目录就自己用上。Godot 运行时还要动态加载几个库（`libXcursor`、`libXrandr` 这些 X 库，Vulkan 的加载库 `libvulkan.so.1`），系统是最小安装的话，同样下载后解在这个目录里就行；
+- 导出模板在 `~/.local/share/godot/export_templates/4.7.2.stable/`（Linux 包只要 `linux_release.x86_64` 和 `version.txt`，`export_linux_v100.sh` 自己下载不到的话从别的服务器拷）。
+
+既没有声卡、也没有音频服务在跑的机器，会自动改用「哑」音频驱动：声音照常「放」，查声音的步骤照常能查，只是不出声。
+
 | 命令 | 做什么 |
 |---|---|
 | `base setup` | 建底版（带音频）。第一次用先跑一次 |

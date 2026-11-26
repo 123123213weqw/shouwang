@@ -6,7 +6,7 @@
 # 例:   export_linux_v100.sh /home/wzu/shouwang-agents/a7/project /home/wzu/shouwang-agents/a7/shouwang.x86_64
 set -u
 PROJECT="$1"; OUT="$2"
-G=~/apps/godot/Godot_v4.7.2-stable_linux.x86_64
+G="${SW_GODOT:-$HOME/apps/godot/Godot_v4.7.2-stable_linux.x86_64}"
 VER=4.7.2-stable        # 发布页的标签，URL 里用横线
 VERDIR=4.7.2.stable     # Godot 期望的模板目录名，用点
 TPL_DIR=~/.local/share/godot/export_templates/$VERDIR

@@ -21,7 +21,7 @@
 # 截图写到 $SW_RUN/shots/。环境变量同 launch_v100.sh。
 PROJECT="${1%/}"; STEPS="$2"; P="$3"
 HERE="$(cd "$(dirname "$0")" && pwd)"
-RUN="${SW_RUN:-/home/wzu/shouwang-run}"; SNAP="${SW_SNAP:-/tmp/sw_snap}"; LOG="${SW_LOG:-/tmp/shouwang_run.log}"
+RUN="${SW_RUN:-$HOME/shouwang-run}"; SNAP="${SW_SNAP:-/tmp/sw_snap}"; LOG="${SW_LOG:-/tmp/shouwang_run.log}"
 mkdir -p "$RUN/shots"
 RC="bash $HERE/rc.sh"
 bash "$HERE/launch_v100.sh" "$PROJECT" || exit 1
