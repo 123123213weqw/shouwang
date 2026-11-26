@@ -66,8 +66,9 @@ func _ready() -> void:
 	_lamps.prepopulate(LAMPS)
 	_lamps.set_target(LAMPS)
 	# 界面上的几块（关卡名、灯火、连击、底下的道具框）：河灯别漂到它们前面
-	for hud in [_main.level_label, _main.score_label, _main.combo_control, _main.active_control]:
-		_lamps.avoid(hud)
+	for hud in [_main.level_label, _main.score_label, _main.combo_control, _main.active_control,
+			_main.get_node_or_null("CanvasLayer/Control/HudReturnButton")]:      # 最后一项是关卡左上角的"返回"（不一定有）
+		if hud != null: _lamps.avoid(hud)
 	if _layout == 2:
 		var behind := CanvasLayer.new()
 		behind.layer = -1                  # 编号是负数的那几层画在三维场景的后面

@@ -68,18 +68,19 @@ func _ready() -> void:
 	cfg = VersusRules.load_for(id)
 	auto = Game.versus_auto
 	process_priority = 50          # 排在两个角色的后面：角色每一帧会把自己的身子染回玩家的颜色，我随后再染一遍
-	hud = Tutorial.make_label(28, Color(1, 1, 1))
+	# 字比关卡名小一号，摆在左上角连击那一块的右边：连击图标多起来能排到 x≈480，压着这一行的左半截
+	hud = Tutorial.make_label(24, Color(1, 1, 1))
 	hud.name = "VersusHud"
 	hud.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# 描一圈边：主角跳到棋盘上排的时侯，"连击 ×N"的飘字会飘到这一行上来，没描边就看不清了
 	hud.label_settings.outline_size = 9
 	hud.label_settings.outline_color = Color(0.04, 0.06, 0.07)
-	hud.anchor_left = 0.0
-	hud.anchor_right = 1.0
+	hud.anchor_left = 0.36
+	hud.anchor_right = 0.905
 	hud.offset_left = 0.0
 	hud.offset_right = 0.0
-	hud.offset_top = 98.0
-	hud.offset_bottom = 140.0
+	hud.offset_top = 100.0
+	hud.offset_bottom = 138.0
 	main.get_node("CanvasLayer/Control").add_child(hud)
 	main.leader_board_container_control.visible = true     # 原地重开（同一次进游戏）的时候上一局把它藏起来了
 

@@ -248,8 +248,7 @@ func _input(event: InputEvent) -> void:
 func can_use_skill() -> bool:
 	if final_score_control.visible: return false
 	if tutorial != null and tutorial.card_open(): return false
-	var settings := get_node_or_null("CanvasLayer/Control/SettingsMenu")
-	if settings != null and settings.visible: return false
+	if pause_menu != null and pause_menu.visible: return false      # 暂停菜单（场景里的 Menu）：在它上面按 A 是点按钮
 	if get_viewport().gui_get_hovered_control() is BaseButton: return false
 	return true
 		
