@@ -1,13 +1,8 @@
 class_name VersusTerritory extends VersusBase
+# 这套玩法的数（棋盘、灯数、时限、对手多快……）在 resources/versus/territory.tres 里，见 versus_rules.gd
 ## 夺岸：不摆河灯。你踩过的格子上会点起一盏灯（玉色）；对手是熄灯人，走到哪儿就把身边一圈的灯吹灭。
 ## 不花步数；亮着的灯越多跳得越远。限时之内让七成格子同时亮着就赢，时间到了就是输。
 
-const BOARD := 6              # 用巡夜第 7 关"碑林"那张棋盘
-const TIME := 60.0
-const SHARE := 0.7            # 要让几成格子同时亮着
-const FOE_PACE := 2.4         # 熄灯人几秒挪一步
-const FOE_REACH := 1.7        # 它一步够多远（格）
-const MY_PACE := 1.0          # 演示的时侯主角几秒跳一下
 
 var lit: Dictionary = {}      # 格子 → 那一格上的灯（拿河灯的小图当标记，不算"格子上的东西"）
 var landable := 0             # 棋盘上一共几格能踩
@@ -17,6 +12,7 @@ var foe_clock := 2.5
 var my_clock := 1.0
 
 func _ready() -> void:
+	id = "territory"
 	super()
 	main.free_moves = true
 
@@ -24,7 +20,7 @@ func title() -> String:
 	return "夺岸"
 
 func first_level() -> LevelResource:
-	return campaign_level(BOARD, 0)
+	return campaign_level(cfg.board_index, 0)
 
 func uses_deal() -> bool:
 	return false               # 不摆河灯：灯是你踩出来的
@@ -42,9 +38,9 @@ func ready_level() -> void:
 	landable = 0
 	for tile in main.grid.tiles.values():
 		if tile.is_landable() and not tile.object: landable += 1
-	goal = ceili(SHARE * landable)
+	goal = ceili(cfg.share_goal * landable)
 	spawn_foe(farthest_tile(main.character.target_tile), FOE_COLOUR)
-	time_left = TIME
+	time_left = cfg.time_limit
 	foe_clock = 2.5
 
 func refresh_hud() -> void:
@@ -100,11 +96,11 @@ func _process(delta: float) -> void:
 	if auto:
 		my_clock -= delta
 		if my_clock <= 0.0 and not main.character.is_jumping:
-			my_clock = MY_PACE
+			my_clock = cfg.my_pace
 			_mine()
 	foe_clock -= delta
 	if foe_clock <= 0.0 and not foe.is_jumping:
-		foe_clock = FOE_PACE
+		foe_clock = cfg.foe_pace
 		foe_jump(_foes_pick())
 
 ## 演示用的主角：够得着的空格里挑一个离熄灯人最远的踩；都亮了就朝最近的空格走一步
@@ -133,13 +129,13 @@ func _foes_pick() -> Tile:
 	var here: Tile = foe.target_tile
 	var best: Tile = null
 	var best_n := -1
-	for t in jumpable(here, FOE_REACH, main.character.target_tile):
+	for t in jumpable(here, cfg.foe_reach, main.character.target_tile):
 		var n := _lit_near(t)
 		if n > best_n:
 			best_n = n
 			best = t
 	if best == null or best_n <= 0:
-		var next: Tile = first_step(here, lit.keys(), FOE_REACH, main.character.target_tile)
+		var next: Tile = first_step(here, lit.keys(), cfg.foe_reach, main.character.target_tile)
 		if next != null: return next
 	return best
 

@@ -44,6 +44,8 @@ const REACH_PER := 0.2
 const REACH_CAP := 10.0
 
 var main: Main
+var id := ""                       # 是哪种玩法（"rush" 这样）。各个子类在 _ready 开头写上
+var cfg: VersusRules               # 这套玩法的数（resources/versus/<id>.tres）
 var foe: Character                 # 对手。没有对手的玩法（轮战）一直是空
 var foe_colour := FOE_COLOUR
 var hud: Label                     # 关卡名底下那一行战况
@@ -63,6 +65,7 @@ static func reach_of(count: int) -> float:
 
 func _ready() -> void:
 	main = get_parent() as Main
+	cfg = VersusRules.load_for(id)
 	auto = Game.versus_auto
 	process_priority = 50          # 排在两个角色的后面：角色每一帧会把自己的身子染回玩家的颜色，我随后再染一遍
 	hud = Tutorial.make_label(28, Color(1, 1, 1))

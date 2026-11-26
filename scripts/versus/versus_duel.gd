@@ -1,13 +1,9 @@
 class_name VersusDuel extends VersusBase
+# 这套玩法的数（棋盘、灯数、时限、对手多快……）在 resources/versus/duel.tres 里，见 versus_rules.gd
 ## 对弈：一张棋盘，和对手轮流跳，一次一跳。踩到的灯归自己，留在原地上自己的颜色，以后谁也不能再落在那格上。
 ## 不花步数；自己的灯越多跳得越远（对手另算两盏，你先手）。谁踩了空格，对手就连跳一次。
 ## 灯分完，灯多的人赢。
 
-const BOARD := 7              # 用巡夜第 8 关"鼓亭"那张棋盘
-const LAMPS := 10
-const FOE_THINK := 0.7        # 对手轮到它以后想几秒
-const MY_THINK := 0.9         # 演示的时侯主角想几秒
-const FOE_EDGE := 2           # 对手的跳跃距离按"多收了两盏"算：你先手，它得占点便宜才拉得平（两个都是随手玩的机器人时 7 比 3）
 
 var mine := 0
 var theirs := 0
@@ -21,6 +17,7 @@ var my_clock := 0.0
 var stuck_for := 0.0          # 轮到你却没处可跳，已经等了几秒
 
 func _ready() -> void:
+	id = "duel"
 	super()
 	main.free_moves = true
 
@@ -28,7 +25,7 @@ func title() -> String:
 	return "对弈"
 
 func first_level() -> LevelResource:
-	var level := campaign_level(BOARD, LAMPS)
+	var level := campaign_level(cfg.board_index, cfg.lamps)
 	level.deal_seed = randi() % 100000 + 1        # 每开一局换一张棋盘（重来也是新的）
 	return level
 
@@ -36,11 +33,11 @@ func uses_portal() -> bool:
 	return false               # 灯分完就分胜负，不走水车
 
 func tune_deal(opt: Dictionary) -> void:
-	opt.lamps = LAMPS
-	opt.items = 0
+	opt.lamps = cfg.lamps
+	opt.items = cfg.items
 	opt.gates = 0
-	opt.detour = 0.3
-	opt.gap = 0.05
+	opt.detour = cfg.detour
+	opt.gap = cfg.gap
 
 func ready_level() -> void:
 	main.current_board()
@@ -55,7 +52,7 @@ func ready_level() -> void:
 	my_turn = true
 	foe_again = 0
 	me_again = 0
-	my_clock = MY_THINK
+	my_clock = cfg.my_pace
 	stuck_for = 0.0
 	main.update_tiles_color()
 
@@ -77,11 +74,11 @@ func handle_landing() -> bool:
 		pop(main.character.global_position, "踩空：对手连跳")
 	if me_again > 0:
 		me_again -= 1
-		my_clock = MY_THINK          # 对手刚才踩过空：你连跳
+		my_clock = cfg.my_pace          # 对手刚才踩过空：你连跳
 		pop(main.character.global_position, "再跳一步")
 	else:
 		my_turn = false
-		foe_clock = FOE_THINK
+		foe_clock = cfg.foe_pace
 	main.update_tiles_color()
 	return true
 
@@ -94,10 +91,10 @@ func _on_foe_landed() -> void:
 	if over: return
 	if foe_again > 0:
 		foe_again -= 1
-		foe_clock = FOE_THINK          # 你踩过空：它连跳
+		foe_clock = cfg.foe_pace          # 你踩过空：它连跳
 	else:
 		my_turn = true
-		my_clock = MY_THINK
+		my_clock = cfg.my_pace
 		stuck_for = 0.0
 	main.update_tiles_color()
 	super()
@@ -134,7 +131,7 @@ func _process(delta: float) -> void:
 				if auto:
 					my_clock -= delta
 					if my_clock <= 0.0:
-						my_clock = MY_THINK
+						my_clock = cfg.my_pace
 						var tile := _pick(main.character.target_tile, reach_of(mine), foe.target_tile)
 						if tile != null: main.character.move_to(tile)
 			else:
@@ -143,15 +140,15 @@ func _process(delta: float) -> void:
 					stuck_for = 0.0
 					pop(main.character.global_position, "你没处可跳，让了一步")
 					my_turn = false
-					foe_clock = FOE_THINK
+					foe_clock = cfg.foe_pace
 					main.update_tiles_color()
 		return
 	foe_clock -= delta
 	if foe_clock <= 0.0 and not foe.is_jumping:
-		var tile := _pick(foe.target_tile, reach_of(theirs + FOE_EDGE), main.character.target_tile)
+		var tile := _pick(foe.target_tile, reach_of(theirs + cfg.foe_edge), main.character.target_tile)
 		if tile == null:
 			my_turn = true             # 对手没处可去：让一步
-			my_clock = MY_THINK
+			my_clock = cfg.my_pace
 			pop(foe.global_position, "对手让了一步")
 			main.update_tiles_color()
 		else:

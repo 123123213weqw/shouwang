@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="VersusRules" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/versus/versus_rules.gd" id="1_vr"]
+
+[resource]
+script = ExtResource("1_vr")
+board_index = 3
+lamps = 6
+time_limit = 0.00
+foe_pace = 1.50
+my_pace = 0.90
+lead_lose = 3

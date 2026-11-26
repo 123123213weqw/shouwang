@@ -1,12 +1,8 @@
 class_name VersusRush extends VersusBase
+# 这套玩法的数（棋盘、灯数、时限、对手多快……）在 resources/versus/rush.tres 里，见 versus_rules.gd
 ## 抢灯：一张棋盘上两个人同时跳。灯谁先踩到就归谁，踩到的灯留在原地上自己的颜色。
 ## 不花步数；收得越多跳得越远。灯抢完了（或者一分钟到了），灯多的人赢。
 
-const BOARD := 5            # 用巡夜第 6 关"回廊"那张棋盘：三十来个格子，没有道具
-const LAMPS := 11
-const TIME := 60.0
-const FOE_PACE := 1.05      # 对手几秒跳一下
-const MY_PACE := 1.2        # 演示的时侯主角几秒跳一下
 
 var mine := 0
 var theirs := 0
@@ -15,6 +11,7 @@ var foe_clock := 0.5
 var my_clock := 1.0
 
 func _ready() -> void:
+	id = "rush"
 	super()
 	main.free_moves = true
 
@@ -22,7 +19,7 @@ func title() -> String:
 	return "抢灯"
 
 func first_level() -> LevelResource:
-	var level := campaign_level(BOARD, LAMPS)
+	var level := campaign_level(cfg.board_index, cfg.lamps)
 	level.deal_seed = randi() % 100000 + 1        # 每开一局换一张棋盘（重来也是新的）
 	return level
 
@@ -30,11 +27,11 @@ func uses_portal() -> bool:
 	return false               # 灯抢完就分胜负，不走水车
 
 func tune_deal(opt: Dictionary) -> void:
-	opt.lamps = LAMPS
-	opt.items = 0               # 只要灯，不要道具
+	opt.lamps = cfg.lamps
+	opt.items = cfg.items               # 只要灯，不要道具
 	opt.gates = 0
-	opt.detour = 0.3
-	opt.gap = 0.05
+	opt.detour = cfg.detour
+	opt.gap = cfg.gap
 
 func ready_level() -> void:
 	main.current_board()
@@ -45,7 +42,7 @@ func ready_level() -> void:
 		(tile.object as Fish).set_color(BLANK_COLOUR)        # 还没主的灯是月白的
 		total += 1
 	spawn_foe(foe_start(), FOE_COLOUR)
-	time_left = TIME
+	time_left = cfg.time_limit
 	foe_clock = 0.6
 
 func handle_landing() -> bool:
@@ -90,11 +87,11 @@ func _process(delta: float) -> void:
 	if auto:
 		my_clock -= delta
 		if my_clock <= 0.0 and not main.character.is_jumping:
-			my_clock = MY_PACE
+			my_clock = cfg.my_pace
 			_go(main.character.target_tile, reach_of(mine), foe.target_tile)
 	foe_clock -= delta
 	if foe_clock <= 0.0 and not foe.is_jumping:
-		foe_clock = FOE_PACE * randf_range(0.9, 1.15)
+		foe_clock = cfg.foe_pace * randf_range(0.9, 1.15)
 		_go(foe.target_tile, reach_of(theirs), main.character.target_tile)
 
 ## 从 from 出发去抢灯：够得着的灯里挑最近的；都够不着，就朝最近的那盏走一步。
