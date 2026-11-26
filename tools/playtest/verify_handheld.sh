@@ -18,10 +18,16 @@ if [ "${1:-}" != yes ]; then
 fi
 bash ~/apps/shouwang/launch.sh
 for i in $(seq 1 60); do (echo > /dev/tcp/127.0.0.1/9878) 2>/dev/null && break; sleep 1; done
-sleep 8
+sleep 12            # 第一次启动要编译着色器，读早了 ui 会返回空
 echo "画面: $(rc "size" 1 | head -n 1)   （调试端口在第 $i 秒起来）"
 snap title
-target=$(rc "ui" 1 8 20 | grep -F "<PlayButton>" | head -n1 | sed -E 's/^BTN \[([0-9.-]+),([0-9.-]+) ([0-9]+)x([0-9]+)\].*/\1 \2 \3 \4/' | awk '{print int($1 + $3/2), int($2 + $4/2)}')
+# 按钮表偶尔读不到（游戏正忙，遥控那一头超时返回空）：再试两次
+target=""
+for attempt in 1 2 3; do
+	target=$(rc "ui" 1 10 30 | grep -F "<PlayButton>" | head -n1 | sed -E 's/^BTN \[([0-9.-]+),([0-9.-]+) ([0-9]+)x([0-9]+)\].*/\1 \2 \3 \4/' | awk '{print int($1 + $3/2), int($2 + $4/2)}')
+	[ -n "$target" ] && break
+	sleep 3
+done
 if [ -z "$target" ]; then echo "标题页上找不到 PlayButton 按钮（游戏可能已经被别人操作过了），停在这里，不再往下做"; rc "ui" 1 8 20; exit 4; fi
 rc "call pad_adapter.gd debug_unlock_all" 1
 rc "click $target" 1 >/dev/null
