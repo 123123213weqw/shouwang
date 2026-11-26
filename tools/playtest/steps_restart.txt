@@ -1,0 +1,16 @@
+# 对战里按"重来"：该重开一局新的（棋盘、灯、对手都刷新）
+#   SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_restart.txt restart
+sleep 2
+call pad_adapter.gd debug_unlock_all
+call pad_adapter.gd debug_versus 1 1
+sleep 14
+call pad_adapter.gd debug_versus 0
+snap 01_end
+ui
+click_btn RestartButton
+sleep 5
+call pad_adapter.gd debug_versus 0
+snap 02_restart
+sleep 4
+call pad_adapter.gd debug_versus 0
+snap 03_after

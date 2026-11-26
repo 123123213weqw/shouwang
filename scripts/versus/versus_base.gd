@@ -96,7 +96,18 @@ func tune_deal(_opt: Dictionary) -> void:
 
 ## 关卡载入完了。先让这种玩法把自己的东西摆好，再收拾两样在对战里多余的东西：
 ## 不靠水车分胜负的玩法，把水车藏起来（那一格照样不能落）；不花步数的玩法，把主角头顶的步数藏起来
+## 重来一局（结算面板上的"重来"）：把上一局的胜负清掉。不清的话新的一局一上来就是"已经结束"，
+## 画面上什么都不动（2026-11-26 的毛病）
+func restart_match() -> void:
+	over = false
+	won = false
+	hud.visible = true
+	main.leader_board_container_control.visible = true
+
 func on_level_ready() -> void:
+	over = false
+	won = false
+	hud.visible = true
 	ready_level()
 	if is_instance_valid(main.end_portal_instance): main.end_portal_instance.visible = uses_portal()
 	main.character_moves_left_label.visible = not main.free_moves

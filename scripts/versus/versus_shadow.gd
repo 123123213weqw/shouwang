@@ -23,7 +23,9 @@ func title() -> String:
 	return "追影"
 
 func first_level() -> LevelResource:
-	return campaign_level(BOARD, LAMPS)
+	var level := campaign_level(BOARD, LAMPS)
+	level.deal_seed = randi() % 100000 + 1        # 每开一局换一张棋盘（重来也是新的）
+	return level
 
 func ready_level() -> void:
 	route = main.current_deal.get("route", [])

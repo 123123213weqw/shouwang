@@ -31,6 +31,12 @@ func ready_level() -> void:
 	sim = null
 	if boards == 0: time_left = START_TIME
 
+## 重来：从第一张棋盘、一炷新香重新开始
+func restart_match() -> void:
+	super()
+	boards = 0
+	time_left = START_TIME
+
 func refresh_hud() -> void:
 	hud.text = "第 %d 张棋盘 · 香还剩 %d 秒 · 过一张接 %d 秒" % [boards + 1, ceili(time_left), int(BONUS)]
 

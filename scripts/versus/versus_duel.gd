@@ -28,7 +28,9 @@ func title() -> String:
 	return "对弈"
 
 func first_level() -> LevelResource:
-	return campaign_level(BOARD, LAMPS)
+	var level := campaign_level(BOARD, LAMPS)
+	level.deal_seed = randi() % 100000 + 1        # 每开一局换一张棋盘（重来也是新的）
+	return level
 
 func uses_portal() -> bool:
 	return false               # 灯分完就分胜负，不走水车

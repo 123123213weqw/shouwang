@@ -34,6 +34,9 @@ func uses_portal() -> bool:
 
 func ready_level() -> void:
 	main.current_board()
+	for tile in lit.keys():                    # 上一局点亮的灯是真节点，重开的时候要真的释放掉
+		var old: Fish = lit[tile]
+		if is_instance_valid(old): old.queue_free()
 	lit.clear()
 	put_out = 0
 	landable = 0

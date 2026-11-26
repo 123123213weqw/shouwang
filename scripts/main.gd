@@ -925,6 +925,7 @@ func _load_thing_resources() -> void:
 
 
 func restart():
+	if versus != null: versus.restart_match()      # 对战：先把上一局的胜负清掉
 	score = 0
 	score_display = 0.0
 	current_level_index = 0
