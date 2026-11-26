@@ -102,6 +102,19 @@ def bell(note: float, duration: float, brightness: float = 1.0) -> np.ndarray:
     )
 
 
+def glass_lead(note: float, duration: float, color: float) -> np.ndarray:
+    """Breathy submerged glass, using a short harmonic bloom above a rounded fundamental."""
+    t = seconds(duration)
+    p = TAU * frequency(note) * t
+    bend = 0.34 * np.exp(-t / 0.073) - 0.34
+    swell = 0.46 + 0.54 * np.exp(-t / 0.64)
+    edge = 0.24 * color * np.sin(1.997 * p + bend + 0.55)
+    shine = 0.067 * color * np.sin(3.011 * p) * np.exp(-t / 0.315)
+    return (0.8 * np.sin(p + bend) + edge + shine) * swell * envelope(
+        t, 0.032 + 0.013 * (1 - color), min(0.47, duration * 0.66)
+    )
+
+
 def pad(note: float, duration: float, attack: float, release: float,
         color: float, seed_phase: float) -> np.ndarray:
     t = seconds(duration)
@@ -183,51 +196,80 @@ ESUS = (40, 52, 57, 62, 67, 71)
 DB = (35, 50, 57, 60, 64, 65)
 GSUS = (43, 50, 55, 60, 62, 69)
 
-# Groups are measures. Triples are beat, MIDI note, duration in seconds.
+# Each phrase opens with D-F-A-E or its answer B-A-G. The long rests give the
+# next phrase and the game's foreground chimes a place to land.
+# Triples are beat in the measure, MIDI note, and hold time in seconds.
 TITLE_MOTIF = (
-    ((0.75, 74, 2.25), (2.35, 76, 1.35), (3.15, 81, 2.50)),
-    ((0.60, 79, 1.90), (2.60, 71, 2.85)),
-    ((1.00, 72, 2.00), (2.45, 76, 1.60), (3.30, 77, 1.80)),
-    ((1.55, 74, 3.50),),
-    ((0.40, 69, 1.90), (2.45, 74, 2.50)),
-    ((0.80, 76, 2.40), (2.90, 71, 2.25)),
-    ((0.70, 72, 2.00), (2.15, 74, 1.45), (3.35, 79, 2.75)),
-    ((1.75, 76, 3.15),),
-    ((0.65, 74, 2.40), (2.15, 76, 2.05), (3.05, 81, 3.35)),
-    ((0.55, 83, 1.75), (1.95, 81, 2.40), (3.10, 79, 2.68)),
-    ((0.55, 77, 2.00), (2.25, 76, 1.55), (3.35, 72, 2.25)),
-    ((1.90, 74, 2.80),),
-    ((0.65, 72, 2.80), (2.55, 76, 2.00)),
-    ((0.90, 74, 1.35), (1.80, 79, 1.80), (3.10, 76, 2.20)),
-    ((1.55, 71, 2.30), (3.10, 69, 2.30)),
-    ((1.10, 69, 2.90), (3.50, 76, 1.10)),
+    ((.50, 62, 1.10), (1.14, 65, 1.17), (2.02, 69, 1.64), (3.15, 64, 1.28)),
+    ((.55, 71, 1.31), (1.83, 69, 1.16), (2.74, 67, 1.76)),
+    ((1.45, 65, 2.05), (2.85, 64, 1.48)),
+    ((1.69, 62, 1.98),),
+    ((1.24, 62, 1.36), (2.09, 65, 1.25), (3.18, 69, 1.42)),
+    ((.36, 64, 1.15), (2.53, 71, 1.44)),
+    ((.95, 69, 1.66), (2.43, 67, 1.60)),
+    (),
+    ((.41, 62, 1.16), (1.07, 65, 1.18), (1.98, 69, 1.60), (3.14, 76, 1.61)),
+    ((.55, 71, 1.29), (1.73, 69, 1.28), (2.80, 67, 1.70)),
+    ((.62, 65, 1.22), (1.67, 69, 1.36), (2.69, 72, 1.63)),
+    ((1.49, 67, 1.32), (2.65, 64, 1.51)),
+    ((.79, 69, 1.56), (2.61, 72, 1.74)),
+    ((.65, 71, 1.36), (2.45, 67, 1.66)),
+    ((.87, 69, 1.76), (2.53, 64, 1.48)),
+    ((1.18, 62, 2.03),),
 )
 GAME_MOTIF = (
-    ((0.75, 74), (1.5, 76), (2.5, 81), (3.25, 79)),
-    ((0.5, 71), (1.75, 74), (2.75, 76), (3.5, 71)),
-    ((0.75, 72), (1.5, 76), (2.5, 77), (3.25, 76)),
-    ((0.25, 74), (1.75, 69), (3.25, 67)),
-    ((0.5, 76), (1.25, 72), (2, 69), (3.5, 72)),
-    ((0.75, 74), (2.25, 79), (3.25, 76)),
-    ((0.5, 71), (1.25, 74), (2, 76), (3.25, 81)),
-    ((0.75, 79), (1.5, 76), (2.50, 74), (3.5, 69)),
-    ((0.25, 74), (1.5, 81), (2.25, 83), (3.25, 81)),
-    ((1, 79), (1.75, 76), (2.5, 74), (3.5, 71)),
-    ((0.5, 72), (1.5, 79), (2.5, 81), (3.5, 79)),
-    ((0.75, 76), (1.75, 74), (3.25, 72)),
-    ((0.25, 69), (1.5, 76), (2.75, 72)),
-    ((0.5, 74), (1.5, 79), (2.25, 83), (3.25, 81)),
-    ((0.75, 79), (1.75, 76), (2.5, 74)),
-    ((0.5, 72), (1.5, 74), (3.25, 76)),
-    ((0.75, 74), (1.5, 76), (2.5, 81), (3.25, 86)),
-    ((0.5, 83), (1.75, 81), (2.75, 79), (3.5, 76)),
-    ((0.75, 77), (1.5, 76), (2.5, 72), (3.25, 69)),
-    ((0.25, 67), (1.75, 69), (3.25, 74)),
-    ((0.5, 76), (1.25, 79), (2, 81), (3.5, 84)),
-    ((0.75, 83), (2.25, 79), (3.25, 76)),
-    ((0.5, 74), (1.25, 76), (2, 79), (3.25, 81)),
-    ((0.75, 79), (1.5, 76), (2.50, 74), (3.5, 69)),
+    ((.53, 62, .82), (1.18, 65, .87), (2.01, 69, 1.20), (3.11, 64, 1.10)),
+    ((.48, 71, .83), (1.94, 69, .88), (2.88, 67, 1.34)),
+    ((.76, 65, 1.28), (2.28, 60, 1.11)),
+    ((2.49, 62, 1.39),),
+    ((.57, 64, .98), (1.69, 69, 1.07), (2.72, 72, 1.35)),
+    ((.64, 71, .87), (2.06, 69, 1.03), (3.06, 64, 1.28)),
+    ((.51, 67, 1.22), (2.37, 69, 1.30)),
+    (),
+    ((.56, 62, .84), (1.21, 65, .88), (2.08, 69, 1.22), (3.15, 64, 1.07)),
+    ((.58, 71, .93), (1.85, 69, 1.00), (2.94, 67, 1.25)),
+    ((.68, 64, 1.13), (2.20, 67, 1.18)),
+    ((2.55, 65, 1.25),),
+    ((.70, 60, .97), (1.86, 64, 1.16), (2.85, 69, 1.36)),
+    ((.51, 71, 1.12), (2.12, 69, 1.09)),
+    ((1.18, 67, 1.25), (2.72, 64, 1.30)),
+    (),
+    ((.51, 62, .82), (1.14, 65, .87), (2.02, 69, 1.21), (3.15, 76, 1.11)),
+    ((.56, 71, .83), (1.91, 69, .88), (2.83, 67, 1.22)),
+    ((.64, 65, .94), (1.98, 69, 1.00), (2.90, 72, 1.19)),
+    ((1.59, 67, 1.36),),
+    ((.65, 64, .96), (1.79, 69, 1.15), (2.73, 72, 1.30)),
+    ((.54, 71, 1.04), (1.95, 69, 1.18), (3.26, 67, 1.16)),
+    ((.79, 64, 1.10), (2.28, 67, 1.16)),
+    ((1.49, 62, 1.47),),
 )
+
+
+def music_finish(bus: np.ndarray, is_title: bool) -> np.ndarray:
+    """Damp a repeating bed and start at a quiet shared stereo phase."""
+    hz = np.fft.rfftfreq(len(bus), 1 / RATE)
+    shelf = hz ** 2 / (hz ** 2 + 1250 ** 2)
+    pressure = .76 + .24 * hz ** 2 / (hz ** 2 + 138 ** 2)
+    contour = (pressure * (1 - (.31 if is_title else .36) * shelf)).astype(np.float32)
+    for channel in (0, 1):
+        partials = np.fft.rfft(bus[:, channel])
+        partials *= contour
+        partials[0] = 0
+        bus[:, channel] = np.fft.irfft(partials, len(bus))
+
+    # Keep the deep bed centered on speakers. The offset glass and wet field remain stereo.
+    side = (bus[:, 0] - bus[:, 1]) * .075
+    bus[:, 0] -= side
+    bus[:, 1] += side
+    bus = master(bus, peak_db=-4.8, rms_db=-19.6 if is_title else -20.15)
+
+    # Rotating already-periodic samples preserves the seam. Find a nearby phase
+    # that starts gently as the scene changes from silence, with little channel offset.
+    entry = bus[:frames(.18)]
+    excursion = np.max(np.abs(entry[1:-1]), axis=1)
+    slope = np.max(np.abs(entry[2:] - entry[:-2]), axis=1)
+    cut = int(np.argmin(excursion + .72 * slope)) + 1
+    return np.roll(bus, -cut, axis=0)
 
 
 def music(is_title: bool) -> np.ndarray:
@@ -245,10 +287,14 @@ def music(is_title: bool) -> np.ndarray:
     out = current(length)
     rng = np.random.default_rng(4030 if is_title else 4068)
     chord_pans = (0.0, -0.42, 0.43, -0.62, 0.55, -0.20)
-    chord_gains = (0.144, 0.051, 0.063, 0.042, 0.043, 0.034)
+    chord_gains = (0.112, 0.052, 0.061, 0.041, 0.040, 0.028)
     for i, chord in enumerate(chords):
         start = i * bar
         section = i // 8
+        cadence = i % 4 == 3
+        shade = 0.84 if cadence else 1.0
+        if not is_title and section == 1:
+            shade *= 0.90
         for layer, note in enumerate(chord):
             offset = rng.uniform(0.0, .06) if layer else 0
             air = (0.39 if is_title else 0.32) + 0.12 * section
@@ -257,49 +303,49 @@ def music(is_title: bool) -> np.ndarray:
             else:
                 dur, attack, release = bar * 1.51, 0.76 + 0.13 * layer, 1.35
             signal = pad(note, dur, attack, release, air, rng.uniform(0, TAU))
-            add(out, signal, start + offset, chord_gains[layer], chord_pans[layer], True)
+            add(out, signal, start + offset, chord_gains[layer] * shade, chord_pans[layer], True)
             if layer in (3, 5):
                 halo = pad(note + 7.0 / 100, dur, attack + .17, release, air, rng.uniform(0, TAU))
-                add(out, halo, start + offset + .04, chord_gains[layer] * .34, -chord_pans[layer], True)
+                add(out, halo, start + offset + .04, chord_gains[layer] * .34 * shade, -chord_pans[layer], True)
 
         if is_title:
-            for pos, note, duration in TITLE_MOTIF[i]:
-                side = rng.uniform(-0.46, 0.46)
-                add(out, bell(note, duration, .62), start + pos * beat,
-                    rng.uniform(.092, .122), side, True)
-                if (i + note) % 3 == 0:
-                    add(out, bell(note + 12, duration * .52, .48), start + pos * beat + .056,
-                        .022, -side, True)
+            for j, (pos, note, duration) in enumerate(TITLE_MOTIF[i]):
+                side = (-.19, .13, .25, -.09)[j]
+                add(out, glass_lead(note, duration, .58 + .12 * section), start + pos * beat,
+                    (.132, .117, .147, .117)[j], side, True)
+                if i in (1, 5, 9, 13) and j == 1:
+                    add(out, bell(note + 12, 1.6, .36), start + pos * beat + .29,
+                        .029, -side, True)
             if i in (2, 5, 8, 11, 15):
-                add(out, wash(1.83, 119, 378, rng), start + 2.1 * beat, .049, .34, True)
+                add(out, wash(1.83, 119, 378, rng), start + 2.1 * beat, .043, .34, True)
         else:
-            motif_gain = (.111, .099, .123)[section]
-            for j, (pos, note) in enumerate(GAME_MOTIF[i]):
+            motif_gain = (.111, .090, .127)[section]
+            for j, (pos, note, duration) in enumerate(GAME_MOTIF[i]):
                 drift = rng.uniform(-.009, .012)
-                add(out, bell(note, 1.36 if j else 1.74, .69 + .05 * section),
-                    start + pos * beat + drift, motif_gain * rng.uniform(.80, 1.12),
-                    (-.35, .21, .44, -.18)[j], True)
-            # Three soft pressure pulses give the puzzle room a beat without a drum kit.
-            for j, pos in enumerate((0.0, 1.5, 2.75)):
+                add(out, glass_lead(note, duration, .56 + .075 * section),
+                    start + pos * beat + drift, motif_gain * (1.0, .88, 1.11, .92)[j],
+                    (-.25, .16, .37, -.13)[j], True)
+            # A muted 3+3+2 pulse drops away at each fourth bar.
+            pulses = ((0.0, 0), (1.5, 1)) if cadence else ((0.0, 0), (1.5, 1), (3.0, 2))
+            for pos, j in pulses:
                 low = frequency(chord[0]) * (2 if j == 1 else 1)
-                add(out, impact(.36, low * 1.59, low, rng),
-                    start + pos * beat, (.073, .046, .056)[j], -.05, True)
-            if section != 1 or i % 2:
-                for j, pos in enumerate((.5, 2.0, 3.5)):
-                    note = chord[(j + 2) % len(chord)]
-                    add(out, bell(note + 12, .39, .32), start + pos * beat,
-                        (.033, .028, .039)[j], (.58, -.53, .31)[j], True)
+                add(out, impact(.30, low * 1.38, low, rng),
+                    start + pos * beat, (.061, .041, .053)[j] * shade, -.05, True)
+            if i in (1, 5, 9, 13, 17, 21):
+                for j, pos in enumerate((1.0, 2.62)):
+                    note = chord[j + 3]
+                    add(out, bell(note + 12, .45, .35), start + pos * beat,
+                        (.029, .036)[j], (.58, -.50)[j], True)
             if i in (3, 7, 11, 15, 19, 23):
-                add(out, wash(.91, 169, 487, rng), start + 3.15 * beat, .047, -.28, True)
+                add(out, wash(.91, 169, 487, rng), start + 3.15 * beat, .033, -.28, True)
 
         if i % 3 != 1:
             at = start + (.75 + (.41 * i) % 2.7) * beat
             add(out, bubble(.22, rng.uniform(450, 760), rng.uniform(950, 1520), rng),
                 at, .025 if is_title else .020, rng.uniform(-.78, .78), True)
 
-    out = space(out, .76 if is_title else .54, wrap=True)
-    out -= out.mean(axis=0)
-    return master(out, peak_db=-4.5, rms_db=-19.4 if is_title else -19.7)
+    space(out, .70 if is_title else .46, wrap=True)
+    return music_finish(out, is_title)
 
 
 def master(audio: np.ndarray, peak_db: float, rms_db: float | None = None) -> np.ndarray:
@@ -324,10 +370,10 @@ FAMILIES = {
     "Fish_Land": (5, -13.3),
     "Fish_Loot": (5, -7.0),
     "Fish_Spawn Layer A": (3, -14.0),
-    "Jump_Land": (9, -10.5),
-    "Jump_Launch": (9, -13.5),
+    "Jump_Land": (9, -9.0),
+    "Jump_Launch": (9, -14.5),
     "Portal_Loot ST": (1, -4.1),
-    "Upgrade_Loot ST": (1, -6.0),
+    "Upgrade_Loot ST": (1, -6.5),
 }
 
 
@@ -337,12 +383,12 @@ def effect(name: str, take: int) -> np.ndarray:
     peak = FAMILIES[name][1] + rng.uniform(-.52, .38)
     if name == "Button_Click":
         out = np.zeros(frames(.105 * drift))
-        add(out, impact(.052, 750 * drift, 427 * drift, rng), 0, .68)
-        add(out, bubble(.073, 920 * drift, 1430 * drift, rng), .009, .43)
+        add(out, impact(.052, 1010 * drift, 542 * drift, rng), 0, .71)
+        add(out, bubble(.075, 1082 * drift, 1516 * drift, rng), .009, .52)
     elif name == "Button_Hover A":
-        out = bubble(.074 * drift, 760 * drift, 1210 * drift, rng)
+        out = bubble(.064 * drift, 720 * drift, 1060 * drift, rng)
     elif name == "Button_Hover B":
-        out = bubble(.099 * drift, 1190 * drift, 817 * drift, rng)
+        out = bubble(.084 * drift, 1090 * drift, 806 * drift, rng)
     elif name == "Fish_Land":
         out = np.zeros(frames(.275 * drift))
         add(out, bubble(.184 * drift, 228 * drift, 383 * drift, rng), 0, .74)
@@ -354,7 +400,7 @@ def effect(name: str, take: int) -> np.ndarray:
         add(out, bubble(.138, 578 * drift, 870 * drift, rng), 0, .18)
         add(out, bell(first, .325, .86), .006, .75)
         add(out, bell(last, .403, .71), .075, .75)
-        add(out, bell(last + 12, .305, .32), .113, .14)
+        add(out, bell(last + 12, .268, .44), .103, .175)
     elif name == "Fish_Spawn Layer A":
         out = np.zeros(frames(.274 * drift))
         for j, pitch in enumerate((285, 436, 608)):
@@ -362,29 +408,34 @@ def effect(name: str, take: int) -> np.ndarray:
                 j * .048 * drift, (.48, .71, .41)[j])
     elif name == "Jump_Land":
         out = np.zeros(frames(.195 * drift))
-        add(out, impact(.135 * drift, 245 * drift, 120 * drift, rng), 0, .82)
-        add(out, bubble(.113 * drift, 180 * drift, 335 * drift, rng), .019, .37)
-        add(out, bubble(.065 * drift, 400 * drift, 318 * drift, rng), .075 * drift, .16)
+        add(out, impact(.135 * drift, 245 * drift, 120 * drift, rng), 0, .72)
+        add(out, bubble(.103 * drift, 766 * drift, 593 * drift, rng), .016, .61)
+        add(out, bubble(.093 * drift, 182 * drift, 337 * drift, rng), .033, .30)
+        add(out, bubble(.065 * drift, 497 * drift, 316 * drift, rng), .073 * drift, .16)
     elif name == "Jump_Launch":
         out = np.zeros(frames(.151 * drift))
         add(out, wash(.126 * drift, 138 * drift, 802 * drift, rng), 0, .73)
         add(out, bubble(.087 * drift, 329 * drift, 682 * drift, rng), .018, .42)
     elif name == "Portal_Loot ST":
         out = np.zeros(frames(.96))
-        add(out, wash(.53, 89, 492, rng), 0, .62)
-        add(out, impact(.37, 131, 48, rng), 0, .55)
-        strikes = ((0, 175), (.13, 219), (.25, 263), (.35, 312),
-                   (.43, 348), (.50, 399), (.56, 440))
+        add(out, wash(.49, 89, 438, rng), 0, .41)
+        add(out, impact(.32, 131, 53, rng), 0, .43)
+        strikes = ((0, 207), (.13, 242), (.25, 277), (.35, 329),
+                   (.43, 367), (.50, 400), (.56, 440))
         for i, (at, pitch) in enumerate(strikes):
-            add(out, impact(.101, pitch * 1.65, pitch, rng), at, .37 + .026 * i)
-            add(out, bubble(.149, pitch * 1.43, pitch * 2.52, rng), at + .008, .25)
+            add(out, impact(.100, pitch * 1.38, pitch, rng), at, .38 + .021 * i)
+            add(out, bubble(.115, 686 + 48 * i, 517 + 47 * i, rng), at + .012, .35 + .017 * i)
+        # A pair of glass strokes appears during the spin, before the release chime.
+        add(out, bell(74, .30, .52), .117, .70)
+        add(out, bell(81, .27, .55), .219, .66)
         for j, note in enumerate((62, 69, 76, 81)):
-            add(out, bell(note, .36 - .014 * j, .77), .55 + .028 * j, (.60, .51, .43, .34)[j])
+            add(out, bell(note, .36 - .014 * j, .77), .55 + .028 * j, (.58, .51, .48, .41)[j])
     else:  # Upgrade pickup. Triple chime, without the turning-wheel rhythm.
         out = np.zeros(frames(.72))
         add(out, wash(.26, 278, 1142, rng), .015, .31)
-        for j, note in enumerate((69, 74, 79, 83)):
-            add(out, bell(note, .48, .69 + .06 * j), .02 + .056 * j, (.50, .63, .67, .59)[j])
+        for j, (at, note) in enumerate(((.02, 72), (.084, 77), (.198, 81))):
+            add(out, bell(note, .48, .64 + .055 * j), at, (.61, .73, .66)[j])
+        add(out, glass_lead(65, .423, .49), .18, .24)
     t = seconds(len(out) / RATE)
     out *= envelope(t, .0018, .021)
     return master(out, peak)
@@ -450,8 +501,8 @@ def opening(cue: str) -> np.ndarray:
             add(out, bubble(.135, 1160 + 120 * j, 2400 + 70 * j, rng),
                 3.05 + .078 * j, .09 - .006 * j, rng.uniform(-.68, .68))
 
-    space(out, .6, wrap=False)
-    out *= envelope(seconds(duration), .040, .80)[:, None]
+    space(out, .54, wrap=False)
+    out *= envelope(seconds(duration), .045, .98)[:, None]
     window = RATE // 4
     power = max(float(np.sqrt(np.mean(out[i:i + window] ** 2)))
                 for i in range(0, len(out) - window, window // 2))
@@ -484,12 +535,13 @@ def preview(title: np.ndarray, game: np.ndarray) -> np.ndarray:
     section = slice(cutoff - overlap, cutoff + overlap)
     recent = title[section]
     pre_roll = np.concatenate((game[-overlap:], game[:overlap]))
-    out[section] = recent * (1 - fade) + pre_roll * fade
+    blend = fade * np.pi / 2
+    out[section] = recent * np.cos(blend) + pre_roll * np.sin(blend)
     for name, take, when, gain in (
-        ("Jump_Land", 3, 9.0, 1.32),
-        ("Fish_Loot", 2, 12.0, 1.08),
-        ("Button_Click", 1, 15.0, 1.20),
-        ("Portal_Loot ST", 1, 19.0, 1.01),
+        ("Jump_Land", 3, 9.0, 1.10),
+        ("Fish_Loot", 2, 12.0, 1.00),
+        ("Button_Click", 1, 15.0, 1.06),
+        ("Portal_Loot ST", 1, 19.0, .98),
     ):
         add(out, effect(name, take), when, gain)
     out *= envelope(seconds(25), .08, 1.47)[:, None]
