@@ -27,6 +27,7 @@ var upgrades_list : Dictionary[ObjectResource, int]
 
 func _input(event: InputEvent) -> void:
 	if is_jumping: return;
+	if main.aiming != Main.Aim.NONE: return      # 正在选技能的目标：方向键是挪高亮的，人别跳
 	if event is InputEventKey:
 		var movement = Vector2.ZERO
 		if event.is_action_pressed("MoveForward"): movement += Vector2.UP

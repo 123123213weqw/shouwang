@@ -1,0 +1,22 @@
+# 技能只在游戏里按 A/空格 才放：菜单开着、光标停在按钮上都不放
+# SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_skill.txt skill
+sleep 2
+call pad_adapter.gd debug_unlock_all
+click_btn PlayButton
+sleep 3
+call pad_adapter.gd debug_pick_character 0
+sleep 6
+call pad_adapter.gd debug_charge 9
+sleep 1
+call pad_adapter.gd debug_state
+key Escape
+sleep 1
+call pad_adapter.gd debug_state
+key Space
+sleep 1
+call pad_adapter.gd debug_state
+key Escape
+sleep 1
+key Space
+sleep 1
+call pad_adapter.gd debug_state

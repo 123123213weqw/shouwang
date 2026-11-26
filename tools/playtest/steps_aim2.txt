@@ -1,0 +1,25 @@
+# 钓叟（收最远的两盏）：按下技能进选目标，自己挑哪两盏收
+#   SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_aim2.txt aim2
+sleep 2
+call pad_adapter.gd debug_unlock_all
+click_btn PlayButton
+sleep 3
+call pad_adapter.gd debug_pick_character 1
+sleep 6
+call pad_adapter.gd debug_charge 9
+sleep 1
+call pad_adapter.gd debug_state
+echo 按空格：进选目标（aim=2，候选是场上的灯）
+key Space
+sleep 1
+call pad_adapter.gd debug_state
+snap 01_aiming
+echo 空格确认：收一盏
+key Space
+sleep 1
+call pad_adapter.gd debug_state
+snap 02_one
+echo 再确认：收第二盏，用完清零
+key Space
+sleep 1
+call pad_adapter.gd debug_state

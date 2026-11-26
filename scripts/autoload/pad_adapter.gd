@@ -742,10 +742,12 @@ func debug_state() -> String:
 		if tile.is_available: available += 1
 		if tile.is_broken(): broken += 1
 	var pos: Vector2 = main.grid.world_to_grid_position(main.character.global_position)
-	return "label='%s' index=%d mode=%d tiles=%d types=%s available=%d broken=%d moves=%d combo=%d fish=%d/%d credits=%.1f pos=(%.1f,%.1f) score=%d records=%s missteps=%d shields=%d reach=%.2f dealt=%s ready=%s" % [
+	return "label='%s' index=%d mode=%d tiles=%d types=%s available=%d broken=%d moves=%d combo=%d fish=%d/%d credits=%.1f pos=(%.1f,%.1f) score=%d records=%s missteps=%d shields=%d reach=%.2f dealt=%s ready=%s skill=%d/%d usable=%s aim=%d left=%d cand=%d" % [
 		main.level_label.text, main.current_level_index, Game.game_mode, main.grid.tiles.size(), counts, available, broken,
 		main.moves_left, main.combo, main.current_fish_count, main.fish_before_end_portal, main.credits, pos.x, pos.y,
-		main.score, Game.best_records, main.level_missteps, main.shields, main._reach_now(), str(not main.current_deal.is_empty()), str(main.level_ready)]
+		main.score, Game.best_records, main.level_missteps, main.shields, main._reach_now(), str(not main.current_deal.is_empty()), str(main.level_ready),
+		main.active_control.charges_control.charges, main.active_control.charges_control.max_charges, str(main.can_use_skill()),
+		main.aiming, main.aim_left, main.aim_list.size()]
 
 func debug_jump_to(tile_type: int, empty_only: int = 0) -> String:
 	var main := get_node_or_null("/root/Main")

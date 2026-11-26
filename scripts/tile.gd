@@ -48,6 +48,9 @@ var target_color: Color
 
 var pos_y := 0.0
 var bump_strength := 0.0
+var aim_raise := 0.0        ## 选技能目标的时候，选中的那一格抬起来这么高
+var aim_pick := false       ## 选技能目标的时候，这一格是不是当前选中的：是就染成烛火色
+const AIM_COLOR := Color(1.0, 0.84, 0.55)
 func _ready() -> void:
 	rseed = randf()
 	mouse_entered.connect(func():
@@ -68,7 +71,11 @@ func _input(event: InputEvent) -> void:
 	if not is_available or not is_hovered: return;
 	if event is InputEventMouseButton:
 		if event.is_pressed() and event.button_index == 1:
-			main.character.move_to(self)
+			# 正在选技能的目标：点这一格就是选它，人不跟着跳过去
+			if main.aiming != Main.Aim.NONE:
+				main.aim_pick(self)
+			else:
+				main.character.move_to(self)
 
 func _process(delta):
 	update_color()
@@ -89,7 +96,7 @@ func _process(delta):
 	scale = lerp(scale, Vector3.ONE, delta * 5.0)
 
 	bump_strength = lerp(bump_strength, 0.0, delta)
-	global_position.y = lerp(global_position.y, rest_height + sin(main.get_time() * TAU + global_position.x) * 0.2 * bump_strength, delta * 5.0)
+	global_position.y = lerp(global_position.y, rest_height + aim_raise + sin(main.get_time() * TAU + global_position.x) * 0.2 * bump_strength, delta * 5.0)
 
 	if object: object.global_position.y = global_position.y
 	if main.character.target_tile == self: main.character.global_position.y = global_position.y
@@ -122,6 +129,7 @@ func break_tile():
 		broken_until = main.get_time() + regrow_delay
 
 func get_color() -> Color:
+	if aim_pick: return AIM_COLOR          # 选技能目标：选中的那一格是烛火色，一眼看得出
 	if is_blocked(): return BLOCKED_COLOR
 	if not is_available:
 		# 脆格和补给格够不着的时候也保留自己的色调，只是暗一些

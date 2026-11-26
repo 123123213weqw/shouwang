@@ -46,6 +46,16 @@ const BASE_UPGRADE_CHANCE := 0.1
 var ruleset: Ruleset                 # 这局用的玩法方案（标题页里选的）
 var versus: VersusBase               # 对战类的玩法（scripts/versus/）：进了对战的局才有，平时是空
 var free_moves := false               # 跳格子不花步数。对战里有的玩法这样
+
+## 技能选目标：有的技能要在棋盘上自己挑一格（守夜人点灯、钓叟收灯）。按下技能先进这个状态，
+## 候选格子亮起来；方向键在候选之间挪，A / 空格 确认，B / Esc 取消（选的时候不扣充能）。
+## 鼠标直接点候选格子也算确认。选够了才算用掉
+enum Aim { NONE, PLACE, COLLECT }
+var aiming := Aim.NONE
+var aim_left := 0                    # 还要选几格
+var aim_list: Array = []             # 现在能选的格子
+var aim_index := 0                   # 方向键选中的是第几个
+var _aim_label: Label
 var current_deal: Dictionary = {}    # 开局摆好的那一局（河灯摆好的方案里用）；空 = 这一关是边收边刷的
 var _thing_resources: Dictionary = {}   # 摆棋时路线上每样东西用哪个资源（键是 BoardGen.Thing 的编号）
 var _cell_tiles: Dictionary = {}        # 格子坐标（整数）→ Tile
@@ -199,8 +209,34 @@ func _input(event: InputEvent) -> void:
 		#gain_combo(1)
 	#if event.is_action_pressed("ui_left"):
 		#reset_combo()
-	if event.is_action_pressed("Power"):
+	if aiming != Aim.NONE:
+		# 选目标的时候：方向键在候选之间挪，A / 空格 确认，B / Esc 取消
+		if event.is_action_pressed("ui_cancel"):
+			aim_cancel()
+			return
+		if event.is_action_pressed("Power") and can_use_skill():
+			aim_confirm()
+			return
+		if event.is_action_pressed("MoveRight") or event.is_action_pressed("MoveBack"):
+			aim_step(1)
+			return
+		if event.is_action_pressed("MoveLeft") or event.is_action_pressed("MoveForward"):
+			aim_step(-1)
+			return
+		return
+	if event.is_action_pressed("Power") and can_use_skill():
 		trigger_active_effect()
+
+## 现在能不能放技能。手柄的 A 键既是"放技能"，又是"点屏幕上的按钮"（见 pad_adapter）：
+## 不拦一下的话，在暂停菜单、结算面板、新手卡片上按 A 想确认，技能会被顺带放掉。
+## 菜单开着的时候不放；手柄的光标（或者鼠标）正停在某个按钮上、要按的是那个按钮，也不放
+func can_use_skill() -> bool:
+	if final_score_control.visible: return false
+	if tutorial != null and tutorial.card_open(): return false
+	var settings := get_node_or_null("CanvasLayer/Control/SettingsMenu")
+	if settings != null and settings.visible: return false
+	if get_viewport().gui_get_hovered_control() is BaseButton: return false
+	return true
 		
 func load_character(res: CharacterResource):
 	max_combo += res.max_combo
@@ -340,6 +376,16 @@ func update_tiles_color():
 		var tile = grid.get_tile(grid.world_to_grid_position(character.last_position))
 		if tile: tile.is_last_position = true
 	if versus != null: versus.filter_tiles()
+	if aiming != Aim.NONE:
+		# 选目标：只有候选格子亮，其中方向键选中的那个最亮。别人一格都不亮
+		aim_list = aim_candidates(aiming)
+		aim_index = clampi(aim_index, 0, maxi(aim_list.size() - 1, 0))
+		var chosen: Tile = aim_list[aim_index] if not aim_list.is_empty() else null
+		for tile in grid.tiles.values():
+			tile.is_available = aim_list.has(tile)
+			tile.is_hovered = tile == chosen
+			tile.aim_raise = 0.45 if tile == chosen else 0.0     # 选中的那一格抬起来、染成烛火色：一眼看出选的是哪个
+			tile.aim_pick = tile == chosen
 
 ## 现在能跳多远（格）：连击、草鞋、纸伞都算上
 func _reach_now() -> float:
@@ -891,15 +937,115 @@ func restart():
 	reset_active_charges()
 
 
+## 现在能选哪些格子。PLACE 是身边够得着的空格子；COLLECT 是场上摆着的灯
+func aim_candidates(kind: Aim) -> Array:
+	if kind == Aim.COLLECT: return grid.get_fish_tiles()
+	var out: Array = []
+	var here: Tile = character.target_tile
+	var reach := _reach_now()
+	for tile in grid.tiles.values():
+		if tile == here or tile.object or not tile.is_landable(): continue
+		if tile.global_position.distance_to(character.global_position) / grid.tile_size.x > reach: continue
+		out.append(tile)
+	return out
+
+## 进入选目标。能选的不止一格才进（只有一格没什么可挑的，也照样让玩家确认一下）；一格都没有返回 false
+func begin_aim(kind: Aim, count: int) -> bool:
+	aim_list = aim_candidates(kind)
+	if aim_list.is_empty(): return false
+	aiming = kind
+	aim_left = count
+	aim_index = 0
+	_aim_hint()
+	update_tiles_color()
+	return true
+
+## 方向键在候选之间挪（按到边界就绕回去）
+func aim_step(delta: int) -> void:
+	if aim_list.size() <= 1: return
+	aim_index = posmod(aim_index + delta, aim_list.size())
+	update_tiles_color()
+
+func aim_confirm() -> void:
+	if aiming == Aim.NONE or aim_list.is_empty(): return
+	aim_pick(aim_list[clampi(aim_index, 0, aim_list.size() - 1)])
+
+## 取消：不消耗充能（选的时候本来就没扣）
+func aim_cancel() -> void:
+	if aiming == Aim.NONE: return
+	popup("取消了")
+	_finish_aim(false)
+
+## 选中一格：放灯，或者把那盏灯收过来
+func aim_pick(tile: Tile) -> void:
+	if aiming == Aim.NONE or tile == null or not aim_list.has(tile): return
+	if aiming == Aim.PLACE:
+		var fish := FISH.instantiate() as Fish
+		add_child(fish)
+		fish.global_position = tile.global_position
+		tile.object = fish
+		fish.load_resource(fishes[min(floor(randf() * fish_level), fishes.size() - 1)])
+		popup("点了一盏灯")
+	else:
+		collect_remote(tile)
+		popup("收了一盏灯")
+	aim_left -= 1
+	aim_list = aim_candidates(aiming)
+	aim_index = clampi(aim_index, 0, maxi(aim_list.size() - 1, 0))
+	if aim_left <= 0 or aim_list.is_empty():
+		_finish_aim(true)
+	else:
+		_aim_hint()
+		update_tiles_color()
+
+## 选完了：用掉充能；关掉提示
+func _finish_aim(used: bool) -> void:
+	aiming = Aim.NONE
+	aim_list = []
+	if used: reset_active_charges()
+	if _aim_label != null: _aim_label.visible = false
+	for tile in grid.tiles.values():
+		tile.aim_raise = 0.0
+		tile.aim_pick = false
+	update_tiles_color()
+
+## 选目标时屏幕下方那行提示
+func _aim_hint() -> void:
+	if _aim_label == null:
+		_aim_label = Tutorial.make_label(28, Color(1, 1, 1))
+		_aim_label.name = "AimHint"
+		_aim_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_aim_label.label_settings.outline_size = 9
+		_aim_label.label_settings.outline_color = Color(0.04, 0.06, 0.07)
+		_aim_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+		_aim_label.offset_left = -420.0
+		_aim_label.offset_right = 420.0
+		_aim_label.offset_top = -232.0
+		_aim_label.offset_bottom = -186.0
+		$CanvasLayer/Control.add_child(_aim_label)
+	var what := "点灯的格子" if aiming == Aim.PLACE else "要收的灯"
+	_aim_label.text = "选%s：方向键换，空格/A 确认，Esc/B 取消（还能选 %d 个）" % [what, aim_left]
+	_aim_label.visible = true
+
 func trigger_active_effect():
 	if character.is_jumping: return;
 	if not active_control.is_charged: return;
+	var ch := Game.selected_character
+	# 要在棋盘上挑格子的技能：先进"选目标"，选够了才用掉（选的时候取消不消耗）。
+	# 没有能选的格子（身边没空位、场上没灯）就退回原来那样，直接放
+	var aiming_skill := false
+	if ch.active_effect == CharacterResource.ActiveEffect.SpawnFishes:
+		aiming_skill = begin_aim(Aim.PLACE, maxi(int(ch.value), 1))
+	elif ch.active_effect == CharacterResource.ActiveEffect.LootFishesForMaxMoves:
+		aiming_skill = begin_aim(Aim.COLLECT, maxi(int(ch.value), 1))
+	if aiming_skill:
+		active_control.trigger_effect_audio.play()
+		update_moves_left()
+		return
 	active_control.trigger_effect_audio.play()
 	update_moves_left()
 
 	reset_active_charges()
-
-	var ch := Game.selected_character
 	match ch.active_effect:
 		CharacterResource.ActiveEffect.AddCombo:
 			gain_combo(ch.value)
