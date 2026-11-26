@@ -8,7 +8,7 @@ class_name Opening extends CanvasLayer
 ##   D 守夜人点灯   五块石台升起，守夜人一格一格跳过去，每落一格点亮一盏灯，最后一举灯照亮全屏
 ## 按任意键（或手柄按键、鼠标）跳过。每个方案三四秒，标题页的标志和按钮在最后入场。
 ## 界面全是代码搭的（和新手教程的卡片一个做法），场景文件 title.tscn 不用改。
-## 每个方案配一段声音（assets/audio/opening/，由 tools/audio/opening.py 算出来，时刻对着下面的动画）：
+## 每个方案配一段声音（assets/audio/opening/，由 tools/audio/remake.py 生成，时刻对着下面的动画）：
 ## 开场一响，标题页自己的音乐先压低，揭出标题的时侯再回来。
 ## 旁白是可选的：assets/audio/opening/voice<A>.wav 在（真人录的一句话）就放，不在就不放。台词、录和收拾的办法见 tools/audio/voice.py
 
