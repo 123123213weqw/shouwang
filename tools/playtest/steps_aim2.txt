@@ -9,17 +9,17 @@ sleep 6
 call pad_adapter.gd debug_charge 9
 sleep 1
 call pad_adapter.gd debug_state
-echo 按空格：进选目标（aim=2，候选是场上的灯）
+# 按空格：进选目标（aim=2，候选是场上的灯）
 key Space
 sleep 1
 call pad_adapter.gd debug_state
 snap 01_aiming
-echo 空格确认：收一盏
+# 空格确认：收一盏
 key Space
 sleep 1
 call pad_adapter.gd debug_state
 snap 02_one
-echo 再确认：收第二盏，用完清零
+# 再确认：收第二盏，用完清零
 key Space
 sleep 1
 call pad_adapter.gd debug_state

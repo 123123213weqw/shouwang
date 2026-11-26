@@ -8,25 +8,25 @@ call pad_adapter.gd debug_pick_character 0
 sleep 6
 call pad_adapter.gd debug_charge 9
 sleep 1
-echo 进了第 1 关、充能充满：aim=0 left=0 cand=0
+# 进了第 1 关、充能充满：aim=0 left=0 cand=0
 call pad_adapter.gd debug_state
-echo 按空格：该进选目标（aim=1，充能还是满的）
+# 按空格：该进选目标（aim=1，充能还是满的）
 key Space
 sleep 1
 call pad_adapter.gd debug_state
-echo 方向键换一格
+# 方向键换一格
 key Right
 sleep 1
 call pad_adapter.gd debug_state
-echo 空格确认：放一盏（left 1，充能还满）
+# 空格确认：放一盏（left 1，充能还满）
 key Space
 sleep 1
 call pad_adapter.gd debug_state
-echo 再确认一次：放完，充能清零
+# 再确认一次：放完，充能清零
 key Space
 sleep 1
 call pad_adapter.gd debug_state
-echo 再按空格：没充能了，什么都不该发生
+# 再按空格：没充能了，什么都不该发生
 key Space
 sleep 1
 call pad_adapter.gd debug_state

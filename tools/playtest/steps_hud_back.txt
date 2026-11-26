@@ -1,0 +1,20 @@
+# 关卡左上角的"返回"按钮：在关卡里露面，按它回标题页；对战里也露面
+#   SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a8 drive tools/playtest/steps_hud_back.txt hudback
+sleep 2
+call pad_adapter.gd debug_unlock_all
+click_btn PlayButton
+sleep 3
+call pad_adapter.gd debug_pick_character 0
+sleep 7
+ui
+snap 01_level
+click_btn HudReturnButton
+sleep 4
+scene
+snap 02_title
+# 对战里也看一眼
+call pad_adapter.gd debug_versus 3 1
+sleep 4
+call pad_adapter.gd debug_versus 0
+ui
+snap 03_versus
