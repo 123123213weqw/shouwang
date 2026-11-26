@@ -21,6 +21,19 @@ GROUPS = {
     "Fish_Land": (5, "splash"),
     "Fish_Loot": (5, "lamp"),
 }
+SFX_LEVELS = {
+    # Whole-file RMS and peak caps. A short hover should stay behind a click.
+    "click": (-23.0, -10.0),
+    "hover_a": (-32.0, -19.0),
+    "hover_b": (-32.0, -19.0),
+    "launch": (-25.0, -12.5),
+    "land": (-21.5, -9.5),
+    "spawn": (-27.0, -16.0),
+    "splash": (-26.5, -14.0),
+    "lamp": (-20.5, -8.5),
+    "upgrade": (-21.5, -9.0),
+    "portal": (-19.0, -7.5),
+}
 
 
 def load_foley(tools):
@@ -108,7 +121,7 @@ def write(path, signal):
         wav.writeframes(pcm.tobytes())
 
 
-# Each group of four bars is a new statement or answer. Positions are in beats.
+# Four-bar statements, responses and a quieter middle. Positions are in beats.
 TITLE_PHRASES = [
     [(0.5, 74), (1.25, 78), (2.0, 81), (2.75, 83)],
     [(0.0, 81), (0.75, 78), (2.25, 73), (3.25, 76)],
@@ -118,93 +131,118 @@ TITLE_PHRASES = [
     [(0.5, 73), (1.5, 76), (2.5, 78), (3.25, 81)],
     [(0.0, 83), (1.0, 78), (2.5, 76), (3.25, 74)],
     [(0.0, 76), (1.75, 69), (2.75, 73), (3.5, 74)],
+    [(0.75, 71), (1.5, 74), (2.75, 78)],
+    [(0.5, 74), (2.0, 71), (3.25, 69)],
+    [(0.0, 66), (1.75, 69), (2.5, 71)],
+    [(1.0, 76), (2.0, 73)],
 ]
 GAME_PHRASES = [
-    [(0.25, 66), (1.5, 69), (2.75, 73)],
-    [(0.0, 71), (1.5, 69), (3.25, 66)],
+    [(0.5, 62), (1.25, 66), (2.0, 69)],
+    [(0.75, 71), (2.5, 67)],
     [(0.0, 62), (1.75, 64), (2.5, 66)],
-    [(1.0, 69), (2.5, 64)],
+    [(1.5, 69)],
     [(0.5, 66), (1.25, 71), (2.75, 74)],
-    [(0.0, 73), (1.5, 69), (2.25, 66)],
+    [(0.5, 71), (2.25, 66)],
     [(0.75, 67), (1.75, 69), (3.0, 66)],
-    [(0.25, 64), (1.75, 61), (3.25, 62)],
+    [(0.25, 64), (1.75, 61)],
+    [(1.0, 62), (2.75, 67)],
+    [(0.5, 66)],
+    [(1.5, 64), (2.75, 66)],
+    [],
 ]
 
 
 def music(title, rng):
-    beat = 60 / (132 if title else 90)
+    beat = 60 / (132 if title else 84)
     bar_count = 28 if title else 32
     track = np.zeros((frames(beat * 4 * bar_count), 2), np.float32)
     echoes = np.zeros_like(track)
     if title:
-        harmony = [(50, 62, 66, 69), (47, 61, 66, 69), (43, 62, 67, 71), (45, 61, 64, 69)]
+        home = [(50, 62, 66, 69), (47, 61, 66, 69), (43, 62, 67, 71), (45, 61, 64, 69)]
+        bridge = [(52, 62, 67, 71), (43, 59, 64, 67), (47, 62, 66, 69), (45, 55, 61, 64)]
         phrases = TITLE_PHRASES
-        section_order = (0, 1, 0, 1, 0, 1, 0)
-        phrase_gain = (0.92, 1.00, 0.85, 0.67, 0.97, 1.04, 0.87)
+        section_order = (0, 1, 0, 2, 2, 1, 0)
+        phrase_gain = (0.92, 1.00, 0.86, 0.76, 0.70, 1.03, 0.88)
     else:
-        harmony = [(47, 61, 66, 69), (43, 62, 66, 71), (50, 62, 64, 69), (45, 61, 64, 69)]
+        home = [(47, 61, 66, 69), (43, 62, 66, 71), (50, 62, 64, 69), (45, 61, 64, 69)]
+        bridge = [(52, 59, 62, 67), (47, 57, 62, 66), (43, 59, 64, 67), (45, 57, 64, 69)]
         phrases = GAME_PHRASES
-        section_order = (0, 1, 0, 1, 0, 1, 0, 1)
-        phrase_gain = (0.82, 0.97, 0.77, 0.66, 0.87, 1.00, 0.78, 0.75)
+        section_order = (0, 1, 0, 2, 2, 1, 0, 2)
+        phrase_gain = (0.82, 0.97, 0.77, 0.69, 0.80, 0.96, 0.82, 0.64)
 
     for bar in range(bar_count):
         group, chord_index = divmod(bar, 4)
+        section = section_order[group]
+        quiet = section == 2
+        harmony = bridge if quiet else home
         root, *voicing = harmony[chord_index]
         bar_start = 4 * beat * bar
-        for position, interval in [(0, 0), (1.5, 12), (2.0, 0), (3.25, 7)]:
-            bass = tone(root + interval, (1.06 if interval == 0 else 0.45) * beat, "bass")
+        if quiet:
+            bass_steps = ((0, 0), (2.5, 7))
+        elif title:
+            bass_steps = ((0, 0), (1.5, 12), (2.0, 0), (3.25, 7))
+        else:
+            bass_steps = ((0, 0), (2.25, 0), (3.25, 7))
+        for position, interval in bass_steps:
+            bass = tone(root + interval, (1.38 if interval == 0 else 0.45) * beat, "bass")
             add(track, bass, bar_start + position * beat, 0.21 if interval == 0 else 0.10, loop=True)
-        for step, position in enumerate((0.5, 1.5, 2.75, 3.5)):
+        backing = (0.75, 2.5) if quiet else (0.5, 1.5, 2.75, 3.5) if title else (0.75, 1.75, 3.0)
+        for step, position in enumerate(backing):
             note = voicing[(step + group) % len(voicing)]
             pluck = tone(note, 0.64, "string")
             add(track, pluck, bar_start + position * beat, 0.078 if title else 0.064,
                 -0.24 if step % 2 == 0 else 0.25, loop=True)
-        phrase = phrases[section_order[group] * 4 + chord_index]
+        phrase = phrases[section * 4 + chord_index]
         for position, note in phrase:
-            if group in (3, 6) and position == phrase[-1][0]:
-                continue
-            voice = "glass" if title or group in (3, 5) else "string"
+            voice = "glass" if title and not quiet else "string"
             lead = tone(note, 0.80 if title else 1.0, voice)
             when = bar_start + position * beat
             add(track, lead, when, 0.19 * phrase_gain[group], 0.06, loop=True)
             add(echoes, lead, when, 0.045 * phrase_gain[group], -0.38, loop=True)
-        for position in (0.0, 2.0 if title else 2.5):
+        for position in (0.0,) if quiet else (0.0, 2.0 if title else 2.5):
             add(track, puff(130, 63, 0.18, 0.045), bar_start + position * beat,
                 0.164 if title else 0.092, loop=True)
-        for position in (1.0, 3.0):
+        for position in (3.0,) if quiet or not title else (1.0, 3.0):
             wood = puff(790 + 100 * position, 640, 0.10, 0.016)
             add(track, wood, bar_start + position * beat, 0.095 if title else 0.055, 0.22, loop=True)
-        for position in (0.5, 1.5, 2.5, 3.5) if title else (1.25, 3.5):
+        for position in () if quiet else (0.5, 1.5, 2.5, 3.5) if title else (1.25,):
             add(track, sand(rng, 0.09, 0.028), bar_start + position * beat,
                 0.11 if title else 0.075, -0.29, loop=True)
 
     # Circular echoes preserve the last bar's short tails at the loop boundary.
     track += np.roll(echoes, frames(beat * 0.75), axis=0)
     track += np.roll(echoes[:, ::-1], frames(beat * 1.5), axis=0) * 0.45
+    # Apply the same soft high shelf through the boundary, without fading downbeat attacks.
+    if not title:
+        softened = (2 * track + np.roll(track, 3, axis=0) + np.roll(track, -3, axis=0)) * 0.25
+        track = 0.52 * track + 0.48 * softened
     track -= track.mean(axis=0)
-    return scale(track, -20.2 if title else -22.0, -4.5)
+    return scale(track, -20.5 if title else -23.2, -4.8)
 
 
 def sfx(cue, index, foley, rng):
     root = [74, 76, 78, 81, 83][index % 5]
     variation = 1 + 0.055 * (index - 2)
     if cue == "click":
-        signal = puff(1670 * variation, 1160 * variation, 0.14, 0.022)
-        signal += sand(rng, 0.14, 0.012) * 0.31
+        signal = puff(1540 * variation, 970 * variation, 0.115, 0.027)
+        signal += puff(660 * variation, 552, 0.115, 0.035) * 0.37
+        signal += sand(rng, 0.115, 0.010) * 0.22
     elif cue == "hover_a":
-        signal = tone(root + 12, 0.12, "glass") * 0.40
-        signal += puff(1100 * variation, 890, 0.12, 0.019) * 0.36
+        signal = puff(980 * variation, 810, 0.086, 0.017)
+        signal += sand(rng, 0.086, 0.012) * 0.12
     elif cue == "hover_b":
-        signal = puff(1430 * variation, 1880 * variation, 0.12, 0.018)
-        signal += sand(rng, 0.12, 0.021) * 0.30
+        signal = puff(760 * variation, 1120 * variation, 0.091, 0.017)
+        signal += sand(rng, 0.091, 0.019) * 0.19
     elif cue == "launch":
-        duration = 0.13 + index * 0.004
-        signal = foley.swish(duration, 560 * variation, 3100 * variation, rng)
-        signal += puff(490, 740 * variation, duration, 0.034) * 0.21
+        duration = 0.116 + index * 0.003
+        signal = foley.swish(duration, 1050 * variation, 3680 * variation, rng) * 0.74
+        signal += puff(505, 820 * variation, duration, 0.035) * 0.29
+        signal += sand(rng, duration, 0.019) * 0.20
     elif cue == "land":
-        duration = 0.15 + index * 0.004
-        signal = foley.stone_step(rng, wet=index % 3 != 0)[:frames(duration)] * 0.70
-        signal += puff(890 * variation, 210 * variation, duration, 0.031) * 0.40
+        duration = 0.139 + index * 0.003
+        signal = foley.stone_step(rng, wet=index % 3 != 0)[:frames(duration)] * 0.60
+        signal += puff(690 * variation, 298 * variation, duration, 0.039) * 0.41
+        signal += puff(2220 * variation, 1530 * variation, duration, 0.016) * 0.23
         signal[-frames(0.024):] *= np.linspace(1, 0, frames(0.024))
     elif cue == "spawn":
         duration = 0.33 + index * 0.03
@@ -216,9 +254,9 @@ def sfx(cue, index, foley, rng):
         signal += puff(460 * variation, 270, duration, 0.059) * 0.30
     else:
         duration, notes = {
-            "lamp": (0.43, (root, root + (5 if index % 2 else 7))),
-            "upgrade": (0.64, (69, 74, 78, 81)),
-            "portal": (0.85, (62, 69, 76, 81, 86)),
+            "lamp": (0.36, (root, root + (5 if index % 2 else 7))),
+            "upgrade": (0.55, (69, 74, 78, 81)),
+            "portal": (0.82, (57, 66, 69, 74)),
         }[cue]
         signal = np.zeros(frames(duration))
         for part, note in enumerate(notes):
@@ -226,12 +264,12 @@ def sfx(cue, index, foley, rng):
             tone_duration = (len(signal) - offset) / RATE
             signal[offset:] += tone(note, tone_duration, "glass" if part else "string") * (0.8 + part * 0.08)
         if cue == "portal":
-            signal += splash(foley, rng, 0.62, duration) * 0.46
-            signal += foley.creak(duration, rng, lo=265, hi=490) * 0.23
+            signal += splash(foley, rng, 0.62, duration) * 0.51
+            signal += foley.creak(duration, rng, lo=242, hi=428) * 0.31
+            signal += puff(740, 230, duration, 0.142) * 0.58
         elif cue == "lamp":
             signal += foley.flame(rng, duration) * 0.10
-    target = -14 if cue.startswith("hover") else -12 if cue in {"spawn", "splash", "launch"} else -9
-    return scale(signal, target - 9, target)
+    return scale(signal, *SFX_LEVELS[cue])
 
 
 def opening(letter, foley, rng):
@@ -275,16 +313,23 @@ def opening(letter, foley, rng):
             (index - 1.5) * 0.19)
     track += np.roll(track[:, ::-1], frames(0.17), axis=0) * 0.09
     track[:frames(0.07)] *= np.linspace(0, 1, frames(0.07))[:, None]
-    track[-frames(0.75):] *= np.linspace(1, 0, frames(0.75))[:, None]
-    return scale(track, -20.5, -3.0)
+    # Clear the ambience as the title returns instead of leaving a late tail to be cut by the scene.
+    handoff = {"A": 4.50, "B": 4.40, "D": 4.36}[letter]
+    fade_start = frames(handoff - 0.72)
+    fade_end = frames(handoff - 0.08)
+    track[fade_start:fade_end] *= np.cos(np.linspace(0, np.pi / 2, fade_end - fade_start))[:, None] ** 2
+    track[fade_end:] = 0
+    return scale(track, -21.5, -3.8)
 
 
 def preview(title, game, sounds):
-    track = game[:frames(25)].copy()
-    track[:frames(4.75)] = title[:frames(4.75)]
-    cross = np.linspace(0, 1, frames(0.5))[:, None]
-    section = slice(frames(4.75), frames(5.25))
-    track[section] = title[section] * (1 - cross) + game[section] * cross
+    track = title[:frames(25)].copy()
+    start = frames(4.65)
+    blend = frames(0.70)
+    size = len(track) - start
+    blend_angle = np.linspace(0, np.pi / 2, blend)[:, None]
+    track[start:start + blend] = track[start:start + blend] * np.cos(blend_angle) + game[:blend] * np.sin(blend_angle)
+    track[start + blend:] = game[blend:size]
     for at, name in [(9, "land"), (12, "lamp"), (15, "click"), (19, "portal")]:
         add(track, sounds[name], at, 1.16)
     track[:frames(0.06)] *= np.linspace(0, 1, frames(0.06))[:, None]
@@ -300,23 +345,25 @@ def main():
                         help="directory with the project's instruments.py and synth.py")
     args = parser.parse_args()
     foley = load_foley(args.tools)
-    rng = np.random.default_rng(34817)
-    title = music(True, rng)
-    game = music(False, rng)
+    music_rng = np.random.default_rng(34817)
+    sfx_rng = np.random.default_rng(60419)
+    opening_rng = np.random.default_rng(83911)
+    title = music(True, music_rng)
+    game = music(False, music_rng)
     write(args.output / TITLE, title)
     write(args.output / GAME, game)
     samples = {}
     for base, (count, cue) in GROUPS.items():
         for index in range(count):
-            sound = sfx(cue, index, foley, rng)
+            sound = sfx(cue, index, foley, sfx_rng)
             write(args.output / "sfx" / f"{base}_{index + 1:03}.wav", sound)
             if index == 0:
                 samples[cue] = sound
     for cue, filename in (("portal", "Portal_Loot ST.wav"), ("upgrade", "Upgrade_Loot ST.wav")):
-        samples[cue] = sfx(cue, 0, foley, rng)
+        samples[cue] = sfx(cue, 0, foley, sfx_rng)
         write(args.output / "sfx" / filename, samples[cue])
     for letter in ("A", "B", "D"):
-        write(args.output / "opening" / f"open{letter}.wav", opening(letter, foley, rng))
+        write(args.output / "opening" / f"open{letter}.wav", opening(letter, foley, opening_rng))
     if args.preview:
         write(args.preview, preview(title, game, samples))
 
