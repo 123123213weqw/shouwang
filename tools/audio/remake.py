@@ -1,15 +1,11 @@
-"""城门更鼓. Synthesize every audio source for 守望 with NumPy.
-
-    python -B remake.py --output path/to/assets/audio --preview path/to/preview.wav
-
-When omitted, paths are relative to this script. No samples, plug-ins or
-network resources are used.
-"""
+"""Render the ordered score and cues from CC0 instrument and foley recordings."""
 import argparse
 from pathlib import Path
 import wave
 
 import numpy as np
+
+import recorded_samples as rec
 
 
 SR = 48_000
@@ -35,84 +31,51 @@ def taper(t, attack, release):
 
 
 def noise(t, center, width):
-    frequency = np.fft.rfftfreq(t.size, 1 / SR)
-    weight = np.exp(-0.5 * ((frequency - center) / width) ** 2)
-    weight *= np.minimum(frequency / 120, 1)
-    spectrum = np.fft.rfft(RNG.standard_normal(t.size))
-    out = np.fft.irfft(spectrum * weight, n=t.size)
-    return out / max(np.std(out), 1e-6)
+    family = "ocean" if len(t) > SR else "shaker"
+    return rec.texture(len(t) / SR, max(100, center - width * .6), center + width,
+                       RNG.integers(3), family) * 2
 
 
 def modes(t, partials):
-    out = np.zeros_like(t)
-    for frequency, gain, delay in partials:
-        phase = RNG.uniform(-np.pi, np.pi)
-        out += gain * np.sin(2 * np.pi * frequency * t + phase) * np.exp(-t / delay)
-    return out
+    root, gain, _ = partials[0]
+    family = "step" if len(partials) >= 4 else "frame" if root < 215 else "water"
+    return rec.sound(family, len(t) / SR, take=RNG.integers(3),
+                     speed=np.clip(root / (154 if family == "step" else 390), .74, 1.35),
+                     cutoff=3900) * gain * 2
 
 
 def drum(root, seconds=.90):
-    t = clock(seconds)
-    phase = 2 * np.pi * (root * t + 26 * .051 * (1 - np.exp(-t / .051)))
-    skin = modes(t, ((root * 1.81, .23, .13), (root * 2.57, .13, .09), (root * 3.88, .072, .051)))
-    strike = .055 * noise(t, 460, 360) * np.exp(-t / .027)
-    return (.73 * np.sin(phase) * np.exp(-t / .22) + skin + strike) * taper(t, .006, .12)
+    family = "bassdrum" if root < 108 else "frame"
+    return rec.sound(family, seconds, take=RNG.integers(3),
+                     speed=np.clip(root / 96, .76, 1.35), cutoff=2900, release=.12)
 
 
 def clapper(root, seconds=.23):
-    t = clock(seconds)
-    wood = modes(t, ((root, .56, .047), (root * 1.72, .24, .033),
-                     (root * 2.74, .13, .022), (root * 3.83, .061, .016)))
-    strike = .088 * noise(t, 1320, 820) * np.exp(-t / .012)
-    return (wood + strike) * taper(t, .0027, .045)
+    return rec.sound("claves", seconds, take=RNG.integers(2),
+                     speed=np.clip(root / 930, .70, 1.43), cutoff=5600)
 
 
 def pluck(note, seconds, dark=1.0):
-    t = clock(seconds)
-    root = hz(note)
-    weights = (.75, .33, .20, .12, .077, .049, .030, .017, .009)
-    string = modes(t, tuple(
-        (root * n * (1 + n * n * .000075), gain * dark ** (n - 1), .73 / n ** .66)
-        for n, gain in enumerate(weights, 1)
-    ))
-    finger = .046 * noise(t, 1300, 780) * np.exp(-t / .022)
-    return (string + finger) * taper(t, .004, .118)
+    return rec.sound("harp", seconds, note=note, cutoff=2000 + 2500 * dark, release=.12)
 
 
 def flute(note, seconds, down=False):
-    t = clock(seconds)
-    root = hz(note)
-    bend = 1 + (.020 if down else -.028) * np.exp(-t / .078)
-    vibrato = 1 + .0049 * np.sin(2 * np.pi * 5.4 * t) * (1 - np.exp(-t / .28))
-    phase = 2 * np.pi * np.cumsum(root * bend * vibrato) / SR
-    wind = noise(t, 1350, 820)
-    voice = .66 * np.sin(phase) + .18 * np.sin(phase * 2) + .077 * np.sin(phase * 3)
-    pressure = .86 + .14 * np.sin(np.pi * t / seconds)
-    return (voice * pressure + .064 * wind) * taper(t, .080, min(.19, seconds / 3))
+    return rec.sound("dizi", seconds, note=note - (.05 if down else 0), cutoff=4100,
+                     attack=.048, release=min(.19, seconds / 3))
 
 
 def bronze(note, seconds=.44):
-    t = clock(seconds)
-    root = hz(note)
-    ring = modes(t, ((root, .61, .15), (root * 2.008, .25, .105),
-                     (root * 2.846, .09, .052), (root * 4.06, .05, .024)))
-    return ring * taper(t, .0046, .078)
+    return rec.sound("glock", seconds, note=note, cutoff=6400, release=.078)
 
 
 def water(seconds, center, rise=.028):
-    t = clock(seconds)
-    flow = noise(t, center, center * .54)
-    skin = modes(t, ((center * .24, .16, .069), (center * .5, .08, .099)))
-    return (.44 * flow * np.exp(-t / (seconds * .26)) + skin) * taper(t, rise, .055)
+    return rec.sound("water", seconds, take=RNG.integers(2),
+                     speed=np.clip(center / 1550, .67, 1.4), attack=rise, cutoff=3500)
 
 
 def sweep(seconds, low, high, reverse=False):
-    t = clock(seconds)
-    u = t / seconds
-    if reverse:
-        u = 1 - u
-    ripple = noise(t, low, low * .62) * (1 - u) + noise(t, high, high * .53) * u
-    return .44 * ripple * taper(t, seconds * .36, seconds * .24)
+    return rec.sound("cymbal", seconds, speed=.62, take=1, reverse=not reverse,
+                     cutoff=max(700, high), attack=seconds * .38, release=seconds * .24)
 
 
 def buffer(seconds, stereo=True):
@@ -161,31 +124,7 @@ def level(track, peak_db=-4.5, rms_db=None):
 
 
 def periodic_air(track, duration, richness):
-    t = clock(duration)
-
-    def oscillator(frequency, phase=0):
-        # Integral cycles make phase and modulation periodic at the exact WAV boundary.
-        return np.sin(2 * np.pi * round(frequency * duration) * t / duration + phase)
-
-    def sustained(frequency, wobble):
-        # Carrier crests line up with the seam, allowing a slow change between samples.
-        return oscillator(frequency, np.pi / 2 + wobble - wobble[0])
-
-    drift = oscillator(7 / duration, .21)
-    drone = .0095 * sustained(hz(38), .18 * drift)
-    drone += .0060 * sustained(hz(45), .27 * drift)
-    drone += .0034 * sustained(hz(50), .41 * drift)
-    drone *= .86 + .14 * oscillator(4 / duration, .86)
-    air = .0016 * sustained(136, oscillator(14 / duration))
-    air += .0011 * sustained(249, oscillator(9 / duration, 1.01))
-    air *= .6 + .4 * oscillator(11 / duration, .49)
-    add(track, 0, drone * richness + air, 1, -.12)
-    add(track, 0, air, .58, .67)
-    # A quiet D/A resonance ties the cadence over the wrap into the next count.
-    distance = np.minimum(t, duration - t)
-    wrap = .5 + .5 * np.cos(np.pi * np.clip(distance / .94, 0, 1))
-    tie = .024 * oscillator(hz(50), np.pi / 2) + .010 * oscillator(hz(57), np.pi / 2)
-    add(track, 0, wrap * tie, richness, -.16)
+    track += rec.room(duration, richness, resonant=True)
 
 
 def music(title):
@@ -344,7 +283,8 @@ def effects():
     portal = buffer(.89, False)
     add(portal, 0, clapper(514), .58)
     add(portal, .072, clapper(668), .50)
-    add(portal, .092, drum(91, .66), .43)
+    add(portal, .092, drum(91, .66), .32)
+    add(portal, .095, rec.sound("gong", .66, cutoff=3700), .31)
     add(portal, .120, water(.59, 1460, .049), .47)
     add(portal, .213, bronze(69, .56), .47)
     add(portal, .285, bronze(74, .51), .37)
@@ -370,6 +310,7 @@ def opening_a(track):
 
 
 def opening_b(track):
+    add(track, 2.12, rec.sound("gong", 1.80, cutoff=3500), .24, .09)
     # Ink falls, the seal lands squarely, the ink recedes.
     court(track, .15, bronze(77, .37), .20, .19)
     court(track, .25, sweep(.87, 400, 1620, reverse=True), .109, -.07)
@@ -409,9 +350,7 @@ def openings():
     ):
         track = buffer(duration)
         t = clock(duration)
-        bed = .06 * np.sin(2 * np.pi * hz(38) * t)
-        bed += .035 * np.sin(2 * np.pi * hz(45) * t + .7)
-        bed += .024 * noise(t, 425, 230)
+        bed = rec.room(len(t) / SR, depth=1.8, resonant=True).mean(axis=1)
         add(track, 0, bed * taper(t, .66, 1.64), .20)
         arrange(track)
         yield f"open{letter}.wav", level(track * taper(t, .027, .58)[:, None], -4.7, -21)
