@@ -42,8 +42,9 @@ var _moves_alpha := 1.0
 var _held_alpha := 1.0
 var _box_y := 0.0            # 主角那团精灵在它自己坐标系里的高度：平时是 0，跳起来的时侯游戏在改它
 var _head_tint := Color.WHITE        # 头原来的颜色
-var _dived := false          # 盖住的时侯镜头推进过水车：掀开的时侯要从低位拉回来
-var _armed := 0              # 看门狗的号：0 是没借东西
+var _dived := false          # 盖住的时侯镜头推进过水车：掀开的时候要从低位拉回来
+var _armed := 0              # 这是第几次借东西：0 是没借。补间和看门狗回头来还的时侯带着自己那一次的号，对不上就不动
+var _tween: Tween            # 这一次借东西用的补间
 
 func build() -> void:
 	rect = add(full_rect(shader("wheel")), true)
@@ -63,7 +64,7 @@ func cover(ctx: Dictionary) -> void:
 	if portal != null:
 		_dived = true
 		_dive(ctx, portal, t, secs)
-	t.chain().tween_callback(_give_back)             # 还东西写在补间里：中间哪一步出了错，补间自己也会做完
+	t.chain().tween_callback(_give_back.bind(true, _armed))   # 还东西写在补间里：中间哪一步出了错，补间自己也会做完
 	await t.finished
 	_give_back()
 
@@ -82,7 +83,7 @@ func reveal(ctx: Dictionary) -> void:
 	t.tween_property(_mat, "shader_parameter/drain", 1.0, secs)
 	t.tween_property(_mat, "shader_parameter/zoom", 1.0, secs)
 	if surfacing: _surface(ctx, t, secs)
-	t.chain().tween_callback(_give_back)
+	t.chain().tween_callback(_give_back.bind(true, _armed))
 	await t.finished
 	_give_back()
 	_mat.set_shader_parameter("cover", 0.0)          # 回到什么都看不见
@@ -127,7 +128,7 @@ func _dive(ctx: Dictionary, portal: Portal, t: Tween, secs: float) -> void:
 	var where := screen_uv(aim)
 	_mat.set_shader_parameter("focus", Vector2(clampf(where.x, 0.3, 0.7), clampf(where.y, 0.3, 0.7)))
 	if _fov <= 0.0: _fov = cam.fov
-	_borrow(main, cam, cam.global_position, secs)
+	_borrow(main, cam, cam.global_position, secs, t)
 	# 先记下要还的数，再动东西（上面 _borrow）。镜头：去的时候由快到慢，像冲过去以后停住
 	t.tween_property(cam, "global_position", cam.global_position.lerp(aim, PUSH), secs).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	t.tween_property(cam, "fov", _fov - PINCH, secs).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -160,23 +161,30 @@ func _surface(ctx: Dictionary, t: Tween, secs: float) -> void:
 	if main.camera_dist > 0.0:
 		home = Vector3(main.camera_target_x(), -fwd.y * main.camera_dist, main.camera_focus_z - fwd.z * main.camera_dist)
 	var low := Vector3(home.x, 0.0, main.camera_focus_z) - fwd * (main.camera_dist * LOW)
-	_borrow(main, cam, home, secs)
+	_borrow(main, cam, home, secs, t)
 	cam.global_position = low                  # 画面盖严着，这一下看不见
 	t.tween_property(cam, "global_position", home, secs).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
-## 借东西：记下它们原来是什么样、该回到哪儿，按住镜头不让跟着主角走，再上一个闹钟（看门狗）
-func _borrow(main: Main, cam: Camera3D, home: Vector3, secs: float) -> void:
+## 借东西：记下它们原来是什么样、该回到哪儿，按住镜头不让跟着主角走，再上一个闹钟（看门狗）。
+## 平时借了就还、还了才再借。只有一样例外：盖住里哪一步出了错，那一段函数就当作做完了，过渡照常往下走，
+## 掀开的时侯上一次借的还没还——主角原来的样子这时侯不能再记一遍（记下的就是半路的样子，还回去主角就成了隐形的），
+## 上一次那个还在跑的补间也得先停了（它还在改视角、淡主角）
+func _borrow(main: Main, cam: Camera3D, home: Vector3, secs: float, t: Tween) -> void:
+	if _armed != 0:
+		if _tween != null and _tween.is_valid(): _tween.kill()
+		_restore_who()          # 画面盖严着，这一下看不见；不还的话主角会停在淡了一半的样子，等掀开露出来才蹦回原样
+	_tween = t
 	_cam = cam
 	_home = home
 	_who = main.character
-	_head_alpha = _alpha_of(_who.head_sprite)
-	_body_alpha = _alpha_of(_who.body_sprite)
-	_shadow_alpha = _who.shadow.modulate.a
-	_moves_alpha = _who.character_moves_left_label.modulate.a
-	_held_alpha = _who.held_label.modulate.a if is_instance_valid(_who.held_label) else 1.0
-	_box_y = _who.sprite_container.position.y
-	var head := _who.head_sprite.material_override as ShaderMaterial
-	_head_tint = _tint_of(head)
+	if _armed == 0:
+		_head_alpha = _alpha_of(_who.head_sprite)
+		_body_alpha = _alpha_of(_who.body_sprite)
+		_shadow_alpha = _who.shadow.modulate.a
+		_moves_alpha = _who.character_moves_left_label.modulate.a
+		_held_alpha = _who.held_label.modulate.a if is_instance_valid(_who.held_label) else 1.0
+		_box_y = _who.sprite_container.position.y
+		_head_tint = _tint_of(_who.head_sprite.material_override as ShaderMaterial)
 	_armed += 1
 	hold_camera(true)
 	# 跟着暂停走（第一个参数给 false）：树一停补间也停，闹钟不能自己先响
@@ -188,27 +196,21 @@ func _expired(id: int) -> void:
 	if id != _armed: return          # 以前哪一段留下的闹钟
 	_give_back(false)
 
-## 还东西：镜头的位置和视角回去、放开它，主角的各处画回原来的样子。repeat = false 是看门狗喊的（见 _expired）
-func _give_back(final := true) -> void:
+## 还东西：镜头的位置和视角回去、放开它，主角的各处画回原来的样子。
+## final = false 是看门狗喊的（见 _expired）；id 是哪一次借东西的补间、闹钟喊的，0 是样式自己喊的
+func _give_back(final := true, id := 0) -> void:
 	if _armed == 0: return
+	if id != 0 and id != _armed: return       # 以前那一次的补间回头做完了：现在这一次自己会还
 	if is_instance_valid(_cam):
 		_cam.global_position = _home
 		_cam.fov = _fov
-	if is_instance_valid(_who):
-		_set_alpha(_who.head_sprite, _head_alpha)
-		_set_alpha(_who.body_sprite, _body_alpha)
-		if is_instance_valid(_who.shadow): _who.shadow.modulate.a = _shadow_alpha
-		if is_instance_valid(_who.character_moves_left_label): _who.character_moves_left_label.modulate.a = _moves_alpha
-		if is_instance_valid(_who.held_label): _who.held_label.modulate.a = _held_alpha
-		# 跳到一半的话游戏自己每一帧会接着摆它的高度，这儿写回去的那一下不碍事
-		_who.sprite_container.position.y = _box_y
-		var head := _who.head_sprite.material_override as ShaderMaterial
-		if head != null: head.set_shader_parameter("color", _head_tint)
+	_restore_who()
 	hold_camera(false)
 	if not final: return
 	_armed = 0
 	_cam = null
 	_who = null
+	_tween = null
 
 ## 一张精灵现在画得多实（wobbly 着色器的 alpha 参数）。不是那种材质、或者没有这个参数，就当它是实的
 static func _alpha_of(sprite: Sprite3D) -> float:
@@ -227,3 +229,16 @@ static func _set_alpha(sprite: Sprite3D, value: float) -> void:
 	if not is_instance_valid(sprite): return
 	var m := sprite.material_override as ShaderMaterial
 	if m != null: m.set_shader_parameter("alpha", value)
+
+## 主角的各处画回借以前的样式
+func _restore_who() -> void:
+	if not is_instance_valid(_who): return
+	_set_alpha(_who.head_sprite, _head_alpha)
+	_set_alpha(_who.body_sprite, _body_alpha)
+	if is_instance_valid(_who.shadow): _who.shadow.modulate.a = _shadow_alpha
+	if is_instance_valid(_who.character_moves_left_label): _who.character_moves_left_label.modulate.a = _moves_alpha
+	if is_instance_valid(_who.held_label): _who.held_label.modulate.a = _held_alpha
+	# 跳到一半的话游戏自己每一帧会接着摆它的高度，这儿写回去的那一下不碍事
+	_who.sprite_container.position.y = _box_y
+	var head := _who.head_sprite.material_override as ShaderMaterial
+	if head != null: head.set_shader_parameter("color", _head_tint)
