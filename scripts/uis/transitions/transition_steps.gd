@@ -36,6 +36,7 @@ const LAG_CAP := 0.16
 const WATER_Y := -1.262           # 水面在多高（main.tscn 里 Water 那个节点的高度）：石阶擦过水面的那一刻荡开涟漪
 const WAVE_GAP_MIN := 0.035       # 一圈和一圈之间隔多久。大棋盘圈多就挤一挤（换关换得快的局挤得更紧），小棋盘就慢一点
 const WAVE_GAP_MAX := 0.11
+const VEIL_LEAD := 0.09           # 暗幕在主角脚下那一块落完之前多久就开始压上来（先慢后快，它落的时侯还看得很清）
 const VEIL_TAIL := 0.06           # 盖住的最后这么长是纯暗的：换棋盘那一帧有多长看不出来
 const VEIL_OUT := 0.5             # 掀开的开头这么一大段（占掀开的时长）暗幕退开：先快后慢，剩一点青色慢慢散掉
 const TITLE_SECS := 0.24          # 关卡名换字用这么久（调用的人在盖住一开始就把字换了）：旧的先淡出，再淡入新的，
@@ -62,6 +63,7 @@ var _total := 0.0                 # 这一段一共多长
 var _rise := 0.30                 # 这一趟每块石阶浮多久（换关换得快的局短一些）
 var _hero_end := 0.0              # 主角脚下那一块落到第几秒（暗幕等它落完了再压上来）
 var _hero_drop := 0.11            # 主角脚下那一块沉多久（换关换得快的局短一些）
+var _scale := 1.0                 # 这一趟盖住是平时的几倍长（换关换得快的局是 0.6 上下）：几个定死的时长都按它缩
 var _veil_from := 0.0             # 暗幕从第几秒开始压上来 / 退开
 var _veil_to := 0.0
 var _veil := 0.0                  # 暗幕现在有多厚（最后一次写进着色器的数）
@@ -86,6 +88,7 @@ var _title_fade := 0.0            # 换字换到哪儿了（0 刚开始，1 换�
 var _title_shown := ""            # 画面上这一行现在是哪一关的名字（上一趟掀开完的那一关）
 var _title_next := ""             # 这一趟要去的这一关的名字
 var _label_modulate := Color.WHITE
+var _ctl_children := 0             # 装好样式以后过渡那一层底下的节点数（排查用，见 debug_trace）
 
 ## 一块石阶在过渡里的状态
 class Stone:
@@ -140,6 +143,7 @@ func build() -> void:
 	hand.style = self
 	driver = add(hand)
 	driver.set_process(false)
+	_ctl_children = ctl.get_child_count()      # 这一层底下一共几个节点（场景里原来就有石砖墙和它的动画，再加上样式自己的三个）：以后不该变
 
 func cover(ctx: Dictionary) -> void:
 	_frames = {}
@@ -150,7 +154,8 @@ func cover(ctx: Dictionary) -> void:
 	_clock = 0.0
 	_phase = Phase.COVER
 	_total = duration(ctx, COVER_SECS, COVER_FAST)
-	_hero_drop = HERO_DROP_SECS * _total / COVER_SECS
+	_scale = _total / COVER_SECS
+	_hero_drop = HERO_DROP_SECS * _scale
 	_title_next = str(ctx.get("title", ""))
 	_set_veil_tint(ctx)
 	veil.material.set("shader_parameter/flow", -1.0)
@@ -163,8 +168,8 @@ func cover(ctx: Dictionary) -> void:
 	_begin_title()
 	# 暗幕：有旧棋盘的时侯等主角脚下那一块快落完了再压上来（压上来是先慢后快的，见 _tick_cover：它落的时侯暗幕还很淡，看得清）；
 	# 没有旧棋盘（从标题页进游戏）就是一路暗下去
-	_veil_from = clampf(_hero_end - 0.09, 0.0, _total * 0.6) if not _stones.is_empty() else 0.0
-	_veil_to = _total - VEIL_TAIL
+	_veil_from = clampf(_hero_end - VEIL_LEAD * _scale, 0.0, _total * 0.6) if not _stones.is_empty() else 0.0
+	_veil_to = _total - VEIL_TAIL * _scale
 	_set_veil(0.0)
 	driver.set_process(true)
 	while _phase == Phase.COVER:
@@ -417,7 +422,7 @@ func _take_old_board(ctx: Dictionary) -> void:
 		s.at = (s.ring - 1) * gap + s.tile.rseed * gap * 0.3     # 同一圈里的几块差一点点，不是齐刷刷的
 		if s != _hero: latest = maxf(latest, s.at)
 	_hero.secs = _hero_drop
-	_hero.at = clampf(latest + DROP_SECS + 0.02, _total * 0.4, _total - _hero_drop - VEIL_TAIL - 0.05)
+	_hero.at = clampf(latest + DROP_SECS + 0.02, _total * 0.4, _total - _hero_drop - VEIL_TAIL * _scale - 0.05 * _scale)
 	_hero_end = _hero.at + _hero_drop
 	_riders.append(_make_rider(main.character, _hero))
 	# 对战里的对手站在它自己那一块上，跟着那一块走
@@ -699,6 +704,12 @@ func _snap(tag: String) -> void:
 	ctl.get_viewport().get_texture().get_image().save_png("%s_steps_%s.png" % [_snap_base(), tag])
 	_snap_cost = float(Time.get_ticks_usec() - t0) / 1000000.0
 
+## 一个节点连它底下一共有多少个节点
+static func _count_nodes(node: Node) -> int:
+	var n := 1
+	for c in node.get_children(): n += _count_nodes(c)
+	return n
+
 ## 过渡做完以后查一遍。哪一块石阶、哪盏灯、哪个角色没回到平时的样子就报出来
 func debug_trace() -> String:
 	var main := ctl.get_node_or_null("/root/Main") as Main
@@ -720,5 +731,8 @@ func debug_trace() -> String:
 	if main.level_label.modulate != _label_modulate: bad.append("关卡名的 modulate 是 %s" % main.level_label.modulate)
 	if veil.visible or under.visible or _phase != Phase.IDLE: bad.append("样式自己的东西还露着（暗幕 %s，底层 %s，阶段 %d）" % [veil.visible, under.visible, _phase])
 	if driver.is_processing(): bad.append("Driver 还在跑")
-	if bad.is_empty(): return "RESULT 石阶沉浮：通过（%d 块石阶都在原处，灯、主角也都回了位，样式自己的东西都收了）" % main.grid.tiles.size()
+	# 节点数：过渡那一层底下（场景里原来的石砖墙和动画，加上样式自己的暗幕、底层、Driver）和底层底下（涟漪和那一行字），连换多少次关都不该变
+	if ctl.get_child_count() != _ctl_children: bad.append("过渡那一层底下有 %d 个节点，装好样式时是 %d" % [ctl.get_child_count(), _ctl_children])
+	if under.get_child_count() != RINGS + 1: bad.append("底层底下有 %d 个节点，应该是 %d" % [under.get_child_count(), RINGS + 1])
+	if bad.is_empty(): return "RESULT 石阶沉浮：通过（%d 块石阶都在原处，灯、主角也都回了位，样式自己的东西都收了；Main 底下 %d 个节点）" % [main.grid.tiles.size(), _count_nodes(main)]
 	return "RESULT 石阶沉浮：没过，%d 处：%s" % [bad.size(), "；".join(bad.slice(0, 6))]
