@@ -163,8 +163,9 @@ static func _night(base: Color) -> Color:
 ## 河面上那些真的灯（换关这一下用的一份，照 river_lamps.gd 抄的：那边是标题页的慢河，这边的灯要在一秒里涌到眼前）。
 ##
 ## 和光海用的是同一个透视（见 shaders/transition_lanterns.gdshader 顶上的说明）：画面上方外面很远有个消失点，
-## 每盏灯记的是出生那一刻它在河面上的位置（x0 横着，z0 顺着河），以后 深度 dy = 1 / (z0 - flow)，
-## 画在 消失点 + (x0 × dy, dy)，大小和 dy 成正比。所以远处生下来的灯又小又慢，越往近处越大越快，横着也散开
+## 每盏灯记着它这会儿在河面上的位置（x0 横着，z 顺着河），每帧往近处走一点；深度 dy = 1 / z，
+## 画在 消失点 + (x0 × dy, dy)，大小和 dy 成正比。所以远处的灯又小又慢，越往近处越大越快，横着也散开。
+## 只是这些灯在河面上不是匀速流的（FLOW_EXP）：匀速的话近处那一截在河面上只占很小一段，画面底下平均只轮得到一两盏灯
 ##
 ## 每盏灯的小图和倒影是现成的节点；光晕不是——每帧写进光海的两个数组里，由它一起画
 class River extends Control:
@@ -179,7 +180,9 @@ class River extends Control:
 	const VP_Y := -0.35            # 竖着在画面上方外面这么远（画面高的几分之几）。要和着色器里的 VP_Y 一样
 	const Z_IN := 5.4              # 灯从多远出生（dy ≈ 0.19：画面顶的外面）
 	const Z_OUT := 0.62            # 涌到这么近就算出了画面（dy ≈ 1.6），收回来再用
-	const SPAWN_DZ := 0.1          # 水每流这么远来一盏灯（河面上的距离）。乘上 LAMPS 刚好铺满 Z_OUT 到 Z_IN
+	const FLOW_EXP := 0.6           # 这些灯在河面上流得多快，和 z 的几次方成正比：离得越远流得越快、换得越勤，近处的留得住。
+	                               # 换到画面上还是越近越快（和 dy 的 1.4 次方成正比），只是远近差得没那么狠
+	const SPAWN_RATE := 17.4        # 水流速度是 1 的时侯，每秒从上游来几盏灯。从 Z_IN 流到 Z_OUT 一趟，河上正好是 LAMPS 盏上下
 	const LAMP_PX := 110.0         # dy 是 1 的那盏灯，贴图有多高（按 720 高的画面算；标题页最近的那盏是 112）
 	const Z_TOP := 30              # 最近的灯 z_index 有多大：近的压着远的
 	const PUSH := 1.6              # 掀开的时侯，洞边的灯被推开多快（画面高 / 秒）
@@ -194,7 +197,7 @@ class River extends Control:
 		var mat_body: ShaderMaterial
 		var mat_mirror: ShaderMaterial
 		var live := false         # 在不在河上
-		var z0 := 0.0             # 出生那一刻在河面上顺着河多远
+		var z := 0.0              # 这会儿在河面上顺着河多远（越小越近）
 		var x0 := 0.0             # 横着离河当中多远（dy 是 1 的时候在画面上离正中多宽）
 		var stature := 1.0        # 这盏灯自己的大小（0.8 到 1.2）
 		var phase := 0.0          # 火苗晃、左右摆的相位
@@ -207,8 +210,9 @@ class River extends Control:
 	var _aspect := 1.6
 	var _view_h := 720.0
 	var _time := 0.0
-	var _flow := 0.0                         # 水已经流了多远（河面上的距离）
-	var _next_flow := 0.0                    # 水流到这儿来下一盏灯
+	var _flow := 0.0                         # 水已经流了多远（河面上的距离）：光海里的灯和水纹按它匀速地流
+	var _acc := 0.0                          # 上游来灯：攒够 _gap 就来一盏（以"平均隔多久来一盏"为 1）
+	var _gap := 1.0                          # 下一盏隔多久来（同上，平均是 1）
 	var speed := 1.2                         # 这一刻水流多快：样式给
 	var front := FRONT_REST                  # 盖住：灯河的前锋到了哪个深度（dy）。比它远的灯才看得见
 	var front_soft := 0.05
@@ -269,14 +273,19 @@ class River extends Control:
 	func begin() -> void:
 		_time = 0.0
 		_flow = 0.0
-		_next_flow = SPAWN_DZ
+		_acc = 0.0
+		_gap = 1.0
 		front = FRONT_REST
 		front_soft = 0.05
 		hole_r = 0.0
+		# 摆得和水一直这么流着的时候一样多：走得慢的地方（近处）灯就多。
+		# 积分一下"每一段河面上停多久"（和 z 的 -FLOW_EXP 次方成正比），反过来取，就是下面这个式子
+		var lo := pow(Z_OUT + 0.03, 1.0 - FLOW_EXP)
+		var hi := pow(Z_IN, 1.0 - FLOW_EXP)
 		for l in _lamps:
 			l.live = false
 			l.root.visible = false
-			_place(l, randf_range(Z_OUT + 0.03, Z_IN))
+			_place(l, pow(randf_range(lo, hi), 1.0 / (1.0 - FLOW_EXP)))
 		_sea.set_shader_parameter("flow", 0.0)
 		set_process(true)
 
@@ -295,17 +304,17 @@ class River extends Control:
 			l.root.visible = false
 		_sea.set_shader_parameter("lamp_n", 0)
 
-	## 往上游放一盏灯。河上满了（LAMPS 盏都在）就先不放，水再流远一点自然有空出来的
+	## 往上游放一盏灯。河上满了（LAMPS 盏都在）就先不放，水再流一会儿自然有空出来的
 	func _spawn() -> void:
 		for l in _lamps:
 			if l.live: continue
-			_place(l, Z_IN + _flow)
+			_place(l, Z_IN)
 			return
 
-	## 把一盏灯放到河面上 z 这儿（出生那一刻顺着河多远）
+	## 把一盏灯放到河面上 z 这儿（顺着河多远）
 	func _place(l: Lamp, z: float) -> void:
 		l.live = true
-		l.z0 = z
+		l.z = z
 		# 横着：七成挤在河当中那一条（近处画面里看得见的主要是它），三成散到两边（它们只在远处的那一段在画面里）
 		var u := randf_range(-1.0, 1.0)
 		l.x0 = u * 0.85 if randf() < 0.7 else signf(u) * randf_range(0.85, 2.3)
@@ -318,18 +327,21 @@ class River extends Control:
 		_time += delta
 		_flow += speed * delta
 		_sea.set_shader_parameter("flow", _flow)
-		# 上游来灯：按水流过的远近算，每流 SPAWN_DZ 来一盏——所以水流得再急，河上的疏密也不变。间隔有长有短，
-		# 灯是一簇一簇地来的，不是排着队匀速来
-		while _flow >= _next_flow:
+		# 上游来灯：按时间算，来得和水流一样快——所以水流得再急，河上的疏密也不变。
+		# 两盏之间隔多久有长有短，灯是一簇一簇地来的，不是排着队匀速来
+		_acc += SPAWN_RATE * speed * delta
+		while _acc >= _gap:
+			_acc -= _gap
+			_gap = randf_range(0.5, 1.5)
 			_spawn()
-			_next_flow += SPAWN_DZ * randf_range(0.5, 1.5)
 		var vp := Vector2(VP_X * _aspect, VP_Y)
 		var k := _view_h / 720.0
 		var lead := 0.05 + 0.10 * front       # 灯比夜色领先这么多（同着色器）
 		var n := 0
 		for l in _lamps:
 			if not l.live: continue
-			var z := l.z0 - _flow
+			l.z -= speed * pow(l.z, FLOW_EXP) * delta
+			var z := l.z
 			if z < Z_OUT:
 				l.live = false
 				l.root.visible = false
