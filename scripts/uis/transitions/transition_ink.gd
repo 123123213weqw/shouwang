@@ -36,6 +36,8 @@ const TITLE_OUT := 0.14                 ##       掀开的时侯用多久褪掉
 var rect: TextureRect
 var _mat: ShaderMaterial
 var _tween: Tween
+var _ink_from := INK                   ## 盖住那一滴的墨色：掺的是离开的那一关的底色
+var _ink_to := INK                     ## 盖严了、掀开的时侯的墨色：掺的是要去的那一关的底色
 var _title: Control                     ## 题字：一小行"第 N 关"，底下一个大字是关卡名，后面衬着一圈洇开的淡墨。平时藏着
 var _title_small: Label
 var _title_big: Label
@@ -64,7 +66,9 @@ func build() -> void:
 		_title.add_child(l)
 	add(_title)
 
-## 盖住。from 平时是主角这会儿站的地方（踩上水车的那一格）；换场景的时侯没有，就从画面正中晕
+## 盖住。from 平时是主角这会儿站的地方（踩上水车的那一格）；换场景的时侯没有，就从画面正中晕。
+## 墨色跟着墨一起走：落下来的那一滴掺的是离开的那一关的底色，晕开的过程中换成要去的那一关的
+##（一章里的几关底色一样，看不出换；换章的时侯墨色会跟着变）
 func cover(ctx: Dictionary) -> void:
 	_begin(screen_uv(ctx.from, CENTRE), ctx)
 	var land := _land(ctx)
@@ -77,6 +81,9 @@ func cover(ctx: Dictionary) -> void:
 
 ## 掀开。to 是主角落脚的地方；回标题页、掀幕的时侯没有，就从画面正中化开
 func reveal(ctx: Dictionary) -> void:
+	var colour: Color = ctx.get("color", SceneTransitionControl.INK)
+	_ink_to = INK.lerp(colour, TINT)          # 开机掀幕没盖过：这儿的墨色是现定的
+	_mat.set_shader_parameter("ink", _ink_to)
 	_mat.set_shader_parameter("revealing", 1.0)
 	_mat.set_shader_parameter("front", FRONT_END)      # 开机掀幕没盖过：这一帧先铺满，下一帧才开始化开
 	_mat.set_shader_parameter("origin", screen_uv(ctx.to, CENTRE))
@@ -167,7 +174,8 @@ func _begin(at: Vector2, ctx: Dictionary) -> void:
 	_mat.set_shader_parameter("aspect", size.x / size.y)
 	_mat.set_shader_parameter("origin", at)
 	var colour: Color = ctx.get("color", SceneTransitionControl.INK)
-	_mat.set_shader_parameter("ink", INK.lerp(colour, TINT))
+	_ink_to = INK.lerp(colour, TINT)
+	_ink_from = INK.lerp(ctx.get("color_from", colour), TINT)
 	_mat.set_shader_parameter("seed", randf() * 20.0)
 	_mat.set_shader_parameter("revealing", 0.0)
 	_mat.set_shader_parameter("hole", 0.0)
@@ -193,6 +201,7 @@ func _cover_at(t: float) -> void:
 	t = clampf(t, 0.0, 1.0)
 	var eased := 1.0 - pow(1.0 - pow(t, 1.6), 2.0)
 	_mat.set_shader_parameter("front", lerpf(DROP, FRONT_END, eased))
+	_mat.set_shader_parameter("ink", _ink_from.lerp(_ink_to, t))
 
 ## 掀开走到 x（0 到 1）：洞慢慢化开、越化越快；淡痕在后半段褪掉。
 ## 起头别太慢：盖严到洞露脸之间画面是不动的墨，那段越短越好
