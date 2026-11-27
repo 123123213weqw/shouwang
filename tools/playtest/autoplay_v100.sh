@@ -40,7 +40,10 @@ echo "进游戏: $scene"
 dismiss=$(btn TutorialCloseButton)      # 第一次进游戏会先弹"玩法"卡片（整局暂停）：有就点掉
 [ -n "$dismiss" ] && { RC_WAIT=0.3 $RC "click $dismiss" >/dev/null 2>&1; sleep 1; echo "点掉了第一次的玩法卡片"; }
 sleep 6
-echo "方案: $(rcc "call pad_adapter.gd debug_ruleset 99" | cut -c1-60)"
+echo "难度: $(rcc "call pad_adapter.gd debug_rules_state" | sed 's/^OK called debug_rules_state -> //' | cut -d'|' -f1 | tr -d '\n')"
+# 有夜巡的档：进关以后脚本先空等了十几秒，蜡已经烧掉一截。给机器人续上一支长的（跳第一下的时侯自动回到一支蜡的长度）。
+# 没有夜巡的档这一步什么都不变。想试"想得久会怎样"，用 SW_AUTO_PACE 设每步等多久，别靠这里的空等
+rcc "call pad_adapter.gd debug_night 90" >/dev/null
 rcc "call pad_adapter.gd debug_autoplay $BOT $MAX"
 snap 01_start
 
@@ -62,10 +65,12 @@ if [ -n "$line" ] && command -v python3 >/dev/null; then
 	printf '%s' "$line" | python3 -c '
 import json, sys
 r = json.loads(sys.stdin.read())
-print("结果: %s   走到第 %s 关   总分 %s   重来 %s 次   跳不到 %s 次   方案 %s   机器人 %s" % (r.get("result"), r.get("reached"), r.get("score"), r.get("retries"), r.get("broken"), r.get("ruleset"), r.get("mode")))
+print("结果: %s   走到第 %s 关   总分 %s   重来 %s 次   跳不到 %s 次   放灯 %s 次   难度 %s   机器人 %s   每步 %s 秒" % (
+    r.get("result"), r.get("reached"), r.get("score"), r.get("retries"), r.get("broken"), r.get("placed", 0), r.get("ruleset"), r.get("mode"), r.get("pace", 0.4)))
 for lv in r.get("levels", []):
     m = lv.get("missteps", [])
-    print("  第 %2d 关 %-10s 开头分数 %5d   踩空: %s   这关错了 %d 步" % (lv.get("level"), lv.get("name"), lv.get("score0"), " → ".join(str(x) for x in m) or "—", (m[-1] if m else 0)))
+    print("  第 %2d 关 %-10s 开头分数 %5d，带着 %s 步进来，收 %s 盏，风 %s   踩空: %s   这关错了 %d 步" % (
+        lv.get("level"), lv.get("name"), lv.get("score0"), lv.get("moves0"), lv.get("lamps"), lv.get("wind"), " → ".join(str(x) for x in m) or "—", (m[-1] if m else 0)))
 '
 else
 	echo "没有拿到机器人的记录（${line:-空})"
@@ -89,8 +94,10 @@ fail=0
 [ "$broken" = 0 ] || { echo "[没过] 有 $broken 次照着路线走却跳不到"; fail=1; }
 badboard=$(grep -a -c "AUTOPLAY_BOARD_BAD" "$LOG")
 [ "$badboard" = 0 ] || { echo "[没过] 有 $badboard 次查出棋盘上的登记不对（同一盏灯登记在几个格子上，或者格子指着一个已经不存在的灯）"; fail=1; }
+# 贪心打法走进死路（剩下的灯它够不着）的时侯机器人会自己收工，记作 stuck：那是它的成绩，不算测试没过
 if [ "$BOT" = 1 ]; then
 	[ -z "$line" ] && { echo "[没过] 机器人没有玩完"; fail=1; }
+	echo "$line" | grep -q '"result":"stuck' && { echo "[没过] 照着路线走的机器人没处可去了：摆好的路线它走不完"; fail=1; }
 	if [ "$MODE" = campaign ]; then
 		echo "$line" | grep -q '"result":"completed"' || { echo "[没过] 照着路线走没能通关"; fail=1; }
 	elif [ "$MAX" != 999 ]; then

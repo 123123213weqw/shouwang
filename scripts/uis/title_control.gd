@@ -21,10 +21,11 @@ class_name TitleControl extends Control
 @onready var settings_container: Control = $CanvasLayer/TitleControl/SettingsContainer
 @onready var settings_return_button: Button = $CanvasLayer/TitleControl/SettingsContainer/SettingsReturnButton
 
-@onready var ui_root: Control = $CanvasLayer/TitleControl     # 标题页所有界面的根，方案选择面板挂在它下面
+@onready var ui_root: Control = $CanvasLayer/TitleControl     # 标题页所有界面的根，难度选择面板和对战选择面板挂在它下面
 @onready var _lobby_river: Node = $CanvasLayer/LobbyRiver     # 标题页的背景：一条夜里的河（scripts/uis/lobby_river.gd）
 
-## 标题页按钮列里的"方案"按钮和它点开的方案选择面板。场景里没有它们，是 _ready() 里用代码加的
+## 标题页按钮列里的"难度"按钮和它点开的难度选择面板（节点名还是叫 Ruleset…：测试的步骤文件里按名字找它们，没改）。
+## 场景里没有它们，是 _ready() 里用代码加的
 var ruleset_button: Button
 var ruleset_picker: RulesetPicker
 ## 同样是 _ready() 里加的：按钮列最上面那一行里的"对战"按钮，和它点开的对战选择面板（scripts/versus/ 里五种玩法选一个）
@@ -32,7 +33,7 @@ var versus_button: Button
 var versus_picker: VersusPicker
 
 const BUTTON := preload("res://scenes/uis/button.tscn")
-const RULESET_BUTTON_SIZE := 36            # "方案 · 灯谱"是次要的入口，字比上面两个小一号
+const RULESET_BUTTON_SIZE := 36            # "难度 · 中等"是次要的入口，字比上面两个小一号
 
 @export var character_resources: Array[CharacterResource]
 const CHARACTER_SELECT_CONTROL = preload("res://scenes/uis/character_select_control.tscn")
@@ -84,8 +85,8 @@ func _lobby_start() -> void:
 	else:
 		_lobby_river.wake(centre)
 
-## 按钮列最上面一行放三种去处："巡夜""长夜""对战"（竖着排六个按钮放不下，所以并成一行）；"长夜"后面另起一行是"方案"。
-## 再建方案选择面板和对战选择面板（都挂在 CanvasLayer/TitleControl 下，画在最上面）。
+## 按钮列最上面一行放三种去处："巡夜""长夜""对战"（竖着排六个按钮放不下，所以并成一行）；这一行下面是"难度"。
+## 再建难度选择面板和对战选择面板（都挂在 CanvasLayer/TitleControl 下，画在最上面）。
 ## 面板开着的时候标题页的按钮和标志都藏起来，按"返回"再回到标题页
 func _add_ruleset_ui() -> void:
 	var modes := HBoxContainer.new()
@@ -133,10 +134,10 @@ func _add_ruleset_ui() -> void:
 	versus_picker.closed.connect(return_to_title)
 	update_ruleset_button()
 
-## "方案"按钮上写的是现在选的方案，例如"方案 · 灯谱"
+## "难度"按钮上写的是现在选的难度，例如"难度 · 中等"
 func update_ruleset_button() -> void:
 	var r: Ruleset = Game.ruleset
-	ruleset_button.text = "方案 · %s" % (r.title if r != null and r.title != "" else "—")
+	ruleset_button.text = "难度 · %s" % (r.title if r != null and r.title != "" else "—")
 
 func update_characters():
 	for child in characters_container.get_children():
@@ -187,13 +188,13 @@ func return_to_title():
 	buttons_container.set_visible(true)
 	title.set_visible(true)
 	
-## 打开方案选择面板。面板在正中，会压住标志，所以按钮和标志都先藏起来
+## 打开难度选择面板。面板在正中，会压住标志，所以按钮和标志都先藏起来
 func show_rulesets():
 	buttons_container.set_visible(false)
 	title.set_visible(false)
 	ruleset_picker.open()
 
-## 打开对战选择面板。和方案面板一样会压住标志，所以按钮和标志都先藏起来
+## 打开对战选择面板。和难度面板一样会压住标志，所以按钮和标志都先藏起来
 func show_versus() -> void:
 	buttons_container.set_visible(false)
 	title.set_visible(false)

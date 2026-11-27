@@ -1,0 +1,54 @@
+# 对战的五种玩法各打一局，主角交给机器人：开局、打一会儿、看一眼战况、查这一局没套标题页上选的难度，回标题页再开下一种。
+# SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_versus_play.txt vplay
+# all 里跑这一步的时侯带着 SW_RULESET=extreme（临时指定最难的 difficulty 不写进存档）：对战的局照样不该套它，查的就是这个
+sleep 2
+call pad_adapter.gd debug_unlock_all
+# 1 抢灯
+call pad_adapter.gd debug_versus 1 1
+sleep 12
+call pad_adapter.gd debug_versus_check
+call pad_adapter.gd debug_versus 0
+snap 01_rush
+# 暂停菜单里不该有难度那一行：打开看一眼
+click_btn HudReturnButton
+sleep 1
+ui
+snap 02_rush_menu
+click_btn MainMenu
+sleep 4
+# 2 追影
+call pad_adapter.gd debug_versus 2 1
+sleep 12
+call pad_adapter.gd debug_versus_check
+call pad_adapter.gd debug_versus 0
+snap 03_shadow
+click_btn HudReturnButton
+sleep 1
+click_btn MainMenu
+sleep 4
+# 3 夺岸
+call pad_adapter.gd debug_versus 3 1
+sleep 12
+call pad_adapter.gd debug_versus_check
+call pad_adapter.gd debug_versus 0
+snap 04_territory
+click_btn HudReturnButton
+sleep 1
+click_btn MainMenu
+sleep 4
+# 4 轮战
+call pad_adapter.gd debug_versus 4 1
+sleep 12
+call pad_adapter.gd debug_versus_check
+call pad_adapter.gd debug_versus 0
+snap 05_blitz
+click_btn HudReturnButton
+sleep 1
+click_btn MainMenu
+sleep 4
+# 5 对弈
+call pad_adapter.gd debug_versus 5 1
+sleep 12
+call pad_adapter.gd debug_versus_check
+call pad_adapter.gd debug_versus 0
+snap 06_duel

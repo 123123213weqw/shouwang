@@ -124,6 +124,13 @@ func _add_pad_events() -> void:
 	_button("MoveLeft", JOY_BUTTON_DPAD_LEFT)
 	_button("MoveRight", JOY_BUTTON_DPAD_RIGHT)
 	_button("Power", JOY_BUTTON_A)
+	# "放灯"（手里的灯，规矩见 ruleset.gd）：键盘 E，手柄 X。在代码里注册，工程文件里不用写
+	if not InputMap.has_action("PlaceLamp"):
+		InputMap.add_action("PlaceLamp")
+		var key := InputEventKey.new()
+		key.physical_keycode = KEY_E
+		InputMap.action_add_event("PlaceLamp", key)
+	_button("PlaceLamp", JOY_BUTTON_X)
 	_button("OpenMenu", JOY_BUTTON_START)
 	_button("OpenMenu", JOY_BUTTON_BACK)
 	if InputMap.has_action("ui_cancel"):
@@ -884,6 +891,12 @@ var _auto_n := 0                    # 这一关里机器人走了几步
 var _auto_trace := OS.get_environment("SW_AUTO_TRACE") != ""   # 设了就把机器人每一步都打进日志
 var _auto_eager := OS.get_environment("SW_AUTO_EAGER") != ""   # 设了就换关后只等 0.2 秒：试它在灯还没摆完的时侯会不会乱动
 var _auto_bad_seen := ""            # 这一关里棋盘登记上最近一次查出的毛病（同一种只报一次）
+var _auto_rec_pending := false     # 换了关、这一关的记录还没记：等它载入完了再记（那时风、灯数、步数才是这一关的）
+var _auto_idle := 0.0               # 机器人连续多久没处可去了。贪心打法走进死路（剩下的灯它够不着）的时侯它会一直干等，
+									# 游戏却没结束（人还能在空格子上跳到步数用完）。等够了就不等了，记作没过
+var _auto_placed := 0               # 这一局机器人放了几盏手里的灯
+var _auto_pace := 0.4               # 每走一步等多久（秒）。环境变量 SW_AUTO_PACE 设了就按它来：
+									# 夜巡是真的计时，机器人想都不想（0.4 秒一步）蜡烛永远烧不完；按真人每步想多久来走，量的才是真人的过关率
 
 ## 棋盘上的登记对不对：每盏灯只登记在一个格子上；格子指着的节点都还在，也都停在它登记的那个格子附近
 ##（捞网挪灯要 0.2 秒，挪到一半的时侯灯在两个格子之间，算正常）。没问题返回空字符串
@@ -910,14 +923,17 @@ func debug_autoplay(mode: int, max_level: int = 999) -> String:
 	_auto_route_i = 0
 	_auto_serial = -1
 	_auto_broken = 0
-	_auto_report = {"mode": _auto_mode, "levels": [], "broken": 0, "ruleset": Game.ruleset.id if Game.ruleset else "", "max": _auto_max_level}
+	_auto_placed = 0
+	if OS.get_environment("SW_AUTO_PACE") != "": _auto_pace = maxf(float(OS.get_environment("SW_AUTO_PACE")), 0.05)
+	_auto_report = {"mode": _auto_mode, "levels": [], "broken": 0, "ruleset": Game.ruleset.id if Game.ruleset else "", "max": _auto_max_level,
+		"pace": _auto_pace}
 	if _auto_mode == 0: return "autoplay off"
 	return "autoplay mode %d%s" % [_auto_mode, "" if main == null else " (already in game: the report counts from the current level)"]
 
 func debug_autoplay_report() -> String:
 	return JSON.stringify(_auto_report)
 
-## 现在选哪套方案（0 起，按文件名排）。只对之后开的局生效
+## 现在选哪一档难度（0 起，按文件名排）。只对之后开的局生效
 func debug_ruleset(index: int) -> String:
 	if index < 0 or index >= Game.rulesets.size(): return "no ruleset %d (there are %d)" % [index, Game.rulesets.size()]
 	var r: Ruleset = Game.rulesets[index]
@@ -928,10 +944,21 @@ func debug_ruleset(index: int) -> String:
 ## 按目录列名字再读的那几处最容易漏（2026-11-25 方案就因此在包里一套都没读到，只剩代码里的默认值）
 func debug_export_check() -> String:
 	var problems: Array[String] = []
-	if Game.rulesets.size() < 6:
-		problems.append("方案只读到 %d 套（应有 6 套）" % Game.rulesets.size())
+	# 四档是简单、中等、困难、非常困难；自己再加一档也行，所以只查"读到了"和"没读全"
+	if Game.rulesets.size() < 4:
+		problems.append("难度只读到 %d 档（应有 4 档：简单、中等、困难、非常困难）" % Game.rulesets.size())
+	# 四档得是由易到难排的，规矩也是一档比一档多
+	for i in range(1, Game.rulesets.size()):
+		if Game.rulesets[i].tier <= Game.rulesets[i - 1].tier:
+			problems.append("第 %d 档（%s）没有排在第 %d 档（%s）后面" % [i + 1, Game.rulesets[i].title, i, Game.rulesets[i - 1].title])
+		if Game.rulesets[i].rule_count() < Game.rulesets[i - 1].rule_count():
+			problems.append("%s 的规矩比 %s 还少" % [Game.rulesets[i].title, Game.rulesets[i - 1].title])
+	# 画面左上角的旗子、蜡烛、灯盏：有风向或夜巡的档要用的图
+	for path in ["res://assets/sprites/ui/rules/wind_flag.png", "res://assets/sprites/ui/rules/candle.png", "res://assets/sprites/ui/rules/candle_holder.png",
+			"res://assets/sprites/ui/rules/chevron.png", "res://scripts/uis/difficulty_stepper.gd"]:
+		if load(path) == null: problems.append("读不到 %s" % path)
 	for r in Game.rulesets:
-		if r.title == "" or r.summary == "": problems.append("方案 %s 没读全" % r.id)
+		if r.title == "" or r.summary == "": problems.append("难度 %s 没读全" % r.id)
 	var paths := [
 		"res://resources/upgrades/combooo.tres", "res://resources/upgrades/umbrella.tres", "res://resources/upgrades/shoe.tres",
 		"res://resources/upgrades/hat.tres", "res://resources/upgrades/cane.tres", "res://resources/upgrades/magnet.tres",
@@ -959,7 +986,7 @@ func debug_export_check() -> String:
 	if counts.size() != Opening.NAMES.size() or repeats != 0:
 		problems.append("随机开场不对：抽到 %d 种，连着重复 %d 次" % [counts.size(), repeats])
 	if problems.is_empty():
-		return "RESULT 导出包自检：通过（%d 套方案，%d 件东西的资源，%d 段开场的声音都读到了）" % [Game.rulesets.size(), paths.size(), Opening.NAMES.size()]
+		return "RESULT 导出包自检：通过（%d 档难度，%d 件东西的资源，%d 段开场的声音都读到了）" % [Game.rulesets.size(), paths.size(), Opening.NAMES.size()]
 	return "RESULT 导出包自检：没过，%d 处：%s" % [problems.size(), "；".join(problems)]
 
 # ================================================================ 逐帧计时（查"不够顺滑"用）
@@ -1062,6 +1089,8 @@ func debug_opening_state() -> String:
 ##   call pad_adapter.gd debug_lobby 2 12          河上马上凑到 12 盏灯（给 0 回到平时那样，看等了多久）
 ##   call pad_adapter.gd debug_lobby 0             一行状态：画面多大、几盏灯、几圈涟漪
 ##   call pad_adapter.gd debug_lobby 3             排查用：每一盏河灯在哪、有多淡、在避让什么
+##   call pad_adapter.gd debug_lobby 4             河灯是不是画在标题页的界面底下（每盏灯的 z_index 都得比界面的小）；
+##                                                 难度页开着的时候再说一句有几盏灯正漂在卡片底下
 func debug_lobby(action: int, a: int = 0, b: int = 0) -> String:
 	var scene := get_tree().current_scene as TitleControl
 	if scene == null: return "不在标题页上"
@@ -1076,8 +1105,48 @@ func debug_lobby(action: int, a: int = 0, b: int = 0) -> String:
 			return "OK 河上的灯：%d 盏%s" % [a, "（硬性规定）" if a > 0 else "（回到平时那样）"]
 		3:
 			return "河灯：" + str(river.debug_lamps_detail())
+		4:
+			return _lobby_layers(scene, river)
 		_:
 			return "RESULT 大厅的河：" + str(river.debug_state())
+
+## 河灯是不是画在标题页的界面底下。河灯每盏带着 z_index（远近的顺序），而 z_index 是整个画面层里一起排的：
+## 有一盏灯的比界面的大，它就漂到菜单、难度页的上头（难度页上的字被灯盖住过）。数字都按最终生效的算（自己的加上祖先的）。
+## 难度页开着的时候，再数有几盏灯正漂在卡片底下：一盏都没有的话，这一下截的图说明不了"灯没盖住卡片"
+func _lobby_layers(scene: TitleControl, river: Node) -> String:
+	var ui := scene.get_node_or_null("CanvasLayer/TitleControl") as CanvasItem
+	if ui == null: return "RESULT 河灯的层级：没过，标题页上找不到界面（CanvasLayer/TitleControl）"
+	var ui_z := _effective_z(ui)
+	var lamp_z := -1000000             # 灯里最大的那个 z_index（初值取一个肯定比谁都小的；一盏灯都没有的情况下面单独报）
+	var count := 0
+	var over_card := 0
+	var card: Control = null
+	if scene.ruleset_picker != null and scene.ruleset_picker.is_open():
+		card = scene.ruleset_picker.get_node_or_null("RulesetCard") as Control
+	for root in river.get_node("Lamps").get_children():
+		if not root is CanvasItem: continue
+		count += 1
+		lamp_z = maxi(lamp_z, _effective_z(root as CanvasItem))
+		if card != null and card.get_global_rect().has_point((root as Control).global_position):
+			over_card += 1
+	if count == 0:
+		return "RESULT 河灯的层级：没过，河上现在一盏灯都没有，量不出来（先 call pad_adapter.gd debug_lobby 2 14）"
+	if lamp_z >= ui_z:
+		return "RESULT 河灯的层级：没过，有灯的 z_index 到了 %d，界面是 %d（灯漂到界面上头了）" % [lamp_z, ui_z]
+	var note := "难度页没开" if card == null else "难度页开着，%d 盏灯正漂在卡片底下" % over_card
+	return "RESULT 河灯的层级：通过（%d 盏灯，z_index 最大 %d，界面 %d；%s）" % [count, lamp_z, ui_z, note]
+
+## 这个东西最终生效的 z_index：自己的，加上祖先们的（只要它们写的是"相对于上一级"），往上到画面层为止。
+## 引擎里那个现成的算法（get_effective_z_index）在这个版本里运行时调不到，所以自己算
+static func _effective_z(item: CanvasItem) -> int:
+	var z := 0
+	var node: Node = item
+	while node is CanvasItem:
+		var c := node as CanvasItem
+		z += c.z_index
+		if not c.z_as_relative: break
+		node = c.get_parent()
+	return z
 
 ## 游戏里的背景（进了游戏才有）
 ##   call pad_adapter.gd debug_stage 0             一行状态：哪种布局、水到哪儿到头、几盏河灯
@@ -1096,6 +1165,7 @@ func debug_stage(action: int) -> String:
 ##   call pad_adapter.gd debug_versus 2        直接开一局：抢灯 1、追影 2、夺岸 3、轮战 4、对弈 5（用第一位同伴，不经过选人页）
 ##   call pad_adapter.gd debug_versus 2 1      同上，但主角也交给机器人打（录预览、自动测试用）
 ##   call pad_adapter.gd debug_versus 0        已经在对战里：一行这一局的状况（没分出胜负时报"进行中"）
+##   call pad_adapter.gd debug_versus_check    已经在对战里：这一局有没有被标题页上选的难度串味（见 debug_versus_check）
 func debug_versus(n: int, autopilot: int = 0) -> String:
 	var ids: Array = VersusBase.IDS
 	if n <= 0:
@@ -1112,6 +1182,28 @@ func debug_versus(n: int, autopilot: int = 0) -> String:
 	SceneManager.load_game()
 	return "开了一局%s（%s）" % [VersusBase.NAMES[Game.versus], "主角交给机器人" if Game.versus_auto else "主角自己操作"]
 
+## 对战的局有没有被标题页上选的难度串味。对战用自己的数（resources/versus/），不该带上难度的规矩：
+## 步数的加减、风向、夜巡、手里的灯；暂停菜单和结算面板上也不放难度的加减器。在对战的局里调，哪一条不对就报"没过"
+func debug_versus_check() -> String:
+	var main := get_node_or_null("/root/Main") as Main
+	if main == null or main.versus == null: return "RESULT 对战的局：没过，现在不在对战的局里"
+	var bad: Array[String] = []
+	var r: Ruleset = main.ruleset
+	if r == null:
+		bad.append("没有规矩")
+	else:
+		if Game.rulesets.has(r): bad.append("套的是标题页上选的难度「%s」" % r.title)
+		if r.wind: bad.append("规矩里带着风向")
+		if r.night_watch: bad.append("规矩里带着夜巡")
+		if r.hold_lamps > 0: bad.append("规矩里给了 %d 盏手里的灯" % r.hold_lamps)
+	if main.wind_dir != Vector2i.ZERO: bad.append("这一关刮着风 %s" % main.wind_dir)
+	if main.night_on: bad.append("蜡烛在烧")
+	if main.held_lamps > 0: bad.append("手里有 %d 盏灯" % main.held_lamps)
+	if main.pause_stepper != null and main.pause_stepper.visible: bad.append("暂停菜单里露着难度的加减器")
+	if main.versus.over and main.over_stepper != null and main.over_stepper.visible: bad.append("结算面板上露着难度的加减器")
+	if not bad.is_empty(): return "RESULT 对战的局：没过，%s" % "；".join(bad)
+	return "RESULT 对战的局：通过（%s，没套标题页上选的难度）" % VersusBase.NAMES.get(main.versus.id, "?")
+
 ## 这一关摆好的那一局，画成字符画
 func debug_deal() -> String:
 	var main := get_node_or_null("/root/Main")
@@ -1119,12 +1211,278 @@ func debug_deal() -> String:
 	if main.current_deal.is_empty(): return "this level has no deal (lamps are spawned as you go)"
 	return BoardGen.deal_ascii(main.current_board(), main.current_deal)
 
+## 排查用：这几条规矩现在的状态（难度、风向、夜巡的蜡、手里的灯、步数、重来过几次）
+func debug_rules_state() -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null: return "not in game"
+	var r: Ruleset = main.ruleset
+	var parts: Array[String] = []
+	parts.append("难度 %s" % (r.id if r != null else "无"))
+	parts.append("风 %s" % str(main.wind_dir))
+	parts.append("夜巡开着，蜡还剩 %.1f 秒%s" % [main.night_left, "" if main._candle_burning() else "（这会儿停着不烧：被停住了、菜单开着或者正弹着提示）"] if main.night_on else "夜巡没开")
+	parts.append("手里的灯 %d" % main.held_lamps)
+	parts.append("步数 %d/%d" % [main.moves_left, main.max_moves_left])
+	parts.append("这一关重来过 %d 次" % main.level_retries)
+	if main.rule_hud != null: parts.append(main.rule_hud.debug_state())
+	return " | ".join(parts)
+
+## 排查用：朝着四个方向现在各能跳多远（格）。有风向的时侯顺风远、逆风近；没有风四个方向一样
+func debug_reach() -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null: return "not in game"
+	var here := Vector2(main.character.global_position.x, main.character.global_position.z)
+	var dirs: Array = [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]
+	var names: Array[String] = ["右(+x)", "左(-x)", "近(+z)", "远(-z)"]
+	var out: Array[String] = []
+	for i in dirs.size():
+		out.append("%s %.2f" % [names[i], main.reach_toward(here, here + dirs[i] * main.grid.tile_size.x)])
+	return "能跳（格）：%s；连击 %d，风 %s" % ["，".join(out), main.combo, str(main.wind_dir)]
+
+## 排查用：暂停菜单开着的时候，把每一行（加减器里的箭头、档名各算一样）量一遍，看有没有出画面、互相重叠
+##   call pad_adapter.gd debug_menu_layout
+func debug_menu_layout() -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null or main.menu == null or not main.menu.visible: return "RESULT 暂停菜单版面：没过，菜单没开着"
+	var items: Array = []
+	for row in main.menu.buttons_container.get_children():
+		if row is Control and row.visible: _add_row_items(items, row)
+	return _layout_report("暂停菜单版面", items)
+
+## 排查用：结算面板出来、按钮都露面以后（分数报完要等几秒），把标题、小字、左下每一行、右边的纪录列表量一遍：
+## 不出画面，左下的行不压到纪录列表上
+##   call pad_adapter.gd debug_over_layout
+func debug_over_layout() -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null or not main.final_score_control.visible: return "RESULT 结算面板版面：没过，结算面板没出来"
+	var items: Array = []
+	for l in [main.final_score_control.game_over, main.final_score_control.completed]:
+		if l.visible: items.append(["标题", Tutorial.text_rect(l), false])
+	if main.over_note.visible: items.append(["标题下的小字", Tutorial.text_rect(main.over_note), false])
+	if not main.final_score_control.buttons_container.visible: return "RESULT 结算面板版面：没过，左下的按钮还没露面（分数还没报完？）"
+	for row in main.final_score_control.buttons_container.get_children():
+		if row is Control and row.visible: _add_row_items(items, row)
+	var records: Control = main.leader_board_container_control.v_box_container
+	if records != null and records.visible: items.append(["纪录列表", Rect2(records.global_position, records.size), false])
+	var face: Control = main.final_score_control.get_node_or_null("ScoreContainer/Control")
+	if face != null:
+		for l in face.get_children():
+			if l is Label and l.visible: items.append(["分数", Tutorial.text_rect(l), false])
+	return _layout_report("结算面板版面", items)
+
+## 一行按钮量它看得见的字（带图标的按整个按钮算）；加减器那一行把它里面的箭头、档名各量一样
+func _add_row_items(items: Array, row: Control) -> void:
+	if row is HBoxContainer:
+		for c in row.get_children():
+			if c is Control and c.visible: items.append(["%s 的 %s" % [row.name, c.name], Rect2(c.global_position, c.size), false])
+	elif row is Button:
+		items.append([row.name, Tutorial.button_text_rect(row), false])
+
+## 逐个报有没有出画面，再两两查一遍有没有重叠，明细跟着结论一起带回去（只打进游戏日志的话，看步骤输出的人看不到）。
+## 字是按"字面实际占的高度"量的：字体的行高比字本身高出一截，按行高算，上下挨着的两行字会被冤枉成重叠
+func _layout_report(what: String, items: Array) -> String:
+	var view := Rect2(Vector2.ZERO, get_viewport().get_visible_rect().size)
+	var out: PackedStringArray = []
+	var rects: Array = []
+	for it in items:
+		var r: Rect2 = it[1]
+		rects.append(Rect2(r.position + Vector2(0.0, r.size.y * 0.16), Vector2(r.size.x, r.size.y * 0.68)))
+	var bad := 0
+	for i in items.size():
+		if not view.grow(1.0).encloses(rects[i]):
+			bad += 1
+			out.append("× %s 出了画面：%s" % [items[i][0], items[i][1]])
+		for j in range(i + 1, items.size()):
+			if (rects[i] as Rect2).grow(0.1).intersects(rects[j]):
+				bad += 1
+				out.append("× 重叠：%s（%s）和 %s（%s）" % [items[i][0], items[i][1], items[j][0], items[j][1]])
+	out.append("RESULT %s：%s（%d 项）" % [what, "通过" if bad == 0 else "没过，%d 处" % bad, items.size()])
+	return "\n".join(out)
+
+## 排查用：核对换了难度以后的样子。tier 是该是哪一档的 id；where 是 "pause"（暂停菜单开着，这一关按新难度载入完了）、
+## "over"（结算面板出来了，按钮也露面了）或 "playing"（在玩，没有面板）
+##   call pad_adapter.gd debug_difficulty_check hard pause
+func debug_difficulty_check(tier: String, where: String) -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null: return "RESULT 换难度：没过，不在游戏里"
+	var r: Ruleset = main.ruleset
+	var bad: Array[String] = []
+	if r == null or r.id != tier: bad.append("现在是 %s，该是 %s" % [r.id if r != null else "无", tier])
+	if Game.ruleset != r: bad.append("标题页记的难度和这一局用的不是同一档")
+	if r != null:
+		if main.max_moves_left != maxi(Game.selected_character.max_moves_left + r.moves_add, 1): bad.append("步数上限 %d，按 %s 该是 %d" % [main.max_moves_left, r.id, maxi(Game.selected_character.max_moves_left + r.moves_add, 1)])
+		if r.wind != main.rule_hud.has_wind(): bad.append("有风向的规矩和旗子露不露面对不上")
+		if r.night_watch != main.rule_hud.has_night(): bad.append("有夜巡的规矩和蜡烛露不露面对不上")
+		if r.hold_lamps > 0 or main.character.held_label != null:
+			var want := "灯 ×%d" % main.held_lamps if main.held_lamps > 0 else ""
+			var got: String = main.character.held_label.text if main.character.held_label != null else ""
+			if got != want: bad.append("头顶的标签写着「%s」，该是「%s」" % [got, want])
+		# 没拿环境变量临时指定难度的时侯，存档里记的该是这一档（下一局也用它）
+		if OS.get_environment("SW_RULESET") == "" and FileAccess.file_exists(Game.save_path):
+			var data = JSON.parse_string(FileAccess.get_file_as_string(Game.save_path))
+			if typeof(data) == TYPE_DICTIONARY and str(data.get("ruleset")) != tier: bad.append("存档里记的是 %s，该是 %s" % [str(data.get("ruleset")), tier])
+	match where:
+		"pause":
+			if not main.menu.visible: bad.append("暂停菜单没开着")
+			if not main.level_ready: bad.append("这一关还没按新难度载入完")
+			else:
+				var want_moves: int = mini(main.level_start_moves, main.max_moves_left + r.moves_cap_add) if r.moves_carry else main.max_moves_left
+				if main.moves_left != maxi(want_moves, 1): bad.append("带着 %d 步进来，该是 %d" % [main.moves_left, maxi(want_moves, 1)])
+		"over":
+			if not main.final_score_control.visible or not main.final_score_control.game_over.visible: bad.append("结算面板没出来")
+			if not main.final_score_control.buttons_container.visible: bad.append("结算面板左下的按钮还没露面")
+			if not main.over_note.visible or main.over_note.text == "": bad.append("标题下的小字没露面")
+			var retry: Node = main.final_score_control.buttons_container.get_node_or_null("RetryLevelButton")
+			if retry != null and retry.visible != main.can_retry(): bad.append("「再守这一关」露不露面不对")
+			# 这一局的成绩记在用过的最低一档名下
+			if main.run_ruleset != null and main.run_ruleset.tier > r.tier: bad.append("成绩要记在 %s 名下，可它比现在的 %s 还高" % [main.run_ruleset.id, r.id])
+			var key := "%d/%s/%s" % [Game.game_mode, main.run_ruleset.id if main.run_ruleset != null else r.id, Game.selected_character.id]
+			if not Game.best_records.has(key): bad.append("纪录里没有「%s」这一条" % key)
+		"playing":
+			if main.final_score_control.visible: bad.append("结算面板还露着")
+			if not main.level_ready: bad.append("这一关还没载入完")
+	if not bad.is_empty(): return "RESULT 换难度（%s，%s）：没过，%s" % [tier, where, "；".join(bad)]
+	return "RESULT 换难度（%s，%s）：通过" % [tier, where]
+
+## 排查用：存档文件里现在记的难度和开场（读文件本身，不看内存里的）
+func debug_save_peek() -> String:
+	if not FileAccess.file_exists(Game.save_path): return "存档文件还不存在"
+	var text := FileAccess.get_file_as_string(Game.save_path)
+	var data = JSON.parse_string(text)
+	if typeof(data) != TYPE_DICTIONARY: return "存档读不出来：%s" % text.left(80)
+	return "存档里记的：难度 %s，开场 %s" % [str(data.get("ruleset")), str(data.get("opening"))]
+
+## 排查用：核对"测试里临时指定的不写进存档"。要在带着 SW_RULESET、SW_OPENING 起的一局里、有过别的保存动作以后调
+func debug_save_check() -> String:
+	var problems: Array[String] = []
+	var forced_ruleset := OS.get_environment("SW_RULESET")
+	var forced_opening := OS.get_environment("SW_OPENING")
+	if forced_ruleset == "" and forced_opening == "":
+		return "RESULT 存档隔离：没过，这一局没带 SW_RULESET、SW_OPENING，查不了"
+	if not FileAccess.file_exists(Game.save_path): return "RESULT 存档隔离：没过，存档文件还不存在（这一局还没有过保存动作？）"
+	var data = JSON.parse_string(FileAccess.get_file_as_string(Game.save_path))
+	if forced_ruleset != "" and str(data.get("ruleset")) == forced_ruleset:
+		problems.append("临时指定的难度 %s 被写进了存档" % forced_ruleset)
+	if forced_opening != "" and str(data.get("opening")) == forced_opening:
+		problems.append("临时指定的开场 %s 被写进了存档" % forced_opening)
+	if Game.ruleset == null or Game.ruleset.id != forced_ruleset:
+		problems.append("这一局用的难度是 %s，不是环境变量指定的 %s" % [Game.ruleset.id if Game.ruleset else "无", forced_ruleset])
+	if not problems.is_empty(): return "RESULT 存档隔离：没过，%s" % "；".join(problems)
+	return "RESULT 存档隔离：通过（这一局用的是临时指定的 %s，存档里照旧记着 %s）" % [forced_ruleset, str(data.get("ruleset"))]
+
+## 排查用：把夜巡的蜡设成还剩 seconds 秒（想马上看灯灭就给 0.3）。
+## 参数不写类型：遥控传过来的数会先被认成整数或浮点数，写成带类型的参数反倒转不过去
+##（写成 float 时 "0.3" 可以、"19" 不行；写成 String 时 "19" 可以、"0.3" 不行。2026-11-26 两种都碰上了）
+func debug_night(seconds) -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null: return "not in game"
+	main.night_left = maxf(float(str(seconds)), 0.0)
+	return debug_rules_state()
+
+## 排查用：让夜巡的蜡烛停住不烧（on 是 1）或者接着烧（0）。拍蜡烛烧到一半的样子用：不然截图的几秒钟里它一直短
+func debug_night_pause(on: int) -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null: return "not in game"
+	if main.ruleset == null or not main.ruleset.night_watch: return "这一档没有夜巡，没有蜡烛可停"
+	main.night_hold = on > 0
+	return debug_rules_state()
+
+## 排查用：手里的灯改成 n 盏（标签跟着变）
+func debug_held(n: int) -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null: return "not in game"
+	main.held_lamps = maxi(n, 0)
+	main.character.make_held_label(main.character_moves_font())
+	main.character.set_held(main.held_lamps)
+	main.update_tiles_color()
+	return debug_rules_state()
+
+## 排查用：照玩家没指着格子时的办法放一盏手里的灯（引擎自己挑格子）。这一档手里没有灯就什么都不放
+func debug_place_auto() -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null: return "not in game"
+	if main.held_lamps <= 0: return "RESULT 放灯：这一档手里没有灯，没什么可放的"
+	var before: int = main.held_lamps
+	var moves0: int = main.moves_left
+	if main._place_target() == null:
+		# 开局灯摆得满、身边够得着的格子上都有东西：这时本来就没处放，不算错
+		return "RESULT 放灯：身边暂时没有能放的空格（够得着的格子都占着），没放"
+	main.place_lamp()
+	if main.held_lamps != before - 1: return "RESULT 放灯：没过，有能放的空格却没放成，%s" % debug_rules_state()
+	return "RESULT 放灯：放成，手里从 %d 盏剩 %d 盏，步数 %d → %d" % [before, main.held_lamps, moves0, main.moves_left]
+
+## 排查用：这一档的几条规矩在游戏里的样子对不对，给 drive 的步骤文件用（tools/playtest/steps_rules.txt）。
+## stage 是 "play"（正在玩）或者 "over"（出结算了，多查"再守这一关"那个按钮）
+func debug_rules_check(stage: String) -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null or main.ruleset == null: return "RESULT 规矩自检：没过，不在游戏里"
+	var r: Ruleset = main.ruleset
+	var bad: Array[String] = []
+	var good: Array[String] = []
+	# 风向：有这条规矩的档，每一关都有风，旗子露面，顺风比逆风跳得远；没有的档什么都不该有
+	if r.wind:
+		if main.wind_dir == Vector2i.ZERO: bad.append("有风向的规矩，可这一关没有风")
+		if main.rule_hud == null or not main.rule_hud.has_wind(): bad.append("旗子没露面")
+		elif main.rule_hud.wind_name() == "": bad.append("旗子露面了，可旁边没写风的名字")
+		if main.wind_dir != Vector2i.ZERO:
+			var here := Vector2(main.character.global_position.x, main.character.global_position.z)
+			var down: float = main.reach_toward(here, here + Vector2(main.wind_dir) * main.grid.tile_size.x)
+			var up: float = main.reach_toward(here, here - Vector2(main.wind_dir) * main.grid.tile_size.x)
+			if down <= up + 0.05: bad.append("顺风能跳 %.2f 格、逆风能跳 %.2f 格，风没起作用" % [down, up])
+			else: good.append("顺风 %.2f 格、逆风 %.2f 格" % [down, up])
+	else:
+		if main.wind_dir != Vector2i.ZERO: bad.append("没有风向的规矩，却有风")
+		if main.rule_hud != null and main.rule_hud.has_wind(): bad.append("没有风向的规矩，旗子却露面了")
+	# 夜巡：有这条规矩的档，这一关载入完了蜡烛就该点着；没有的档不该烧
+	if r.night_watch:
+		# 出了结算蜡烛就灭了，所以"该点着"只在玩的时侯查
+		if stage == "play" and main.level_ready and not main.night_on: bad.append("有夜巡的规矩，蜡烛没点着")
+		if main.rule_hud == null or not main.rule_hud.has_night(): bad.append("蜡烛没露面")
+		if main.level_ready: good.append("蜡烛还剩 %.1f 秒" % main.night_left)
+	else:
+		if main.night_on: bad.append("没有夜巡的规矩，蜡烛却在烧")
+		if main.rule_hud != null and main.rule_hud.has_night(): bad.append("没有夜巡的规矩，蜡烛却露面了")
+	# 手里的灯：头顶的标签和数对得上
+	var want := "灯 ×%d" % main.held_lamps if main.held_lamps > 0 else ""
+	var got: String = main.character.held_label.text if main.character.held_label != null else ""
+	# 玩的时侯手里还没放过灯：该和这一档给的一样多
+	if stage == "play" and main.held_lamps != r.hold_lamps: bad.append("开局手里该有 %d 盏灯，现在是 %d 盏" % [r.hold_lamps, main.held_lamps])
+	if got != want: bad.append("头顶的标签写着「%s」，该是「%s」" % [got, want])
+	good.append("第 %d 关，步数 %d（上限 %d）" % [main.current_level_index + 1, main.moves_left, main.max_moves_left])
+	# 结算面板上的"再守这一关"。面板还没出来的时侯没什么可查的（没有夜巡的档，这一步还打着呢）
+	if stage == "over" and not main.final_score_control.visible:
+		good.append("结算面板还没出来，重来按钮没查")
+	elif stage == "over":
+		var retry: Node = main.final_score_control.buttons_container.get_node_or_null("RetryLevelButton")
+		if retry == null: bad.append("结算面板上没有「再守这一关」这个按钮的节点")
+		else:
+			var want_text := ""
+			if r.retry_level: want_text = "再守这一关"
+			if retry.visible != (want_text != ""): bad.append("「再守这一关」%s，这一档%s" % ["露面了" if retry.visible else "没露面", "该能重来" if want_text != "" else "不该能重来"])
+			elif retry.visible and retry.text != want_text: bad.append("「再守这一关」上写的是「%s」，该是「%s」" % [retry.text, want_text])
+			else:
+				good.append("重来按钮：" + (retry.text if retry.visible else "没有（这一档不能重来）"))
+				if main.over_note.visible and main.over_note.text == "": bad.append("结算面板标题下的小字是空的")
+	if not bad.is_empty(): return "RESULT 规矩自检：没过，%s" % "；".join(bad)
+	return "RESULT 规矩自检：通过（%s；%s）" % [r.title, "；".join(good)]
+
+## 排查用：往 (x, y) 那一格放一盏手里的灯（格子坐标，debug_deal 画出来的那张字符画用的是同一套坐标）
+func debug_place(x: int, y: int) -> String:
+	var main := get_node_or_null("/root/Main")
+	if main == null: return "not in game"
+	var t: Tile = main.tile_at_cell(Vector2i(x, y))
+	if t == null: return "没有 (%d, %d) 这一格" % [x, y]
+	if not main.place_lamp_on(t): return "RESULT 放灯：没放成，%s" % debug_rules_state()
+	return "RESULT 放灯：放到了 (%d, %d)，%s" % [x, y, debug_rules_state()]
+
 func _autoplay_level_start(main: Node, label: String) -> void:
 	_auto_route_i = 0
 	_auto_n = 0
 	_auto_bad_seen = ""
+	_auto_idle = 0.0
 	_auto_serial = main.level_serial
-	_auto_report.levels.append({"level": main.current_level_index + 1, "name": label, "missteps": [], "score0": main.score})
+	_auto_rec_pending = true
+	# 这一关的记录（风、收几盏、带着几步进来）等载入完了再写：load_level 一开始就把 level_serial 加了，
+	# 这时风还没刮出来、灯还没摆，写下来的会是上一关的
 
 func _autoplay_step(delta: float) -> void:
 	if _auto_mode == 0: return
@@ -1161,13 +1519,17 @@ func _autoplay_step(delta: float) -> void:
 			main.current_level_index + 1, main.get_time() - _auto_t0, "（灯摆得慢，等过它）" if _auto_waited else ""])
 		_auto_t0 = 0.0
 		_auto_waited = false
+	if _auto_rec_pending:
+		_auto_rec_pending = false
+		_auto_report.levels.append({"level": main.current_level_index + 1, "name": main.level_label.text, "missteps": [], "score0": main.score,
+			"wind": str(main.wind_dir), "moves0": main.moves_left, "lamps": main.fish_before_end_portal})
 	# 每一步之前查一遍棋盘上的登记对不对（捞网挪过灯以后最容易出错）
 	var bad := _board_check(main)
 	if bad != "" and bad != _auto_bad_seen:
 		_auto_bad_seen = bad
 		_auto_report["board_bad"] = int(_auto_report.get("board_bad", 0)) + 1
 		print("AUTOPLAY_BOARD_BAD level %d 第 %d 步之后：%s" % [main.current_level_index + 1, _auto_n, bad])
-	_auto_wait = 0.4
+	_auto_wait = _auto_pace
 	var tile: Tile = null
 	var route_tile := false
 	if _auto_mode == 1 and not main.current_deal.is_empty():
@@ -1192,12 +1554,37 @@ func _autoplay_step(delta: float) -> void:
 				tile = null
 	if tile == null:
 		var sim := _live_sim(main)
+		var placed := sim.placed
 		var cell := sim.next_move()
+		# 机器人放了一盏手里的灯（见 BoardSim._best_placement）：照它挑的那一格在真棋盘上放。放灯不算跳，这一拍只放灯
+		if sim.placed != placed:
+			var t: Tile = main.tile_at_cell(sim.last_placed)
+			if t != null and main.place_lamp_on(t):
+				_auto_placed += 1
+				_auto_report["placed"] = _auto_placed
+				if _auto_trace:
+					print("AUTOPLAY_PLACE level %d 第 %d 步之后 放灯 %s | 人在 %s，手里还剩 %d 盏，步数 %d" % [
+						main.current_level_index + 1, _auto_n, sim.last_placed, main.to_cell(main.character.global_position), main.held_lamps, main.moves_left])
+			else:
+				print("AUTOPLAY_PLACE_FAILED level %d：%s | %s" % [main.current_level_index + 1, sim.last_placed, debug_rules_state()])
+			_auto_wait = _auto_pace
+			return
 		if cell != sim.pos: tile = main.tile_at_cell(cell)
+		if tile != null and not tile.is_available:
+			# 贪心挑了一格引擎说跳不到的：模型和引擎对不上了。记下来，这一拍不跳（机器人不能跳到人跳不到的格子）
+			_auto_broken += 1
+			_auto_report.broken = _auto_broken
+			print("AUTOPLAY_BROKEN level %d 第 %d 步之后 贪心想跳 %s，引擎说跳不到 | %s" % [main.current_level_index + 1, _auto_n, cell, _why_not(main, tile)])
+			tile = null
 	var levels: Array = _auto_report.levels
 	if tile == null:
+		_auto_idle += 1.0
+		if _auto_idle >= 12.0:
+			_autoplay_finish("stuck: 没处可去，剩下的灯它够不着（人还能在空格子上跳到步数用完）")
+			return
 		_auto_wait = 1.0          # 没处可去：多半是在等脆格长回来
 		return
+	_auto_idle = 0.0
 	var from: Vector2i = main.to_cell(main.character.global_position)
 	var to: Vector2i = main.to_cell(tile.global_position)
 	main.character.move_to(tile)
@@ -1229,7 +1616,8 @@ func _why_not(main: Node, tile: Tile) -> String:
 	if tile.object != null and not tile.object.is_available(): why.append("上面的东西还不能捡")
 	if tile == main.character.target_tile: why.append("人就站在这一格")
 	var here := Vector2(main.character.global_position.x, main.character.global_position.z)
-	why.append("离 %.2f 格、能跳 %.2f 格" % [Vector2(tile.global_position.x, tile.global_position.z).distance_to(here) / main.grid.tile_size.x, main._reach_now()])
+	var there := Vector2(tile.global_position.x, tile.global_position.z)
+	why.append("离 %.2f 格、朝这个方向能跳 %.2f 格" % [there.distance_to(here) / main.grid.tile_size.x, main.reach_toward(here, there)])
 	if main.moves_left <= 0 and not main.step_is_free(tile): why.append("没步数了")
 	return "；".join(why)
 
@@ -1241,6 +1629,7 @@ func _autoplay_finish(why: String) -> void:
 		_auto_report["score"] = main.score
 		_auto_report["reached"] = main.current_level_index + 1
 		_auto_report["retries"] = main.level_retries
+	_auto_report["night_left"] = snappedf(main.night_left, 0.1) if main.night_on else -1.0
 	print("AUTOPLAY_RESULT " + JSON.stringify(_auto_report))
 
 ## 把现在的局面整理成 BoardSim 认的样子（贪心机器人靠它想下一跳）。钓竿、捞网、蒸笼这几种它不会用，
@@ -1264,6 +1653,13 @@ func _live_sim(main: Node) -> BoardSim:
 	sim.got = main.current_fish_count
 	sim.portal_free = main.ruleset != null and main.ruleset.portal_free
 	sim.spawns_lamps = not main.lamps_dealt()
+	# 几条规矩：手里的灯、风向、步数上限（蒸笼、食盒加步数不超过它）
+	sim.held = main.held_lamps
+	sim.hold_cost = main.ruleset.hold_cost if main.ruleset != null else 1
+	sim.wind = main.wind_dir
+	sim.wind_bonus = main.ruleset.wind_bonus if main.ruleset != null else 0.0
+	sim.wind_penalty = main.ruleset.wind_penalty if main.ruleset != null else 0.0
+	sim.max_moves = main.max_moves_left
 	var last: Tile = main.grid.get_tile(main.grid.world_to_grid_position(main.character.last_position))
 	sim.back = main.to_cell(last.global_position) if last else Vector2i(-99, -99)
 	for cell in board.cells:
@@ -1272,6 +1668,8 @@ func _live_sim(main: Node) -> BoardSim:
 		var fish: Fish = t.object as Fish
 		if fish == null or fish.is_portal or fish.resource == null: continue
 		sim.things[cell] = _kind_of(fish)
+		# 自己放下去的灯在游戏里不加连击（handle_loot），模型里也得这样：不然机器人会以为自己收了它连击更高、跳得更远
+		if main._placed.has(t): sim.placed_cells[cell] = true
 	return sim
 
 func _kind_of(fish: Fish) -> int:
@@ -1280,6 +1678,7 @@ func _kind_of(fish: Fish) -> int:
 	match fish.resource.effect:
 		ObjectResource.ObjectEffect.TemporaryMoveDistance: return BoardGen.Thing.UMBRELLA
 		ObjectResource.ObjectEffect.ReachUp: return BoardGen.Thing.SHOE
+		ObjectResource.ObjectEffect.RegainMovesLeft: return BoardSim.HEART     # 蒸笼：步数 +1
 		ObjectResource.ObjectEffect.GainCombo: return BoardGen.Thing.LOTUS
 		ObjectResource.ObjectEffect.Shield: return BoardGen.Thing.HAT
 		ObjectResource.ObjectEffect.AddMoves: return BoardGen.Thing.BOX
@@ -1307,15 +1706,16 @@ func _record_boot() -> void:
 	var parts := spec.split(",")
 	debug_record(float(parts[0]), float(parts[1]) if parts.size() > 1 else 20.0, parts[2] if parts.size() > 2 else "boot")
 
-func debug_record(seconds: float, fps: float = 20.0, name: String = "rec") -> String:
+## 参数不写类型：遥控传过来的数会先被认成整数或浮点数，写成带类型的参数有的传得进来、有的传不进来（见 debug_night）
+func debug_record(seconds, fps = 20.0, name = "rec") -> String:
 	if OS.get_environment("SW_REC") != "": _rec_dir = OS.get_environment("SW_REC")
 	DirAccess.make_dir_recursive_absolute(_rec_dir)
-	_rec_left = seconds
-	_rec_fps = maxf(fps, 1.0)
+	_rec_left = float(str(seconds))
+	_rec_fps = maxf(float(str(fps)), 1.0)
+	_rec_name = str(name)
 	_rec_acc = 1.0          # 第一帧马上存
-	_rec_name = name
 	_rec_frame = 0
-	return "recording %.1f s at %.0f frames/s to %s/%s_*.jpg" % [seconds, _rec_fps, _rec_dir, name]
+	return "recording %.1f s at %.0f frames/s to %s/%s_*.jpg" % [_rec_left, _rec_fps, _rec_dir, _rec_name]
 
 func _record_tick(delta: float) -> void:
 	if _rec_left <= 0.0: return

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="Ruleset" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ruleset.gd" id="1_rs"]
+
+[resource]
+script = ExtResource("1_rs")
+id = "easy"
+title = "简单"
+summary = "只想看画面、不想费脑子的话选这个。\n步数宽，跳得远，没过可以无限重来，手里还有四盏灯。"
+tier = 1
+lamp_mode = 0
+lamp_gap_add = -0.1
+lamp_detour_add = -0.1
+reach_add = 0.7
+moves_add = 3
+retry_level = true
+retry_max = 0
+portal_free = true
+spring_add = 2
+hold_lamps = 4

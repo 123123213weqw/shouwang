@@ -1,6 +1,6 @@
 class_name LeaderBoardContainerControl extends Control
 ## 成绩列表。原来会把成绩上传到原作者的服务器、再拉取全球排行榜；
-## 这是个独立的新游戏，不再联网，只显示保存在本机的最好成绩（每个模式、每个角色各一条）。
+## 这是个独立的新游戏，不再联网，只显示保存在本机的最好成绩（每个模式、每一档难度、每个角色各一条）。
 const LEADERBOARD_CONTROL = preload("res://scenes/uis/leaderboard_control.tscn")
 @onready var v_box_container: VBoxContainer = $VBoxContainer
 @onready var loading_label: Label = $LoadingLabel
@@ -18,17 +18,17 @@ func update():
 	scores.clear()
 	loading_label.set_visible(false)
 
-	# 每条记录的键是 "模式/角色id"
+	# 每条记录的键是 "模式/难度id/角色id"
 	var rows := []
 	for key in Game.best_records:
 		var parts := (key as String).split("/")
-		if parts.size() != 2: continue
-		var character: CharacterResource = Game.get_character_resource_by_id(parts[1])
+		if parts.size() != 3: continue
+		var character: CharacterResource = Game.get_character_resource_by_id(parts[2])
 		if not character: continue
 		var rec: Dictionary = Game.best_records[key]
 		rows.append({
 			"key": key, "mode": int(parts[0]), "score": int(rec["score"]), "level": int(rec["level"]),
-			"character": character,
+			"character": character, "tier": parts[1],
 		})
 	# 主线在前、无尽在后；同一个模式里分数高的在前
 	rows.sort_custom(func(a, b):
@@ -52,7 +52,11 @@ func update():
 		v_box_container.add_child(new_score)
 		new_score.load_character(row.character)
 		new_score.score_label.text = str(row.score)
-		new_score.name_label.text = "长夜" if row.mode == Game.GameMode.ENDLESS else "巡夜"
+		# 模式后面跟着这一局是哪一档难度打的（"巡夜 · 困难"）。难度认不出（删掉的旧档）就只写模式
+		var tier_title := ""
+		for r in Game.rulesets:
+			if r.id == row.tier: tier_title = r.title
+		new_score.name_label.text = ("长夜" if row.mode == Game.GameMode.ENDLESS else "巡夜") + ("" if tier_title == "" else " · " + tier_title)
 		new_score.rank_label.text = str("#", rank)
 		new_score.level_label.text = str("第 ", row.level, " 更" if row.mode == Game.GameMode.ENDLESS else " 关")
 		new_score.background.set_visible(rank % 2 == 0)

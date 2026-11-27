@@ -20,6 +20,9 @@ const SPEED_FAR := 16.0            # 每秒往近处漂几个像素（同样按 
 const SPEED_NEAR := 40.0
 const SPAWN_GAP := 0.6             # 从上游补灯，两盏之间至少隔几秒
 const LAMP_CENTRE := Vector2(0.49, 0.743)    # 那张涂鸦里图形的中心在贴图的什么地方（图形只占贴图的下半截）
+const Z_TOP := 20             # 最近的那盏灯的 z_index 有多大（远的 0，近的 20）：灯和灯之间谁压着谁。
+                             # z_index 是整个画面层里一起排的，不只在这盏灯的兄弟之间：驮着灯的这个节点得压在界面底下
+                             #（lobby_river.gd），或者自己单独占一层（stage_backdrop.gd），不然灯会漂到界面上头
 
 ## 一盏河灯
 class Lamp:
@@ -98,7 +101,7 @@ func spawn(at_y := -1.0) -> Lamp:
 	l.root = Control.new()
 	l.root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.root.size = Vector2.ZERO
-	l.root.z_index = int(l.depth * 20.0)          # 远的画在底下，近的画在上面
+	l.root.z_index = int(l.depth * float(Z_TOP))   # 远的画在底下，近的画在上面
 	l.alpha = lerpf(0.62, 1.0, l.depth)           # 远的淡一点
 	l.root.position = Vector2(l.x, l.y)
 	add_child(l.root)

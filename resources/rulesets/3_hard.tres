@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="Ruleset" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ruleset.gd" id="1_rs"]
+
+[resource]
+script = ExtResource("1_rs")
+id = "hard"
+title = "困难"
+summary = "给熟手：步数少一步，还要从第一关一路带到最后一关，每过一关只补一步。\n有风向，沟多一道，每关最多重来 3 次。"
+tier = 3
+lamp_mode = 0
+lamp_gap_add = 0.1
+lamp_gate_add = 1
+moves_add = -1
+moves_carry = true
+moves_bonus = 1
+moves_cap_add = 0
+retry_level = true
+retry_max = 3
+portal_free = true
+spring_add = 0
+hold_lamps = 1
+wind = true
+wind_bonus = 0.5
+wind_penalty = 0.5
+wind_floor = 1.0

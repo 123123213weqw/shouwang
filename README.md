@@ -15,7 +15,8 @@
 - 收齐这一关的灯，水车就开。水车开了以后踩空格不再扣步，走进去过关。
 - 有的沟只有靠道具才过得了，看准了再跳。
 - 收灯给技能充能，充满了可以放一次技能。
-- 一关没过可以原地再来，灯还是原来那一局（默认的方案下）。
+- 一关没过可以原地再来，灯还是原来那一局（中等和简单下）。
+- 玩法分四档难度，每上一档多几条规矩：手里的灯、步数带过关、风向、夜巡。见下面「难度四档」。
 
 格子有四种：普通格；脆格，离开后碎掉，过一会儿长回来；障碍，落不上去；补给格，踩上去不扣步数反而加两步，每格每关只能用一次。
 
@@ -37,7 +38,7 @@
 | 食盒 | `chest.png` | 步数 +3 |
 | 铜钱 | `clover.png` | 身边买来两件道具 |
 
-图标都在 `assets/sprites/upgrades/`。另有蒸笼（`heart.png`，步数 +1），只在步数没带满进关的方案里出现。
+图标都在 `assets/sprites/upgrades/`。另有蒸笼（`heart.png`，步数 +1），只在步数没带满进关的档（困难、非常困难）里出现。
 
 ### 两种模式
 
@@ -93,22 +94,66 @@
 
 小鼓手的连击上限更高，鼓点密了步子反而短。
 
-## 玩法方案
+## 难度四档
 
-规则里能调的数都收在 `scripts/ruleset.gd` 里，`resources/rulesets/` 下每个文件是一套。标题页的「方案」里选，选了的记在存档里。
+选了的记在存档里。三个地方都能换，玩到一半想换不用退回标题页：
 
-选择页里由易到难排：
+- **标题页**：「难度 · 中等」按钮，点开是选择页，每一档多了什么规矩都写在上面。
+- **玩到一半**：暂停菜单（Esc）第二行「难度 ‹ 中等 ›」，点一下箭头换一档。这一关马上按新难度从头来，前面几关的进度不丢。
+- **没过的时侯**：结算面板上有一行「‹ 困难 ›」。点 ‹ 调低一档，马上重来这一关；点 › 调高一档。
 
-| 方案 | 河灯 | 步数 | 一关没过 | 适合 |
-|---|---|---|---|---|
-| 灯谱（默认） | 开局摆好，保证有解 | 每关满格 | 可以原地再来 | 第一次玩 |
-| 流水 | 边收边刷，新灯多半挨着灯 | 每关满格 | 可以原地再来 | 喜欢节奏随手一点 |
-| 疾走 | 摆好，灯少三成、路线直 | 少一步 | 可以原地再来 | 短平快 |
-| 万灯 | 摆好，每关多两件道具，跳也松一些 | 多两步 | 可以原地再来 | 想把玩道具 |
-| 长明 | 摆好，跳更紧、道具更少 | 带到下一关，每关只补一步 | 从头再来 | 熟手 |
-| 旧灯 | 纯随机刷 | 带到下一关 | 从头再来 | 留着对照，运气成分大 |
+半路调过难度的那一局，成绩记在用过的最低一档名下。
 
-想试新方案：复制一份 `.tres`，改几个数，标题页里会自己多出来。文件名开头的数字是它在选择页里排第几。
+难度不是把数一个一个收紧，而是**每上一档多几条规矩**。每条规矩是一个开关，后面跟着它自己的数，全在 `resources/rulesets/` 下的 `.tres` 里：想调，改数就行，不用动代码。
+
+| 难度 | 比上一档多了什么 | 适合 |
+|---|---|---|
+| 简单 | 步数宽三步，每一跳多跳 0.7 格，补给格多两个，手里有四盏灯 | 只想看画面 |
+| 中等（默认） | 步数刚够，手里有两盏灯 | 大多数人 |
+| 困难 | 步数少一步、从第一关带到最后一关（每关补一步，最多补到上限）；每关最多重来 3 次；有风向；沟多一道；手里只剩一盏灯 | 熟手 |
+| 非常困难 | 不能重来；水车开了以后走回去还要花步数；夜巡；补给格少一个、道具少一件；手里没有灯 | 一步都不能错 |
+
+几条规矩：
+
+- **跳得远**（简单）：每一跳多跳 0.7 格。连击 2 就跳得过一道两格宽的墙，随手玩也不容易被困在半边棋盘上。
+- **手里的灯**（简单、中等、困难）：开局手里有几盏自己的灯（简单四盏、中等两盏、困难一盏）。鼠标（手柄是光标）指着够得着的空格，按 E（手柄 X）放一盏，花一步。放上去的灯踩到算有灯、算收了一盏，可不给分、不加连击。踩了空、接不上的时候用它补一步。
+- **步数带过关**（困难、非常困难）：过关以后步数不清零，带着走，每过一关补一步。步数没带满进关时棋盘上多一个蒸笼。
+- **风向**（困难、非常困难）：每一关有风，左上角的旗子飘向哪边，风就往哪边吹。顺风跳得远、逆风跳得近（逆风再少也还能跳一格）。巡夜里每一关刮什么风是定的，连着两关不刮同一种风。
+- **夜巡**（非常困难）：左上角有一支蜡烛在烧。蜡烧完，离你最远的那盏河灯就灭，灯少了就收不齐，这一关就守不住了。每跳一下蜡长回一点。一支蜡 30 秒，也是开头看棋盘的时间；之后每一步想得比 3 秒久，蜡就净短一截。
+- **重来**：简单、中等没过可以原地再来（灯还是那一局）；困难每关最多 3 次；非常困难一关没过从头来。
+- **水车开了走回去**：简单到困难，水车开了以后踩空格不扣步；非常困难要花步数，最后一盏灯得留着从水车边上收。
+
+选择页上列的是当前这一档的规矩，都是读 `.tres` 自动生成的。玩法卡片和开局的那几条提示也跟着档变。
+
+### 自己调
+
+四个文件 `resources/rulesets/1_easy.tres` 到 `4_extreme.tres`，在 Godot 的检查器里打开，每条规矩一个分组。所有能调的数都在 `scripts/ruleset.gd` 里，带说明。常用的几个：
+
+| 想改什么 | 改哪个数 |
+|---|---|
+| 步数宽紧 | `moves_add`；带过关的档还有 `moves_bonus`（每关补几步）、`moves_cap_add`（最多比上限多几步） |
+| 跳得多远 | `reach_add`（每一跳多跳几格）。想让一档好过，加它，别减道具：道具和沟少了，长夜的随机棋盘反而容易摆不出保证有解的局 |
+| 难不难找路 | `lamp_gate_add`（带沟的道具加减几件）、`lamp_items_add`（道具加减几件）。这两个对难易最管用 |
+| 手里的灯 | `hold_lamps`（几盏）、`hold_cost`（放一盏花几步）、`hold_per_coin`（捡到铜钱多几盏） |
+| 风 | `wind_bonus`（顺风多跳多远）、`wind_penalty`（逆风少跳多远）、`wind_floor`（逆风最少还能跳多远） |
+| 夜巡的松紧 | `night_seconds`（一支蜡烧多久，也是开头看棋盘的时间）、`night_gain`（每跳一下长回几秒）、`night_every` |
+| 补给格 | `spring_add` |
+
+想再加一档：复制一份 `.tres`、改 `id` 和 `title`，文件名开头的数字是它在选择页里排第几。档数不限，测试里核对"由易到难"的地方按 `tier` 来。
+
+### 过关率是量出来的
+
+每一档的数不是拍脑袋定的。让"随手玩"的机器人（`BoardSim`：够得着的灯里挑最近的，不会找路）把每一档从头打 N 局，看它的过关率。它和游戏里摆棋、走棋用的是同一套代码（`BoardGen.ruleset_opt`、`BoardSim`），所以量和玩是同一种局。这是下限，真人多想一步就比它强。
+
+```bash
+tools/playtest/agent.sh a7 rates 200                 # 四档各打 200 局，报每一关的过关率、整局打通的比例
+tools/playtest/agent.sh a7 rates 200 > builds/rates.txt && python3 tools/playtest/rates_report.py builds/rates.txt
+                                                     # 量完把表换进 tools/playtest/rates.md（手写的说明不动）
+tools/playtest/agent.sh a7 rates 100 3 hard          # 只打困难，设机器人每走一步想 3 秒（只对夜巡有用）
+tools/playtest/agent.sh a7 rates 100 1 easy 'set=moves_add=3 set=hold_lamps=5'   # 临时改几个数再量，不写进 .tres
+```
+
+现在这一版的数见 `tools/playtest/rates.md`。`rates` 每回都核对，不对就报没过：四档由易到难（整局打通的比例一档比一档低）；简单档八成以上打穿；每一档长夜前 12 更"摆不出来"的局不超过 2%。
 
 ## 开场动画
 
@@ -254,7 +299,13 @@ SW_OPENING=off tools/playtest/agent.sh a7 drive tools/playtest/steps_lobby.txt l
 tools/playtest/agent.sh a7 versus 2                                                   # 录一局追影
 tools/playtest/assemble_versus.sh 2                                                   # 拼成 builds/versus/对战2.mp4，带游戏里的音乐
 SW_OPENING=off tools/playtest/agent.sh a7 drive tools/playtest/steps_versus.txt versus   # 标题页的"对战"入口和选择面板
+SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_versus_play.txt vplay   # 五种玩法各打一局（主角交给机器人），
+                                                                                             # 顺便查对战的局没套标题页上选的难度
+tools/playtest/agent.sh a7 drive tools/playtest/steps_restart.txt restart            # 对战里按"重来"：重开一局新的
+tools/playtest/agent.sh a7 drive tools/playtest/steps_aim.txt aim                    # 要在棋盘上选目标的技能（守夜人点灯；钓叟收灯是 steps_aim2.txt）
 ```
+
+对战用自己的数（`resources/versus/`），不套标题页上选的难度：对战的局里步数的加减、风向、夜巡、手里的灯都不算数，暂停菜单和结算面板上也不放难度的加减器。`all` 里跑 `steps_versus_play.txt` 的那一步故意带着 `SW_RULESET=extreme`，查的就是这个。
 
 ## 操作
 
@@ -263,6 +314,7 @@ SW_OPENING=off tools/playtest/agent.sh a7 drive tools/playtest/steps_versus.txt 
 | 跳 | W A S D，或者点亮着的格子 | 左摇杆、十字键 |
 | 技能（菜单里是确认） | 空格 | A |
 | 菜单 | Esc，或者关卡左上角的「返回」 | Start、Back，或者关卡左上角的「返回」 |
+| 放一盏手里的灯（指着格子） | E | X |
 | 返回 | | B |
 
 手柄的左摇杆同时带着屏幕上的一个光标，停在按钮上时按 A 等于鼠标点击。
@@ -272,7 +324,7 @@ SW_OPENING=off tools/playtest/agent.sh a7 drive tools/playtest/steps_versus.txt 
 
 要用 Godot 4.7.2，导出模板也是这个版本。用编辑器打开 `project.godot`，按 F5。
 
-存档在用户数据目录下的 `Godot/app_userdata/守望/` 里：解锁的角色、本机成绩、看没看过哪条新手教程、选的方案和开场动画、开场上一次播的是哪个。对战的局不记成绩，选了哪种对战也不存（每次从标题页选）。
+存档在用户数据目录下的 `Godot/app_userdata/守望/` 里：解锁的角色、本机成绩（每个模式、每一档难度、每个角色各一条）、看没看过哪条新手教程、选的难度和开场动画、开场上一次播的是哪个。对战的局不记成绩，选了哪种对战也不存（每次从标题页选）。
 
 游戏启动时会在本机 `127.0.0.1:9878` 开一个调试端口，自动测试靠它驱动游戏。它只监听本机。本机成绩也只存在本机，不往任何服务器发。
 
@@ -283,7 +335,9 @@ SW_OPENING=off tools/playtest/agent.sh a7 drive tools/playtest/steps_versus.txt 
 | `scenes/` `scripts/` `resources/` | 场景、GDScript、关卡和角色道具的资源 |
 | `scripts/board_gen.gd` | 摆一局河灯（保证有解）和给长夜生成棋盘，纯逻辑 |
 | `scripts/board_sim.gd` | 一个"随手玩"的机器人，调难度和自动试玩都用它 |
-| `scripts/ruleset.gd`、`resources/rulesets/` | 玩法方案 |
+| `scripts/ruleset.gd`、`resources/rulesets/` | 难度四档：每条规矩一个开关、带着它自己的数 |
+| `scripts/uis/rule_hud.gd`、`assets/sprites/ui/rules/` | 游戏里左上角的旗子（风向）和蜡烛（夜巡）；加减器的箭头 |
+| `scripts/uis/difficulty_stepper.gd` | 难度加减器「难度 ‹ 中等 ›」：暂停菜单里一行、没过的结算面板上一行 |
 | `scripts/uis/opening.gd`、`shaders/opening_*.gdshader` | 开场动画 |
 | `scripts/uis/lobby_river.gd`、`river_lamps.gd`、`shaders/lobby_*.gdshader` | 标题页的背景：那条河和河上的灯 |
 | `scripts/stage_backdrop.gd`、`shaders/stage_*.gdshader` | 游戏里的背景：三种布局，平时用月下 |
@@ -297,6 +351,7 @@ SW_OPENING=off tools/playtest/agent.sh a7 drive tools/playtest/steps_versus.txt 
 | `tools/audio/` | 算开场声音的脚本，每一段都能从脚本重新算出来 |
 | `assets/audio/opening/` | 开场动画的声音（算出来的）；`voice<A>.wav` 在的话是真人录的旁白 |
 | `tools/test_boards.gd`、`tools/tune_deals.gd` | 棋盘逻辑和摆棋的自动测试；难度扫描 |
+| `tools/tier_rates.gd` | 难度四档的过关率：机器人每一档打多少局 |
 | `tools/playtest/` | 在服务器上自动试玩、导出、装到掌机 |
 | `tools/handheld/` | 掌机上的启动脚本、菜单项、图标 |
 
@@ -317,7 +372,7 @@ s   补给格
 
 ### 调难度
 
-难易是量出来的，不是拍脑袋定的。每关的数字下面，让"随手玩"的机器人（`BoardSim`，够得着的灯里挑最近的）打 200 局，看它的过关率。这是下限，真人多想一步就比它强。
+难易是量出来的，不是拍脑袋定的。每关的数字下面，让"随手玩"的机器人（`BoardSim`，够得着的灯里挑最近的）打 200 局，看它的过关率。这是下限，真人多想一步就比它强。这一段说的是中等这一档（摆法没有被难度的规矩改过）；四档各自的过关率见上面「难度四档」。
 
 ```bash
 tools/playtest/agent.sh a7 boards             # 每关摆固定的一局并校验，再报机器人每关的过关率
@@ -365,6 +420,8 @@ SW_HOST=V100_222_TS tools/playtest/agent.sh a7 all                 # 以后和�
 | `base setup` | 建底版（带音频）。第一次用先跑一次 |
 | `a7 setup`、`a7 sync`、`a7 import` | 建环境、同步工程、导入两遍；再不开窗口启动一回，自动加载的脚本和主场景都编译过了才算过 |
 | `a7 boards` | 棋盘逻辑和摆棋的自动测试 |
+| `a7 check` | 只检查脚本解析不解析得过，报出哪一行有错（写代码时先过这一道） |
+| `a7 rates [局数] [每步想几秒] [档的id] ['set=名字=值 …']` | 难度四档的过关率（`tools/tier_rates.gd`）；最后的参数临时改数再量 |
 | `a7 flow campaign`、`a7 flow endless` | 巡夜、长夜各走一遍过关流程 |
 | `a7 aspect` | 巡夜 12 关各载入一遍，量棋盘是不是整个在画面里（默认 1152×720） |
 | `a7 mechanics` | 长夜模式：补给格加步数、脆格碎掉后长回来、结算面板 |
@@ -374,14 +431,39 @@ SW_HOST=V100_222_TS tools/playtest/agent.sh a7 all                 # 以后和�
 | `a7 lobby [秒数] [每秒几张]` | 录一段标题页的背景（那条河、河灯、划过水面和挪焦点时荡开的涟漪），帧取回到 `builds/lobby/rec/` |
 | `a7 stage <1\|2\|3> [秒数] [每秒几张]` | 录一段游戏里的背景：进游戏、在棋盘上跳几下，帧取回到 `builds/stage/<布局>/` |
 | `a7 versus <1..5> [秒数] [每秒几张]` | 录一局对战（1 抢灯、2 追影、3 夺岸、4 轮战、5 对弈），主角交给机器人打，帧取回到 `builds/versus/<编号>/` |
-| `a7 all` | 一轮完整回归（它不同步工程，先 `sync`）：`import` → `boards` → 两种过关流程 → `aspect` → `mechanics` → `auto campaign 1`，哪一步没过就停在那一步 |
+| `a7 all` | 一轮完整回归（它不同步工程，先 `sync`）：`import` → `boards` → 两种过关流程 → `aspect` → `mechanics` → `auto campaign 1` → 四档的规矩自检 → 换难度 → 存档隔离 → 河灯的层级 → 对战入口 → 五种对战 → 对战重来 → 技能选目标 → 关卡里的返回，哪一步没过就停在那一步 |
 | `a7 export`、`a7 fetch` | 导出 Linux 可执行文件（日志里有报错就不出包）；取回到 `builds/linux/shouwang.x86_64` |
-| `a7 smoke <步骤文件>` | 试跑导出来的可执行文件。`steps_export.txt` 是导出包自检：方案、道具这些按路径读的资源在包里都读得到 |
+| `a7 smoke <步骤文件>` | 试跑导出来的可执行文件。`steps_export.txt` 是导出包自检：四档难度、道具、旗子和蜡烛这些按路径读的资源在包里都读得到 |
 | `a7 clean` | 删掉服务器上这个标签的目录 |
 
 每个标签在服务器上有一套独立的目录、端口和虚拟显示，几个任务可以同时跑。截图取回到 `builds/shots/<标签>/`。
 
-换一套方案来测：`SW_RULESET=hard tools/playtest/agent.sh a7 auto campaign 2`。六套的 id 见 `resources/rulesets/`。这样指定不写存档。
+换一档难度来测：`SW_RULESET=hard tools/playtest/agent.sh a7 auto campaign 2`。四档的 id 是 `easy`、`normal`、`hard`、`extreme`。这样指定不写存档。
+
+四档的规矩在游戏里的样子（旗子、蜡烛、放灯、灯灭、重来按钮），每一档各跑一遍：
+
+```bash
+for t in easy normal hard extreme; do SW_RULESET=$t tools/playtest/agent.sh a7 drive tools/playtest/steps_rules.txt rules_$t; done
+```
+
+玩到一半换难度（暂停菜单里的加减器、结算面板上的加减器，连版面一起查；版面在 16:9 的窗口里也查一遍，带上 `SW_RES=1280x720`）：
+
+```bash
+tools/playtest/agent.sh a7 drive tools/playtest/steps_difficulty.txt diff
+SW_RES=1280x720 tools/playtest/agent.sh a7 drive tools/playtest/steps_difficulty.txt diff_1280
+```
+
+标题页那条河上的灯要画在界面底下。河灯为了分远近各自带着 `z_index`，而 `z_index` 是整个画面层里一起排的，所以整条河在 `lobby_river.gd` 里压到了界面下面；否则灯会漂到难度页、设置页的上头，把字盖住。下面这条在河上凑满 14 盏灯的时候开着难度页、设置页各量一遍（每盏灯的 `z_index` 都比界面的小）：
+
+```bash
+SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_river_layers.txt riverlayers
+```
+
+机器人平时每走一步只等 0.4 秒，夜巡对它不起作用。想知道"一个真人每步想几秒"能不能过，让它按那个节奏走：
+
+```bash
+SW_RULESET=extreme SW_AUTO_PACE=5 tools/playtest/agent.sh a7 auto campaign 2    # 每步想 5 秒
+```
 
 机器人每一关都等灯摆完了才动手，换关后多久动的手会打进游戏日志。查它为什么跳不到，或者试它在灯没摆完的时候会不会乱动：
 
@@ -390,7 +472,8 @@ SW_AUTO_TRACE=1 tools/playtest/agent.sh a7 auto campaign 1    # 它每一步都�
 SW_AUTO_EAGER=1 tools/playtest/agent.sh a7 auto campaign 1    # 换关后只等 0.2 秒就动手（平时 1.5 秒）
 ```
 
-测试用的存档是服务器上各个测试共用的，选过的方案会留在里面；要按默认的「灯谱」测，带上 `SW_RULESET=dealt`。
+测试用的存档是服务器上各个测试共用的，选过的难度会留在里面；要按默认的「中等」测，带上 `SW_RULESET=normal`。
+用环境变量临时指定的难度和开场不写进这份存档（局里别的保存动作也不会把它带进去；`steps_save.txt` 查的就是这个，`all` 里带着跑）：
 
 ## 装到掌机
 

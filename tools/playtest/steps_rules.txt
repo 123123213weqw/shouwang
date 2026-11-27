@@ -1,0 +1,69 @@
+# 难度四档的几条规矩在游戏里的样子。每一档各跑一遍（环境变量 SW_RULESET 临时指定难度，不写存档）：
+#   SW_RULESET=easy    tools/playtest/agent.sh a7 drive tools/playtest/steps_rules.txt rules_easy
+#   SW_RULESET=normal  tools/playtest/agent.sh a7 drive tools/playtest/steps_rules.txt rules_normal
+#   SW_RULESET=hard    tools/playtest/agent.sh a7 drive tools/playtest/steps_rules.txt rules_hard
+#   SW_RULESET=extreme tools/playtest/agent.sh a7 drive tools/playtest/steps_rules.txt rules_extreme
+# 每一档里查：左上角的旗子和蜡烛露没露面、朝着四个方向各能跳多远、手里的灯放得放不得、蜡烛烧完灯灭不灭、
+# 结算面板上"再守这一关"在不在。哪一样和这一档该有的样子对不上，debug_rules_check 就报"没过"
+call pad_adapter.gd debug_unlock_all
+click_btn PlayButton
+sleep 5
+call pad_adapter.gd debug_pick_character 0
+sleep 12
+click_btn TutorialCloseButton
+sleep 3
+call pad_adapter.gd debug_ruleset 99
+call pad_adapter.gd debug_rules_state
+call pad_adapter.gd debug_reach
+call pad_adapter.gd debug_deal
+call pad_adapter.gd debug_rules_check play
+rects
+snap 01_level1
+
+# 第 5 关：棋盘大一点，道具有了
+call pad_adapter.gd debug_goto_level 5
+sleep 12
+click_btn TutorialCloseButton
+# 有夜巡的档把蜡续到还剩 29 秒、停住不烧（这一关从载入到这儿已经烧了十来秒）：拍"开着的样子"。没有夜巡的档这两步什么都不变
+call pad_adapter.gd debug_night_pause 1
+call pad_adapter.gd debug_night 29
+call pad_adapter.gd debug_rules_state
+call pad_adapter.gd debug_reach
+call pad_adapter.gd debug_deal
+call pad_adapter.gd debug_rules_check play
+rects
+snap 02_level5
+
+# 手里的灯：照玩家没指着格子时的办法放一盏（这一档手里没有灯就什么都不放）
+call pad_adapter.gd debug_place_auto
+call pad_adapter.gd debug_rules_state
+snap 03_placed
+
+# 蜡烛烧到一半、只剩一点点的样子（蜡停着不烧，截图的几秒钟里不会变）。没有夜巡的档什么都不会变
+call pad_adapter.gd debug_night 10
+sleep 1
+call rule_hud.gd debug_state
+snap 04_candle_half
+call pad_adapter.gd debug_night 1.5
+sleep 1
+call rule_hud.gd debug_state
+snap 04b_candle_low
+
+# 蜡烛烧完：离主角最远的那盏灯灭掉。河灯是摆好的一局，灯少了就收不齐，这一关守不住 → 出结算
+call pad_adapter.gd debug_night_pause 0
+call pad_adapter.gd debug_night 0.3
+sleep 3
+ui
+texts
+call pad_adapter.gd debug_rules_state
+snap 05_candle_out
+# 有夜巡的档这时灯已经灭了一盏、出了结算；没有的档还打着，这一步会照实说"结算面板还没出来"
+call pad_adapter.gd debug_rules_check over
+
+# 没有夜巡的档：现在还在玩，手动出结算，看"再守这一关"那个按钮
+call main.gd end_game
+sleep 3
+ui
+texts
+snap 06_gameover
+call pad_adapter.gd debug_rules_check over

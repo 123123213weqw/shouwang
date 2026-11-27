@@ -81,6 +81,16 @@ func loot():
 	if is_upgrade:
 		get_tree().create_tween().tween_property(sprite_container, "global_position", sprite_container.global_position + Vector3.UP * 3.0, animation_player.current_animation_length / 2.0)
 
+## 夜巡走过：这盏灯灭了。火光缩下去，然后收走。不走 loot() 那一套（那是被人收走的动静）
+func go_out():
+	set_process(false)
+	animation_player.pause()
+	bubble_particles.emitting = false
+	var tw := create_tween().set_parallel()
+	tw.tween_property(sprite_light, "light_energy", 0.0, 0.3)
+	tw.tween_property(shadow_sprite_container, "scale", Vector3.ZERO, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(queue_free)
+
 func bump(value:=1.5):
 	sprite_3d.scale = Vector3.ONE * value
 	

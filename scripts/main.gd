@@ -45,7 +45,7 @@ const BASE_MAX_COMBO_DISTANCE := 2.0
 const BASE_CREDITS_GAIN := 0.6
 const BASE_UPGRADE_CHANCE := 0.1
 
-var ruleset: Ruleset                 # 这局用的玩法方案（标题页里选的）
+var ruleset: Ruleset                 # 这一局用的难度（标题页里选的）
 var versus: VersusBase               # 对战类的玩法（scripts/versus/）：进了对战的局才有，平时是空
 var free_moves := false               # 跳格子不花步数。对战里有的玩法这样
 
@@ -58,7 +58,7 @@ var aim_left := 0                    # 还要选几格
 var aim_list: Array = []             # 现在能选的格子
 var aim_index := 0                   # 方向键选中的是第几个
 var _aim_label: Label
-var current_deal: Dictionary = {}    # 开局摆好的那一局（河灯摆好的方案里用）；空 = 这一关是边收边刷的
+var current_deal: Dictionary = {}    # 开局摆好的那一局（河灯开局摆好的档里用）；空 = 这一关是边收边刷的
 var _thing_resources: Dictionary = {}   # 摆棋时路线上每样东西用哪个资源（键是 BoardGen.Thing 的编号）
 var _cell_tiles: Dictionary = {}        # 格子坐标（整数）→ Tile
 var _cell_parity := Vector2i.ZERO
@@ -70,6 +70,20 @@ var level_max_combo := 0.0           # 这一关连击到过多少
 var level_start_score := 0           # 这一关开头的分数和步数：原地重来的时侯退回到这里
 var level_start_moves := 0
 var level_retries := 0               # 这一关重来了几次
+var held_lamps := 0                  # 手里的灯：可以放到够得着的空格上补救（规矩"手里的灯"，ruleset.hold_lamps）
+var _placed := {}                    # 放出去的灯所在的格子 -> 那盏灯。放出去的灯捡起来不加连击
+var wind_dir := Vector2i.ZERO        # 这一关的风往哪边吹（格子坐标：x 向右、y 朝镜头这边）。没有风向这条规矩的时侯是零
+var _wind_initial := {}              # 这一局里每一关头一个试的风向（关数 → 方向）
+var _wind_by_level := {}             # 这一局里每一关最后刮的风向（关数 → 方向）：摆不出来换过方向的以它为准
+var night_on := false                # 夜巡的蜡烛是不是在烧：这一关载入完了、人在玩的时侯才烧
+var night_left := 0.0                # 蜡烛还能烧多久（秒）
+var night_hold := false              # 排查用：让蜡烛停住不烧（拍截图用，见 pad_adapter.debug_night_pause）。玩法不碰它
+var rule_hud: RuleHud                # 左上角的旗子（风向）和蜡烛（夜巡）：规矩打开了才看得见
+var pause_stepper: DifficultyStepper # 暂停菜单里的"难度 ‹ 中等 ›"：点一下换一档
+var over_stepper: DifficultyStepper  # 没过的结算面板上的"‹ 困难 ›"
+var over_note: Label                 # 结算面板标题下面的一行小字：现在的难度、还能再守几次
+var run_ruleset: Ruleset             # 这一局用过的最低一档：成绩记在它名下（半路调低过的，不算高一档的成绩）
+var _pending_note := ""              # 关了暂停菜单再弹的说明（换过难度的时侯："这一关从头来"），菜单开着时弹了也看不见
 var level_serial := 0                # 每载入一关加一：自动试玩的机器人靠它知道换关了
 var level_ready := false             # 这一关载入完了（幕布掀开、灯都摆好了）
 
@@ -161,6 +175,7 @@ var available_upgrades : Array[ObjectResource]
 
 @export_category("Actions")
 @onready var active_control: ActiveControl = $CanvasLayer/Control/ActiveControl
+@onready var menu: SettingsMenu = $CanvasLayer/Control/Menu      # 暂停菜单（Esc）。它并不真的暂停游戏，只是挡在前面
 var is_free_move := false
 var tutorial: Tutorial           # 新手教程（放在界面层的最上面）
 
@@ -169,10 +184,17 @@ var water_strength := 0.0
 
 func _ready() -> void:
 	upgrade_random = FixedRandom.new()
-	ruleset = Game.ruleset
-	if ruleset == null: ruleset = Ruleset.new()
 	# 对战类的玩法：选了哪一个记在 Game.versus 里，没选就是空。它得在载入关卡之前就挂上
 	versus = VersusBase.create(Game.versus)
+	# 对战的局不套标题页上选的难度（步数的加减、风向、夜巡、手里的灯都不算数）：每种对战自己的数在 resources/versus/ 里。
+	# 所以给它一套什么都不开的规矩；摆河灯照旧是开局摆好
+	if versus != null:
+		ruleset = Ruleset.new()
+		ruleset.hold_per_coin = 0            # 铜钱不给手里的灯
+	else:
+		ruleset = Game.ruleset
+		if ruleset == null: ruleset = Ruleset.new()
+	run_ruleset = ruleset
 	if versus != null: add_child(versus)
 	_load_thing_resources()
 	# 新手教程放在界面层的最后面，画在所有界面之上
@@ -194,6 +216,8 @@ func _ready() -> void:
 	max_moves_left = maxi(Game.selected_character.max_moves_left + ruleset.moves_add, 1)
 	moves_left = max_moves_left
 	setup_camera()
+	# 左上角的旗子和蜡烛要在第一关载入之前就建好：载入的时侯就要告诉它这一关刮什么风
+	_add_rule_hud()
 	load_level(first_level())
 	reset_upgrades()
 	load_character(Game.selected_character)
@@ -201,6 +225,8 @@ func _ready() -> void:
 	bind_character_unlocks()
 	get_viewport().size_changed.connect(fit_camera)
 	_add_retry_button()
+	_add_pause_stepper()
+	_add_over_panel_bits()
 
 	start_time = get_time()
 
@@ -248,6 +274,9 @@ func _input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("Power") and can_use_skill():
 		trigger_active_effect()
+	# 放一盏手里的灯（键盘 E，手柄 X）。只有这一档给了手里的灯才管用
+	if event.is_action_pressed("PlaceLamp"):
+		place_lamp()
 
 ## 现在能不能放技能。手柄的 A 键既是"放技能"，又是"点屏幕上的按钮"（见 pad_adapter）：
 ## 不拦一下的话，在暂停菜单、结算面板、新手卡片上按 A 想确认，技能会被顺带放掉。
@@ -289,7 +318,7 @@ func next_level():
 		# 长夜没有通关：一直往下走。步数带过去、每更补一步，压力就在这儿
 		current_level_index += 1
 		if ruleset.endless_carry:
-			moves_left = mini(moves_left + 1 + ruleset.moves_bonus, max_moves_left + 2)
+			moves_left = mini(moves_left + 1 + ruleset.moves_bonus, max_moves_left + ruleset.moves_cap_add)
 		else:
 			moves_left = max_moves_left
 		update_moves_left()
@@ -302,13 +331,17 @@ func next_level():
 		end_game()
 		final_score_control.game_over.set_visible(false)
 		final_score_control.completed.set_visible(true)
+		# 通关了：没有"再守"、也不用换难度
+		over_note.visible = false
+		over_stepper.visible = false
 		combo = 10
 		for tile in grid.tiles.values():
 			tile.bump_strength = 10.0
 		return
 	current_level_index += 1
 	if ruleset.moves_carry:
-		moves_left = mini(moves_left + ruleset.moves_bonus, max_moves_left + 2)   # 步数带过去的方案：过关补几步
+		# 步数带过去：过关补几步，最多比上限多出 moves_cap_add 步（都是 .tres 里的数）
+		moves_left = mini(moves_left + ruleset.moves_bonus, max_moves_left + ruleset.moves_cap_add)
 	else:
 		moves_left = max_moves_left
 	load_level(levels[current_level_index])
@@ -316,8 +349,14 @@ func next_level():
 	load_character(Game.selected_character)
 
 ## 巡夜里一关没过：原地再来一次。分数和步数退回这一关的开头；灯还是原来那一局（练的就是它）
+## 这关还能不能重来：能重来、而且没用完次数
+func can_retry() -> bool:
+	if is_endless() or ruleset == null or not ruleset.retry_level: return false
+	if ruleset.retry_max > 0 and level_retries >= ruleset.retry_max: return false
+	return true
+
 func retry_level() -> void:
-	if is_endless() or ruleset == null or not ruleset.retry_level: return
+	if not can_retry(): return
 	if current_level_index < 0 or current_level_index >= levels.size(): return
 	final_score_control.set_visible(false)
 	level_retries += 1
@@ -330,7 +369,9 @@ func retry_level() -> void:
 	reset_upgrades()
 	load_character(Game.selected_character)
 
-## 结算面板上最上面加一个"再守这一关"（巡夜、而且方案允许重来的时侯才露面）
+## 结算面板上最上面加一个"再守这一关"（巡夜、而且这一档允许重来的时侯才露面）。
+## 按钮上只写这五个字：左下这一栏只有三百来像素宽，再长就压到右边的纪录列表上（困难档写过"（还剩 3 次）"，就压上了）。
+## 还剩几次写在标题下面那行小字里（见 _over_note_text）
 func _add_retry_button() -> void:
 	var retry: Button = BUTTON.instantiate()
 	retry.name = "RetryLevelButton"
@@ -339,6 +380,53 @@ func _add_retry_button() -> void:
 	final_score_control.buttons_container.add_child(retry)
 	final_score_control.buttons_container.move_child(retry, 0)
 	retry.visible = false
+
+## 暂停菜单里"继续"底下加一行"难度 ‹ 中等 ›"：玩到一半想换难度，在这儿点一下就行，不用退回标题页
+func _add_pause_stepper() -> void:
+	pause_stepper = DifficultyStepper.new(54, true, true)
+	pause_stepper.name = "PauseDifficulty"
+	menu.buttons_container.add_child(pause_stepper)
+	menu.buttons_container.move_child(pause_stepper, 1)
+	# 多了一行：行间距从 35 收到 24，16:9 的画面（逻辑高度只有 648）里整列才放得下
+	menu.buttons_container.add_theme_constant_override("separation", 24)
+	pause_stepper.stepped.connect(_on_pause_stepped)
+	# 对战的局不分难度（它自己的数在 resources/versus/ 里）：菜单里不放这一行
+	pause_stepper.visible = versus == null
+	# 换了难度以后这一关在菜单背后从头载入，说明等按了"继续"再弹（菜单开着的时候弹在棋盘上，被压暗的板子挡着看不见）
+	menu.resume_game_button.pressed.connect(func() -> void:
+		if _pending_note == "": return
+		popup(_pending_note)
+		_pending_note = ""
+	)
+
+## 没过的结算面板上：加减器一行（排在"再守这一关"后面），标题下面一行小字
+func _add_over_panel_bits() -> void:
+	# 左下这一栏只有三百来像素宽、右边紧挨着纪录列表：字小一号，"难度"两个字再小一号，箭头窄一点，都挤在一行里
+	over_stepper = DifficultyStepper.new(40, true, false, 28, 46, 10)
+	over_stepper.name = "OverDifficulty"
+	final_score_control.buttons_container.add_child(over_stepper)
+	final_score_control.buttons_container.move_child(over_stepper, 1)
+	over_stepper.stepped.connect(_on_over_stepped)
+
+	over_note = Label.new()
+	over_note.name = "OverNote"
+	# 标题（"灯火暗了"）占 y 33..126，小字紧挨在它下面，横着居中
+	over_note.anchor_left = 0.5
+	over_note.anchor_right = 0.5
+	over_note.offset_left = -420.0
+	over_note.offset_right = 420.0
+	over_note.offset_top = 126.0
+	over_note.offset_bottom = 166.0
+	var settings := LabelSettings.new()
+	settings.font = character_moves_font() if character_moves_font() != null else Tutorial.FONT
+	settings.font_size = 28
+	settings.font_color = Color(0.94, 0.96, 0.92)
+	over_note.label_settings = settings
+	over_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	over_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	over_note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	over_note.visible = false
+	final_score_control.add_child(over_note)
 
 
 func _process(delta: float) -> void:
@@ -351,6 +439,21 @@ func _process(delta: float) -> void:
 	water.material_override.set("shader_parameter/amplitude", 0.3 + water_strength * 0.3)
 	water.material_override.set("shader_parameter/speed", 1.0 + water_strength * 0.2)
 	water.material_override.set("shader_parameter/frequency", 0.1 + water_strength * 0.2)
+
+	# 暂停菜单开着的时候把顶上的关卡名藏起来：菜单里多了一行加减器，第一行"继续"正好压在它上面。
+	# 菜单收回去、也没出结算面板的时侯再露出来（结算面板出来时它是藏着的，见 end_game）
+	if menu.visible: level_label.visible = false
+	elif not final_score_control.visible: level_label.visible = true
+
+	# 夜巡：蜡在烧的时侯每秒短一截；烧完了最远的一盏灯灭掉，蜡重新长回一段。
+	# 人没法玩的时侯蜡不烧（见 _candle_burning）
+	if night_on and ruleset != null and _candle_burning():
+		night_left -= delta
+		if night_left <= 0.0:
+			night_left = ruleset.night_every
+			_night_extinguish()
+	if rule_hud != null and ruleset != null and ruleset.night_watch:
+		rule_hud.set_night(night_left / maxf(ruleset.night_seconds, 0.001))
 	
 func gain_score(value):
 	score += value * (combo + 1.0)
@@ -387,7 +490,10 @@ func update_tiles_color():
 		# 格子上指着的灯节点已经不在了（收走以后释放的），这个引用一并清掉，免得别的代码再拿它当灯用
 		if tile.object and not is_instance_valid(tile.object): tile.object = null
 		var tile_pos = Vector2(tile.global_position.x, tile.global_position.z)
+		# 有风向的规矩时顺风跳得远、逆风跳得近：朝这一格的方向能跳多远
 		var in_reach = tile_pos.distance_to(character_pos) / grid.tile_size.x <= max_distance
+		if wind_dir != Vector2i.ZERO:
+			in_reach = tile_pos.distance_to(character_pos) / grid.tile_size.x <= reach_toward(character_pos, tile_pos)
 		# 步数是 0 以后，只有不花步数的格子还能跳
 		var affordable = free_moves or moves_left > 0 or step_is_free(tile)
 		tile.is_available = tile.is_landable() and (not tile.object or tile.object.is_available()) and tile != character.target_tile and (in_reach or tile == back_tile) and affordable
@@ -412,6 +518,17 @@ func update_tiles_color():
 func _reach_now() -> float:
 	return min(combo * move_per_combo, max_combo_move_distance) + max_move_distance + 0.1 + temporary_mov_distance + level_reach_bonus
 
+## 从 from 跳到 to 能跳多远（格），两个都是世界坐标里的 (x, z)。有风向的规矩时顺风远、逆风近；没有风就是 _reach_now()
+func reach_toward(from: Vector2, to: Vector2) -> float:
+	if wind_dir == Vector2i.ZERO or ruleset == null: return _reach_now()
+	return BoardGen.wind_reach(_reach_now(), to - from, Vector2(wind_dir), ruleset.wind_bonus, ruleset.wind_penalty, ruleset.wind_floor)
+
+## 现在从脚下跳到这一格够不够得着（不算"刚离开的格子总能跳回去"那一条）
+func can_jump_to(tile: Tile) -> bool:
+	var here := Vector2(character.global_position.x, character.global_position.z)
+	var there := Vector2(tile.global_position.x, tile.global_position.z)
+	return there.distance_to(here) / grid.tile_size.x <= reach_toward(here, there)
+
 ## 跳到这一格花不花步数：上面有东西（灯、道具、开了的水车）都不花，还没用过的补给格也不花
 func step_is_free(tile: Tile) -> bool:
 	if free_moves: return true
@@ -419,7 +536,7 @@ func step_is_free(tile: Tile) -> bool:
 	if tile.is_spring_ready(): return true
 	return portal_open_free()
 
-## 水车开了、而且方案允许：这以后踩空格不扣步、不清连击
+## 水车开了、而且这一档允许：这以后踩空格不扣步、不清连击
 func portal_open_free() -> bool:
 	return ruleset != null and ruleset.portal_free and current_fish_count >= fish_before_end_portal
 
@@ -432,6 +549,7 @@ func update_moves_left():
 	
 func handle_movement():
 	if versus != null and versus.handle_landing(): return      # 对战：这个玩法自己处理落地
+	var serial := level_serial        # 这一跳落下时是哪一关：踩到水车会直接换关
 	temporary_mov_distance = 0.0
 
 	# 刚离开的如果是脆格，它现在碎掉
@@ -439,6 +557,9 @@ func handle_movement():
 	if left_tile and left_tile != character.target_tile: left_tile.break_tile()
 
 	character.target_tile.bump()
+	# 夜巡：跳了一下，蜡长回一点（最长是一支蜡的长度）
+	if night_on and ruleset != null:
+		night_left = minf(night_left + ruleset.night_gain, ruleset.night_seconds)
 	if Game.visuals_value:
 		for tile in grid.tiles.values():
 			tile.bump_strength = (1.0 - min(tile.global_position.distance_to(character.global_position) / 5.0, 1.0)) * ((combo / 10.0) * 2.0)
@@ -470,6 +591,13 @@ func handle_movement():
 			character_moves_left_label.scale = Vector3.ONE * 2.0
 			character.damage_particles_3d.emitting = true
 
+	# 踩到的是水车：上面 handle_loot 里已经换了关（next_level → load_level）或者通关了，这一关的格子马上就不是现在这些，
+	# 后面"还有没有格子能跳"不能再拿旧棋盘算。非常困难档在这儿出过事：通关以后步数是 0、踩空格又要扣步，
+	# 旧棋盘上一格能跳的都没有，被判成卡死，通关面板被盖成了"灯火暗了"（2026-11-26，自动试玩查出来的）
+	if level_serial != serial or final_score_control.visible:
+		is_free_move = false
+		return
+
 	update_moves_left()
 	update_tiles_color()
 
@@ -497,7 +625,8 @@ func gain_credits():
 			spawn_fish()
 			credits += 5.0
 			
-func handle_loot(fish: Fish):
+## 收走一盏灯或一件道具。where 是它所在的那一格；不给就是主角脚下那一格（水车、钓竿隔空收走的时侯要给）
+func handle_loot(fish: Fish, where: Tile = null):
 	if not fish.resource: return;
 
 	if fish.resource.effect == ObjectResource.ObjectEffect.None:
@@ -509,11 +638,18 @@ func handle_loot(fish: Fish):
 
 	if not fish: return
 
-	if not end_portal_instance.is_active:
+	# 放出去的灯被收走：上面已经算作"收了一盏"（水车要的就是这么多盏），但不给技能充能、不给分、不加连击——
+	# 它是个落脚点，不是奖励。手里的灯不退
+	var where_tile: Tile = where if where != null else character.target_tile
+	var was_placed: bool = _placed.has(where_tile)
+	if was_placed: _placed.erase(where_tile)
+
+	if not end_portal_instance.is_active and not was_placed:
 		active_control.charges_control.gain_charge(fish.resource.charge_gain)
 		active_control.update()
 
 	fish.loot()
+	if was_placed: return
 	if fish.resource.score: gain_score(fish.resource.score)
 	if fish.resource.combo and combo < max_combo:
 		gain_combo(1)
@@ -591,7 +727,9 @@ func handle_loot(fish: Fish):
 			update_moves_left()
 			update_tiles_color()
 		ObjectResource.ObjectEffect.SpawnItems:
-			# 铜钱：身边刷出 value 件道具
+			# 铜钱：身边刷出 value 件道具。规矩"手里的灯"打开的时侯，手里再多 hold_per_coin 盏
+			held_lamps += ruleset.hold_per_coin if ruleset != null else 0
+			character.set_held(held_lamps)
 			for i in range(0, int(fish.resource.value)):
 				spawn_item_near()
 				await get_tree().create_timer(0.15).timeout
@@ -603,7 +741,7 @@ func collect_remote(tile: Tile) -> void:
 	var fish := tile.object as Fish
 	if fish == null: return
 	tile.object = null
-	handle_loot(fish)
+	handle_loot(fish, tile)
 	if not lamps_dealt() and not end_portal_instance.is_active:
 		gain_credits()
 
@@ -684,24 +822,24 @@ func spawn_object_at_position(resource: ObjectResource, pos:Vector3):
 	return new_fish
 	
 ## 挑一个空格子放东西。near = true：只在主角现在够得着的格子里挑（技能刷出来的灯、铜钱买来的道具，得拿得到才有用）；
-## 否则按方案来：流水方案里多半挨着灯刷（新的灯接得上），旧方案纯随机。没有空格子返回 null
+## 否则按档来：边收边刷的玩法里多半挨着灯刷（新的灯接得上），最早的玩法纯随机。没有空格子返回 null
 func pick_empty_tile(near: bool = false) -> Tile:
 	var here: Tile = character.target_tile
 	if here == null: return null
 	var empty: Array = []
 	var near_tiles: Array = []
 	var chain: Array = []
-	var reach_now: float = min(combo * move_per_combo, max_combo_move_distance) + max_move_distance + 0.1 + temporary_mov_distance + level_reach_bonus
 	for tile in grid.tiles.values():
 		if tile.object or tile == here or not tile.is_landable(): continue
 		empty.append(tile)
-		if tile.global_position.distance_to(here.global_position) / grid.tile_size.x <= reach_now:
+		# 够不够得着按风向算：刷出来的东西得真拿得到才有用
+		if _reach_between(here, tile):
 			near_tiles.append(tile)
 		if _next_to_lamp(tile):
 			chain.append(tile)
 	if near and not near_tiles.is_empty():
 		return near_tiles.pick_random()
-	if not lamps_dealt() and ruleset != null and ruleset.lamp_mode == Ruleset.LampMode.FLOW and not chain.is_empty() and randf() < ruleset.flow_chain:
+	if not lamps_dealt() and ruleset != null and ruleset.lamp_mode == Ruleset.LampMode.FLOW and not chain.is_empty() and randf() < ruleset.lamp_flow_chain:
 		return chain.pick_random()
 	if empty.is_empty(): return null
 	return empty.pick_random()
@@ -721,7 +859,7 @@ func spawn_fish(near: bool = false) -> Fish:
 	new_fish.global_position = tile.global_position
 	return new_fish
 
-## 流水方案：开局的灯里没有一盏在起点旁边的，就挪一盏过来（第一步总得有灯可收）
+## 边收边刷的玩法里：开局的灯里没有一盏在起点旁边的，就挪一盏过来（第一步总得有灯可收）
 func guarantee_opening_lamp() -> void:
 	var here: Tile = character.target_tile
 	for ntile in grid.get_tile_neighbours(here):
@@ -753,7 +891,7 @@ func spawn_random_fish()-> Fish:
 func reset_upgrades():
 	# Upgrades
 	max_combo = 10.0
-	max_move_distance = BASE_MAX_MOVE_DISTANCE
+	max_move_distance = base_reach()
 	max_combo_move_distance = BASE_MAX_COMBO_DISTANCE
 	move_per_combo = BASE_MOVE_PER_COMBO
 	magnet_power = 0.0
@@ -785,7 +923,7 @@ func load_level(level: LevelResource):
 		grid.load_map(current_level.map)
 
 	colors.base_color = level.base_color
-	fish_before_end_portal = maxi(1, int(round(level.fish_before_end_portal * ruleset.lamps_scale)))
+	fish_before_end_portal = maxi(1, int(round(level.fish_before_end_portal * ruleset.lamp_scale)))
 	credits = level.starting_credits * 1.0
 
 	current_fish_count = 0
@@ -793,12 +931,21 @@ func load_level(level: LevelResource):
 	last_color = colors.default_color
 	# 道具的效果、踩空的次数都从这一关重新算
 	level_reach_bonus = 0.0
+	held_lamps = ruleset.hold_lamps if ruleset != null else 0
+	_placed.clear()
+	if held_lamps > 0:
+		character.make_held_label(character_moves_font())
+	# 这一档手里没有灯的时侯也要写一回：上一个难度留下的"灯 ×N"得擦掉（半路换了难度就会碰到）
+	character.set_held(held_lamps)
 	shields = 0
 	level_missteps = 0
 	level_max_combo = 0.0
 	level_start_score = score
 	level_start_moves = moves_left
 	current_deal = {}
+	_roll_wind()
+	night_on = false
+	night_left = ruleset.night_seconds if ruleset != null else 0.0
 
 	# 起点：关卡指定了就用指定的，否则在一个周围至少有三个格子的空格里随机挑一个
 	var tile: Tile = grid.start_tile
@@ -844,6 +991,10 @@ func load_level(level: LevelResource):
 		tutorial.maybe_show_rules()
 	level_ready = true
 	_update_hud_return_visibility()
+	if versus == null:
+		# 这几条规矩各提示一次（手里的灯、步数带过关、风向、夜巡），看没看过记在存档里。对战的局没有这些规矩
+		tutorial.rule_hints()
+		if ruleset != null and ruleset.night_watch: night_on = true
 
 ## 现在棋盘上的格子，整理成 BoardGen 认的样子（格子坐标是整数，从 0 起）。
 ## 顺带记下每个坐标对应哪个 Tile，摆完东西好往格子上放
@@ -872,32 +1023,48 @@ func to_cell(world: Vector3) -> Vector2i:
 	var g := grid.world_to_grid_position(world)
 	return Vector2i(int((roundi(g.x * 2.0) - _cell_parity.x) / 2.0), int((roundi(g.y * 2.0) - _cell_parity.y) / 2.0))
 
-## 这一关怎么摆：按关卡进度定出基础的难度，再按方案加减；再按角色能跳多远算
+## 角色本身能跳多远（不算连击、道具）：游戏里原来的那个数，加上这一档给加的（Ruleset.reach_add，简单档是 0.7）。
+## 真跳的时候（reset_upgrades）和摆棋的时候（deal_options）用的都是它，摆出来的路线才真的是人跳得到的
+func base_reach() -> float:
+	return BASE_MAX_MOVE_DISTANCE + (ruleset.reach_add if ruleset != null else 0.0)
+
+## 这一关怎么摆：按关卡进度定出基础的难度，再按难度的规矩加减；再按角色能跳多远算
 func deal_options(lamps: int) -> Dictionary:
-	var n := maxi(1, int(round(lamps * ruleset.lamps_scale)))
+	var n := maxi(1, int(round(lamps * ruleset.lamp_scale)))
 	var opt: Dictionary = BoardGen.endless_opt(current_level_index, n) if is_endless() else BoardGen.campaign_opt(current_level_index, n)
-	opt.gap = clampf(float(opt.gap) + ruleset.gap_add, 0.0, 0.95)
-	opt.detour = clampf(float(opt.detour) + ruleset.detour_add, 0.0, 0.8)
-	opt.items = maxi(0, int(opt.items) + ruleset.items_add)
-	opt.gates = mini(int(opt.gates), int(opt.items))
+	# 难度里的几条规矩怎么改摆法（风向、贴极限、道具件数、最后一跳够不够得着水车）都在 BoardGen.ruleset_opt 里，
+	# 算过关率的 tools/tier_rates.gd 用的也是它
+	opt = BoardGen.ruleset_opt(opt, ruleset, wind_dir)
 	var ch := Game.selected_character
-	opt.reach = BoardGen.reach_params(BASE_MAX_MOVE_DISTANCE + ch.max_move_distance, BASE_MOVE_PER_COMBO * ch.move_per_combo, BASE_MAX_COMBO_DISTANCE + ch.max_combo_move_distance)
+	opt.reach = BoardGen.reach_params(base_reach() + ch.max_move_distance, BASE_MOVE_PER_COMBO * ch.move_per_combo, BASE_MAX_COMBO_DISTANCE + ch.max_combo_move_distance)
 	if versus != null: versus.tune_deal(opt)          # 对战：摆法按它的规矩改
 	return opt
 
 ## 摆一局河灯：巡夜里每一关是固定的一局（练的就是它），长夜每次现摆。摆好了返回 true
 func place_deal(level: LevelResource) -> bool:
 	var board := current_board()
+	var seed_value := _level_seed(level)
 	var rng := RandomNumberGenerator.new()
-	if is_endless():
-		rng.seed = endless_rng.randi()
-	else:
-		rng.seed = level.deal_seed if level.deal_seed != 0 else 7000 + current_level_index * 37
-	var opt := deal_options(level.fish_before_end_portal)
-	var d := BoardGen.deal(board, opt, rng)
+	rng.seed = seed_value
+	var n := maxi(1, int(round(level.fish_before_end_portal * ruleset.lamp_scale)))
+	var base: Dictionary = BoardGen.endless_opt(current_level_index, n) if is_endless() else BoardGen.campaign_opt(current_level_index, n)
+	if versus != null: versus.tune_deal(base)      # 对战：灯数、道具、带沟的道具、贴极限、绕路都按它自己的规矩改（数在 resources/versus/）
+	# 摆一局，有风向的规矩时连风向一起定：头一个方向摆不出来就换一个方向（见 BoardGen.deal_tiered）。
+	# 挑头一个方向要避开上一关头一个试的方向，换方向的时侯尽量避开上一关最后刮的风，都从记下来的表里取
+	var picked := BoardGen.deal_tiered(board, base, ruleset, seed_value, _wind_initial.get(current_level_index - 1, Vector2i.ZERO),
+		_wind_by_level.get(current_level_index - 1, Vector2i.ZERO))
+	var d: Dictionary = picked.deal
+	# 规矩"补给格"：按档增减。先按原样摆一次棋拿到路线，再动路线以外的格子——路线上的格子一个都不碰，
+	# 那条"一步不错就能收齐"的路才还是原来的样子
+	if ruleset != null and ruleset.spring_add != 0 and not d.is_empty():
+		_adjust_springs(ruleset.spring_add, d.route, rng)
 	if d.is_empty():
 		push_warning("这一关摆不出河灯，改用边收边刷：%s" % BoardGen.last_fail)
 		return false
+	# 风向定了：记下来，旗子转过去
+	wind_dir = picked.wind
+	_wind_by_level[current_level_index] = wind_dir
+	if rule_hud != null: rule_hud.show_wind(wind_dir)
 	fish_before_end_portal = int(d.lamps)
 	var route: Array = d.route
 	var kinds: Array = d.kinds
@@ -927,6 +1094,27 @@ func place_deal(level: LevelResource) -> bool:
 			heart.global_position = free[0].global_position
 	return true
 
+## 按档增减补给格（规矩"补给格"）。delta 大于 0：把路线以外的普通格改成补给格；小于 0：把路线以外的补给格改回普通格。
+## 只动 Tile 节点自己的类型；摆棋用的那张表（current_board() 每次现读格子）不用单独同步
+func _adjust_springs(delta: int, route: Array, rng: RandomNumberGenerator) -> void:
+	var pool: Array = []
+	for cell in _cell_tiles:
+		var t: Tile = _cell_tiles[cell]
+		if cell == to_cell(end_portal_instance.global_position) or route.has(cell): continue
+		if t == null or t.object != null: continue
+		if (delta > 0 and t.tile_type == Tile.TileType.NORMAL) or (delta < 0 and t.tile_type == Tile.TileType.SPRING):
+			pool.append(t)
+	# 用这一关自己的随机数打乱，不用全局的：巡夜每一关是固定的一局，补给格也得每次都在同一个地方
+	for i in range(pool.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp: Tile = pool[i]
+		pool[i] = pool[j]
+		pool[j] = tmp
+	var n := mini(absi(delta), pool.size())
+	for i in n:
+		pool[i].tile_type = Tile.TileType.SPRING if delta > 0 else Tile.TileType.NORMAL
+		pool[i].update_color()
+
 ## 摆棋时路线上每样东西用哪个资源。斗笠的资源文件还不存在的时侯，摆到斗笠的那一格放食盒
 func _load_thing_resources() -> void:
 	var paths := {
@@ -952,6 +1140,9 @@ func restart():
 	score = 0
 	score_display = 0.0
 	current_level_index = 0
+	_wind_initial.clear()         # 新的一局：风从第一关重新刮
+	_wind_by_level.clear()
+	run_ruleset = ruleset         # 新的一局：成绩记在现在这一档名下
 	moves_left = max_moves_left
 	upgrade_random.reset()
 	update_moves_left()
@@ -966,10 +1157,9 @@ func aim_candidates(kind: Aim) -> Array:
 	if kind == Aim.COLLECT: return grid.get_fish_tiles()
 	var out: Array = []
 	var here: Tile = character.target_tile
-	var reach := _reach_now()
 	for tile in grid.tiles.values():
 		if tile == here or tile.object or not tile.is_landable(): continue
-		if tile.global_position.distance_to(character.global_position) / grid.tile_size.x > reach: continue
+		if not can_jump_to(tile): continue       # 够不够得着连风向一起算（有风向的规矩时顺风远、逆风近）：放下去得真跳得到
 		out.append(tile)
 	return out
 
@@ -1051,6 +1241,153 @@ func _aim_hint() -> void:
 	_aim_label.text = "选%s：方向键换，空格/A 确认，Esc/B 取消（还能选 %d 个）" % [what, aim_left]
 	_aim_label.visible = true
 
+## 放一盏手里的灯。没给格子：鼠标（接手柄时是光标）正指着哪一格就放哪一格，没指着就挑最能把路接上的一格（见 _place_target）
+func place_lamp(tile: Tile = null) -> void:
+	if held_lamps <= 0 or character.is_jumping or ruleset == null: return
+	# 放一盏要花几步。步数是 0 的时侯放不了（没有步数可花）
+	if moves_left < ruleset.hold_cost or ruleset.hold_cost <= 0 and moves_left <= 0:
+		popup("步数不够，放不了灯")
+		return
+	if tile == null: tile = _place_target()
+	if tile == null:
+		popup("身边没有能放灯的空格")
+		return
+	if not place_lamp_on(tile):
+		popup("这儿放不了灯")
+
+## 把一盏手里的灯放到 tile 上，花 hold_cost 步。放上去的灯踩到算"有灯"（不扣步、不清连击），捡起来算收了一盏，
+## 可不给分、不加连击——它是个落脚点，不是奖励。格子得是现在够得着的空格（刚离开的那一格也算）。返回放没放成。
+## 自动试玩的机器人也走这一个（它自己挑格子）
+func place_lamp_on(tile: Tile) -> bool:
+	if held_lamps <= 0 or tile == null or ruleset == null: return false
+	var back_tile: Tile = grid.get_tile(grid.world_to_grid_position(character.last_position))
+	if tile.object != null or tile == character.target_tile or not tile.is_landable(): return false
+	if not tile.is_available and tile != back_tile: return false
+	held_lamps -= 1
+	character.set_held(held_lamps)
+	moves_left = maxi(moves_left - ruleset.hold_cost, 0)
+	var lamp := FISH.instantiate() as Fish
+	add_child(lamp)
+	lamp.global_position = tile.global_position
+	tile.object = lamp
+	lamp.load_resource(_thing_resources.get(BoardGen.Thing.LAMP))
+	_placed[tile] = lamp
+	popup("放了一盏灯（还剩 %d 盏）" % held_lamps)
+	update_moves_left()
+	update_tiles_color()
+	return true
+
+## 没指着哪一格的时侯，手里的灯往哪放：现在够得着的空格里，放上去以后"够得着的灯"多出来最多的那一格
+##（放下去下一跳就接得上灯的最好）；一样多就放得离脚下近一点
+func _place_target() -> Tile:
+	var best: Tile = null
+	var best_key := Vector2(-1e9, -1e9)
+	var back_tile: Tile = grid.get_tile(grid.world_to_grid_position(character.last_position))
+	for t in grid.tiles.values():
+		if t.object != null or t == character.target_tile or not t.is_landable(): continue
+		if not t.is_available and t != back_tile: continue
+		if t.is_hovered: return t
+		var gain := 0.0
+		for u in grid.tiles.values():
+			if u.object == null or not u.object.is_fish: continue
+			if not can_jump_to(u) and _reach_between(t, u): gain += 1.0
+		var key := Vector2(gain, -t.global_position.distance_to(character.global_position))
+		if key.x > best_key.x or (key.x == best_key.x and key.y > best_key.y):
+			best_key = key
+			best = t
+	return best
+
+## 站在 from 上（连击、草鞋都和现在一样）跳到 to 够不够得着
+func _reach_between(from: Tile, to: Tile) -> bool:
+	var a := Vector2(from.global_position.x, from.global_position.z)
+	var b := Vector2(to.global_position.x, to.global_position.z)
+	return b.distance_to(a) / grid.tile_size.x <= reach_toward(a, b)
+
+## 这一关摆河灯用的随机种子：巡夜里每一关是固定的一局（关卡文件里写了就用它，没写按序号来），长夜每次现抽
+func _level_seed(level: LevelResource) -> int:
+	if is_endless(): return endless_rng.randi()
+	return level.deal_seed if level.deal_seed != 0 else 7000 + current_level_index * 37
+
+## 这一关头一个试的风向（规矩"风向"）：只跟这一关的种子和上一关头一个试的方向有关（BoardGen.level_initial_wind），
+## 连着两关不刮同一种风。每一关的都记在这一局里：重来这一关、测试里直接跳到某一关，算出来的都是同一个风。
+## 摆河灯的时侯这个方向摆不出来会换一个方向（BoardGen.deal_tiered），换过的记在 _wind_by_level 里，旗子照它转
+func _roll_wind() -> void:
+	wind_dir = Vector2i.ZERO
+	if ruleset != null and ruleset.wind:
+		# 前面几关还没算过的（新的一局、或者测试里直接跳到了后面某一关）：从第一关挨个算过来
+		for i in range(0, current_level_index + 1):
+			if _wind_initial.has(i): continue
+			var seed_value: int = endless_rng.randi() if is_endless() else _seed_of(i)
+			_wind_initial[i] = BoardGen.level_initial_wind(seed_value, _wind_initial.get(i - 1, Vector2i.ZERO))
+			if is_endless(): break
+		wind_dir = _wind_by_level.get(current_level_index, _wind_initial[current_level_index])
+	if rule_hud != null: rule_hud.show_wind(wind_dir)
+
+## 第 i 关（从 0 数起）摆河灯的种子：关卡文件里写了就用它，没写按序号来
+func _seed_of(i: int) -> int:
+	var level: LevelResource = levels[i]
+	return level.deal_seed if level.deal_seed != 0 else 7000 + i * 37
+
+## 棋盘上还亮着几盏灯（够得着够不着的都算，水车不算）
+func _lamps_left() -> int:
+	var n := 0
+	for tile in grid.tiles.values():
+		if tile.object != null and is_instance_valid(tile.object) and tile.object.is_fish: n += 1
+	return n
+
+## 还能不能弄出新的灯来：手里还有，或者守夜人的技能充满了（点灯会在身边落下两盏）
+func _can_light_lamps() -> bool:
+	if held_lamps > 0: return true
+	return active_control.is_charged and Game.selected_character.active_effect == CharacterResource.ActiveEffect.SpawnFishes
+
+## 现在夜巡的蜡烛该不该烧：这一关载入完了、人在玩、没有别的东西挡在前面。
+## 暂停菜单并不真的暂停游戏（原版就是这样），开着菜单调音量的时侯蜡不能烧；正弹着提示条的时侯也不烧（头一回玩的人要先看提示）。
+## 教程卡片开着、结算面板出来了的时侯 night_on 本来就是假的
+func _candle_burning() -> bool:
+	if night_hold: return false
+	if not level_ready or final_score_control.visible: return false
+	if tutorial != null and (tutorial.card_open() or tutorial.hinting()): return false
+	if menu != null and menu.visible: return false
+	return true
+
+## 夜巡：蜡烛烧完了。离主角最远的那盏灯灭掉。河灯是摆好的一局、水车要的盏数不变：剩下的灯不够了，
+## 手里也没有、技能也点不出来，这一关就守不住了
+func _night_extinguish() -> void:
+	var far: Tile = null
+	var fd := -1.0
+	for tile in grid.tiles.values():
+		if tile.object == null or not is_instance_valid(tile.object) or not tile.object.is_fish: continue
+		var d: float = tile.global_position.distance_to(character.global_position)
+		if d > fd:
+			fd = d
+			far = tile
+	if far == null: return
+	var lamp := far.object as Fish
+	far.object = null
+	_placed.erase(far)
+	lamp.go_out()
+	popup("夜巡：最远的那盏灯灭了")
+	if current_fish_count + _lamps_left() < fish_before_end_portal and not _can_light_lamps():
+		night_on = false
+		_night_fail()
+
+## 灯灭了、这一关守不住了：等那盏灯灭完（看清楚是哪一盏），再出结算。这中间换了关或者已经结算了就不重复出
+func _night_fail() -> void:
+	var serial := level_serial
+	await get_tree().create_timer(0.9).timeout
+	if level_serial != serial or final_score_control.visible: return
+	if is_inside_tree(): end_game()
+
+## 左上角的旗子（风向）和蜡烛（夜巡）。放在界面层的最底下：教程卡片压暗的时侯它们也一起暗下去
+func _add_rule_hud() -> void:
+	rule_hud = RuleHud.new()
+	rule_hud.name = "RuleHud"
+	rule_hud.main = self
+	$CanvasLayer/Control.add_child(rule_hud)
+	$CanvasLayer/Control.move_child(rule_hud, 0)
+	rule_hud.setup(ruleset)
+	rule_hud.show_wind(wind_dir)
+
 func trigger_active_effect():
 	if character.is_jumping: return;
 	if not active_control.is_charged: return;
@@ -1117,6 +1454,9 @@ func trigger_active_effect():
 
 
 
+func character_moves_font() -> Font:
+	return character_moves_left_label.font if character_moves_left_label != null else null
+
 func get_time():
 	return Time.get_ticks_msec() / 1000.0
 
@@ -1177,9 +1517,10 @@ func unlock_character(cr: CharacterResource):
 
 func end_game():
 	moves_left = 0
+	night_on = false
 
-	# 不再上传到网上的排行榜，只和本机的最好成绩比。对战的局不记（它有自己的输赢）
-	var run_key := "" if versus != null else Game.record_run(Game.selected_character, score, current_level_index + 1)
+	# 不再上传到网上的排行榜，只和本机的最好成绩比。半路调过难度的，记在这一局用过的最低一档名下
+	var run_key := "" if versus != null else Game.record_run(Game.selected_character, score, current_level_index + 1, run_ruleset)
 
 	final_score_control.set_visible(true)
 	# 结算的标题（灯火熄了 / 守到天明）和左上角的关卡标签在同一个位置，叠在一起看不清：出结算的时候把关卡标签藏起来
@@ -1189,15 +1530,94 @@ func end_game():
 	if is_endless(): final_score_control.game_over.text = str("长夜未尽
 守到了第 ", current_level_index + 1, " 更")
 	else: final_score_control.game_over.text = "灯火暗了"
-	if versus != null: final_score_control.game_over.text = versus.result_text()
+	_fill_game_over()
+	if versus != null:
+		# 对战的局：标题换成它的输赢，也不放难度那一行小字和加减器（下面的"再守这一关"也不放）
+		final_score_control.game_over.text = versus.result_text()
+		over_note.visible = false
+		over_stepper.visible = false
 	final_score_control.animate()
 
 	# 巡夜里、方案允许的时侯：这一关可以原地再来
 	var retry: Node = final_score_control.buttons_container.get_node_or_null("RetryLevelButton")
 	if retry: retry.visible = versus == null and not is_endless() and ruleset != null and ruleset.retry_level
-
 	leader_board_container_control.update()
 	leader_board_container_control.set_current(run_key)
+
+## 结算面板上跟着难度走的东西："再守这一关"在不在、标题下面那行小字、加减器。
+## 出结算的时侯填一遍；结算面板上换了难度（调高一档）再填一遍
+func _fill_game_over() -> void:
+	var retry: Node = final_score_control.buttons_container.get_node_or_null("RetryLevelButton")
+	if retry:
+		# 巡夜里、这一档允许、而且次数没用完：这一关可以原地再来
+		retry.visible = can_retry()
+	over_note.visible = true
+	over_note.text = _over_note_text()
+	over_stepper.visible = true
+	over_stepper.refresh()
+
+## 标题下面那行小字：现在的难度；重来次数有限的档，再说一句还剩几次
+func _over_note_text() -> String:
+	if ruleset == null: return ""
+	var text := "难度　%s" % ruleset.title
+	if can_retry() and ruleset.retry_max > 0:
+		text += "　　再守这一关还剩 %d 次" % (ruleset.retry_max - level_retries)
+	return text
+
+## 换一档难度：delta 是 +1（高一档）或 -1（低一档）。记进存档（下一局也用它），左上角的旗子、蜡烛跟着换。
+## 到头了（已经是最高或最低一档）就什么都不做，返回 false。这一关要不要从头来由调用的人决定
+func change_difficulty(delta: int) -> bool:
+	var i := Game.rulesets.find(ruleset)
+	if i < 0: return false
+	var j := clampi(i + delta, 0, Game.rulesets.size() - 1)
+	if j == i: return false
+	var r: Ruleset = Game.rulesets[j]
+	Game.select_ruleset(r)
+	ruleset = r
+	# 步数上限跟着难度的加减变（和 _ready 里一样算）
+	max_moves_left = maxi(Game.selected_character.max_moves_left + r.moves_add, 1)
+	if r.tier < run_ruleset.tier: run_ruleset = r
+	rule_hud.setup(r)
+	pause_stepper.refresh()
+	over_stepper.refresh()
+	return true
+
+## 这一关按现在的难度从头来：分数退回这一关的开头；步数按新难度的规矩给
+##（带过关的档带着这一关开头带的步数，最多到它的上限；别的档是满步数）。
+## 换了难度用这个，不是 retry_level：那个会把重来次数加一，步数也还是旧难度的
+func restart_level_under(r: Ruleset) -> void:
+	if is_endless():
+		if current_level_index < 0: return
+	elif current_level_index < 0 or current_level_index >= levels.size():
+		return
+	final_score_control.set_visible(false)
+	score = level_start_score
+	score_display = float(score)
+	reset_combo()
+	moves_left = mini(level_start_moves, max_moves_left + r.moves_cap_add) if r.moves_carry else max_moves_left
+	moves_left = maxi(moves_left, 1)
+	current_deal = {}
+	if is_endless(): load_level(endless_level(current_level_index))
+	else: load_level(levels[current_level_index])
+	reset_upgrades()
+	load_character(Game.selected_character)
+
+## 暂停菜单里点了箭头：这一关马上按新难度从头来，菜单不收（想一次换两档就接着点）
+func _on_pause_stepped(delta: int) -> void:
+	# 这一关还在载入、主角正在跳、或者结算面板已经出来了：不换。连点两下会让两次载入搅在一起
+	if not level_ready or character.is_jumping or final_score_control.visible: return
+	if not change_difficulty(delta): return
+	restart_level_under(ruleset)
+	_pending_note = "难度换成%s，这一关从头来" % ruleset.title
+
+## 没过的结算面板上点了箭头。点 ‹：调低一档，马上按新难度重来这一关（到这儿来的人就是觉得难）；
+## 点 ›：只换过去，面板刷新（"再守这一关"还在不在按新难度来），等玩家自己选重来还是再守
+func _on_over_stepped(delta: int) -> void:
+	if not change_difficulty(delta): return
+	if delta < 0 and can_retry():
+		restart_level_under(ruleset)
+	else:
+		_fill_game_over()
 
 
 func attract_fishes():

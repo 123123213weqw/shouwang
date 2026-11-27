@@ -4,14 +4,15 @@ class_name Tutorial extends Control
 ## 三层：
 ##   1. 第一次进游戏，关卡载入以后先弹一张"玩法"卡片，把目标和最要紧的规则讲一遍，点"知道了"才开始；
 ##      卡片开着的时候整局暂停，不会误跳。
-##   2. 之后在该用到的时候各提示一次：第一次踩到空格子、技能第一次充满、水车第一次开。提示是一行字，
-##      出现在关卡名下面，几秒后自己消失，不打断游戏。
+##   2. 之后在该用到的时候各提示一次：第一次踩到空格子、技能第一次充满、水车第一次开；难度里这一档多出来的规矩
+##      （手里的灯、步数带过关、风向、夜巡）在开头各提示一次。提示是一行字，出现在关卡名下面，几秒后自己消失，不打断游戏。
+##      上一条还没看完的排着队，一条看完了才弹下一条；弹着的时侯夜巡的蜡烛不烧（见 main._candle_burning）。
 ##   3. 暂停菜单里的"玩法"按钮随时能把卡片再调出来（这时按钮写的是"返回"）。
 ## 每一条只出现一次，看没看过记在存档里（Game.tutorial_seen）。
 ## 界面是用代码搭的，用的是游戏自己的按钮场景、手写字体和九宫格边框，和别的界面一个样子。
 ##
-## "玩法"卡片分两栏：左栏写规则，文字按选中的玩法方案变（Game.ruleset）；右栏是道具图鉴。
-## 标题页的方案选择面板（RulesetPicker）用的是同一张卡片的画法，底、边框、字体和量边框余量的办法都是这里的。
+## "玩法"卡片分两栏：左栏写规则，文字按选中的难度变（Game.ruleset）；右栏是道具图鉴。
+## 标题页的难度选择面板（RulesetPicker）用的是同一张卡片的画法，底、边框、字体和量边框余量的办法都是这里的。
 
 signal closed
 
@@ -31,15 +32,16 @@ const CORNER := 111.0                     # 角上内弧的圆心，离上下、
 const CORNER_R := 56.0                    # 内弧的半径（量出来是 56 到 57，取小的）
 
 # ---- "玩法"卡片的版面（都是卡片里的坐标）----
-# 左栏只要放得下规则里最长的一行（"有的沟只有靠道具才过得了，看准了再跳。"，字号 25 时 437 像素）；
+# 左栏只要放得下规则里最长的一行（"有的沟只有靠道具才过得了，看准了再跳。"，字号 23 时 402 像素）；
 # 操作那一句更长，放不下就断行。省下的宽度都给右栏：道具说明最长的一条有 276 像素
 const TITLE_Y := 62.0                     # 标题。原来在 44，字顶是贴着上边框线的
 const LEFT_X := 70.0                      # 左栏。离左边框线 17 像素：往下让它躲开左下角那段弧
 const LEFT_W := 445.0
 const LEFT_Y := 96.0                      # 左栏的第一行不在标题底下（标题在正中），可以从这儿就开始
-const PARAGRAPH_GAP := 14                 # 左栏三段话之间的空，要一眼看出是三段（行距只有 4）
-const RULES_SIZE := 25                    # 左栏字号
-const RULES_SPACING := 4                  # 左栏行距（这个字体的行高只有字号的 1.04 倍，所以行距要给到）
+const PARAGRAPH_GAP := 10                 # 左栏三段话之间的空，要一眼看出是三段（行距只有 3）。原先是 14，字缩了一号以后跟着收一点
+const RULES_SIZE := 23                    # 左栏字号。原先是 25：难度四档以后规矩多的档要多写四五行，23 号一行还是放得下 19 个字，
+                                         # 左栏从上到下也多放得下两行，底下还躲得开左下角那段弧
+const RULES_SPACING := 3                  # 左栏行距（这个字体的行高只有字号的 1.04 倍，所以行距要给到）
 const DIVIDER_X := 527.0                  # 两栏中间的竖线
 const RIGHT_X := 549.0                    # 右栏：离竖线 20，到 880 为止（离右边框线 9 个像素）
 const RIGHT_W := 331.0
@@ -59,7 +61,7 @@ const OPS_KEYBOARD := "操作：WASD 跳一格，或用鼠标点亮着的格子�
 const OPS_PAD := "操作：左摇杆或十字键跳。A 放技能，Start 呼出菜单。"
 
 ## 道具图鉴：[资源, 说明]。说明用资源里的 description。只能放九行：再多一行，最后一行就压到右下角的"知道了"上。
-## 蒸笼不在这儿：它只在步数带过关的方案里出现，那种方案下在左栏的规则里说一句（见 _rule_paragraphs）
+## 蒸笼不在这儿：它只在步数带过关的档里出现，那种档下在左栏的规则里说一句（见 _rule_paragraphs）
 const ITEMS := [
 	["res://resources/upgrades/combooo.tres", "莲蓬：连击 +3"],
 	["res://resources/upgrades/umbrella.tres", "纸伞：下一跳跳得特别远"],
@@ -78,6 +80,7 @@ var close_button: Button
 var hint_label: Label
 var _paused_by_me := false
 var _hint_left := 0.0
+var _pending: Array[String] = []      # 排着队还没弹的提示（上一条还没看完）
 var _shown: Dictionary = {}               # 这一局里已经弹过的提示
 static var fake_pad := false              # 排查用：测试机上没有手柄，想看手柄版的那段说明就把它设成 true
 
@@ -98,6 +101,10 @@ func _ready() -> void:
 func card_open() -> bool:
 	return card.visible
 
+## 正弹着提示条（夜巡的蜡烛这时不烧：人还在看提示）
+func hinting() -> bool:
+	return hint_label != null and hint_label.visible
+
 ## 排查用：每一层的矩形（位置、大小）和锚点
 func debug_rects() -> String:
 	var out := PackedStringArray()
@@ -111,14 +118,15 @@ func debug_rects() -> String:
 	return "\n".join(out)
 
 ## 排查用：把卡片上的东西逐个量一遍（卡片坐标），看有没有压到边框、出框、互相重叠。
-## 每样报一个"余量"：离边框线还有几个像素，负数就是压上了。换过方案或输入设备以后隔一帧再量才是新的
+## 每样报一个"余量"：离边框线还有几个像素，负数就是压上了。换过难度或输入设备以后隔一帧再量才是新的
 ##   call tutorial.gd debug_card_layout
 func debug_card_layout() -> String:
 	var items: Array = []
 	_add_text(items, "标题", _title)
 	_add_text(items, "道具", _column_head)
 	for i in _rules.size():
-		_add_text(items, ["操作", "规则", "收尾"][i], _rules[i])
+		if _rules[i].visible:
+			_add_text(items, ["操作", "规则", "收尾"][i], _rules[i])
 	var n := 0
 	for row in _items.get_children():
 		n += 1
@@ -138,15 +146,15 @@ func debug_rules_text() -> String:
 		out.append(l.text)
 	return "\n\n".join(out)
 
-## 排查用：换一套方案，把卡片上的规则文字重填一遍（不用回标题页重开一局），拍各个方案的卡片用。
-## 它是真的在选方案（会写存档），拍完记得换回原来那套
+## 排查用：换一档难度，把卡片上的规则文字重填一遍（不用回标题页重开一局），拍各个档的卡片用。
+## 它是真的在选难度（会写存档），拍完记得换回原来那档
 ##   call tutorial.gd debug_ruleset 3      换成 Game.rulesets 里的第 3 套（从 0 数）
 func debug_ruleset(index: int) -> String:
 	if index < 0 or index >= Game.rulesets.size():
-		return "没有第 %d 套方案（一共 %d 套）" % [index, Game.rulesets.size()]
+		return "没有第 %d 档（一共 %d 档）" % [index, Game.rulesets.size()]
 	Game.select_ruleset(Game.rulesets[index])
 	_fill_rules()
-	return "方案换成了%s，规则文字已重填" % Game.ruleset.title
+	return "难度换成了%s，规则文字已重填" % Game.ruleset.title
 
 func _add_text(items: Array, what: String, label: Label) -> void:
 	var rect := text_rect(label)
@@ -161,9 +169,12 @@ func _to_card(p: Vector2) -> Vector2:
 
 # ---------- 提示 ----------
 
+## 弹一条提示。同一条只弹一次。上一条还没看完就排在这一条后面，看完了接着弹
 func hint(id: String) -> void:
-	"""弹一条提示。同一条只弹一次"""
 	if card.visible or _shown.has(id) or Game.tutorial_seen.has(id): return
+	if hint_label.visible:
+		if not _pending.has(id): _pending.append(id)
+		return
 	_shown[id] = true
 	Game.tutorial_mark(id)
 	hint_label.text = _hint_text(id)
@@ -172,13 +183,33 @@ func hint(id: String) -> void:
 	_hint_left = HINT_TIME
 	create_tween().tween_property(hint_label, "modulate:a", 1.0, 0.3)
 
+## 难度里的几条规矩，用到的那一关开头各提示一次：手里的灯、步数带过关、风向、夜巡。
+## 每一帧都问一遍：这一关载入完了、没有别的提示挡着，才轮到它们（见 _process）
+func rule_hints() -> void:
+	if main == null or not is_instance_valid(main) or not main.level_ready: return
+	var r: Ruleset = Game.ruleset
+	if r == null: return
+	if r.hold_lamps > 0: hint("held")
+	if r.moves_carry: hint("carry")
+	if r.wind: hint("wind")
+	if r.night_watch: hint("night")
+
+## 放灯的键：接了手柄是 X，没接是 E
+func _place_key() -> String:
+	return "X" if _has_pad() else "E"
+
 func _hint_text(id: String) -> String:
+	var r: Ruleset = Game.ruleset
 	match id:
 		"empty": return "踩到空格子了：扣一步，连击清零。尽量沿着有灯的格子跳。"
 		"nomoves": return "步数用完了：只还能跳到有灯、有道具的格子上，再踩空格就走不动了。"
 		"skill": return "技能充满了，按 %s 放技能。" % _skill_key()
+		"held": return "手里有 %d 盏灯：指着够得着的空格按 %s 放一盏，花一步，是个落脚点。" % [r.hold_lamps, _place_key()]
+		"carry": return "步数是从上一关带过来的，每过一关只补 %d 步。" % r.moves_bonus
+		"wind": return "这一关有风（看左上角的旗子）：顺着风跳得远，逆着风跳得近。"
+		"night": return "夜巡：左上角的蜡烛烧完，离你最远的一盏河灯就灭。每跳一下，蜡长回一点。"
 		"portal":
-			if Game.ruleset != null and Game.ruleset.portal_free:
+			if r != null and r.portal_free:
 				return "水车开了：现在踩空格也不扣步，走进去过关。"
 			return "水车开了，走回水车还要花步数，看准了再走。"
 	return ""
@@ -221,43 +252,87 @@ func _has_pad() -> bool:
 func _skill_key() -> String:
 	return "A" if _has_pad() else "空格"
 
-## 每次弹出卡片都重填一遍：方案是回标题页才换的，手柄是随时可能插上的
+## 每次弹出卡片都重填一遍：难度是回标题页才换的，手柄是随时可能插上的
 func _fill_rules() -> void:
 	var paragraphs := _rule_paragraphs()
 	for i in _rules.size():
-		_rules[i].text = "\n".join(paragraphs[i])
+		# 规矩多的档放不下收尾那一段：整段收起来（技能那一句第一次充满的时侯另有提示）
+		_rules[i].visible = i < paragraphs.size()
+		if i < paragraphs.size():
+			_rules[i].text = "\n".join(paragraphs[i])
 
-## 左栏的三段话：操作、规则、收尾，每段又是一行一行的。
-## 一行就是一整行（标签的自动折行是关着的），所以哪一行都得放得进左栏的宽。
-## 规则按选中的方案变：河灯是摆好的一局（DEALT）还是边收边刷（FLOW、RANDOM），水车开了以后踩空格扣不扣步
+## 左栏的三段话：操作、规则、收尾，每段又是一行一行的（规矩多的档放不下收尾那一段，就只有前两段）。
+## 一行就是一整行（标签的自动折行是关着的），所以哪一行都得放得进左栏的宽（19 个字）。
+## 左栏从上到下放得下几行是有数的：卡片左下角是一段弧，字越往下越要往右让，所以最后一样的底边不能低于 y=494。
+## 键盘的操作是三行，规则最多十行（还留收尾那一段）或者十一行（不留）；手柄的操作只有两行，各多一行。
+## 规则按选中的难度变：基本的打法六行每一档都一样；这一档多出来的规矩跟在后面——
+## 步数带过关、手里的灯、风向、夜巡；"有的沟…"和"水车开了…"两句垫后。
+## 真放不下的时侯按这个先后让：先去掉收尾那一段（技能第一次充满的时侯另有提示），
+## 再把"步数带过关"压成一行（蒸笼那句并进去），最后才去掉"水车开了…"那一句（水车第一次开也有提示）
 func _rule_paragraphs() -> Array:
 	var r: Ruleset = Game.ruleset
 	var mode: int = r.lamp_mode if r != null else Ruleset.LampMode.DEALT
 	var portal_free: bool = r.portal_free if r != null else true
+	var pad := _has_pad()
 
-	var ops: PackedStringArray = _by_sentence(OPS_PAD if _has_pad() else OPS_KEYBOARD)
+	var ops: PackedStringArray = _by_sentence(OPS_PAD if pad else OPS_KEYBOARD)
 
-	var body := PackedStringArray()
+	# 基本的打法：每一档都一样
+	var core: PackedStringArray = []
 	if mode == Ruleset.LampMode.DEALT:
-		body.append("河灯是摆好的一局：一盏挨一盏地收，")
-		body.append("收齐了水车就开，走进去过关。")
+		core.append("河灯是摆好的一局：一盏挨一盏地收，")
+		core.append("收齐了水车就开，走进去过关。")
 	else:
-		body.append("河灯边收边刷。收够灯，水车就开，")
-		body.append("走进去过关。")
-	body.append("落在灯上不扣步数，连击 +1；")
-	body.append("连击越高，跳得越远。")
+		core.append("河灯边收边刷。收够灯，水车就开，")
+		core.append("走进去过关。")
+	core.append("落在灯上不扣步数，连击 +1；")
+	core.append("连击越高，跳得越远。" if r == null or r.reach_add <= 0.0 else "连击越高，跳得越远（这一档格外远）。")
 	if mode == Ruleset.LampMode.FLOW:
-		body.append("新的灯多半刷在灯的旁边。")
-	body.append("踩到空格子扣一步、连击清零。")
-	body.append("头顶的数字是还能错几步。")
-	# 步数带过关的方案（长明、旧灯）里，没带满步数进关时棋盘上会多一个蒸笼
-	if r != null and r.moves_carry:
-		body.append("步数没带满时有蒸笼，踩上去 +1 步。")
-	body.append("有的沟只有靠道具才过得了，看准了再跳。")
-	body.append("水车开了以后，踩空格不再扣步。" if portal_free else "水车开了以后，走回水车也要花步数。")
+		core.append("新的灯多半刷在灯的旁边。")
+	core.append("踩到空格子扣一步、连击清零。")
+	core.append("头顶的数字是还能错几步。")
 
-	var tail := PackedStringArray(["收灯给技能充能，充满了按 %s 放技能。" % _skill_key()])
-	return [ops, body, tail]
+	# 这一档多出来的规矩。步数带过关有两种写法：两行的（说得多）和一行的（省地方）
+	var extra: PackedStringArray = []
+	var carry_long: PackedStringArray = []
+	var carry_short: PackedStringArray = []
+	if r != null and r.moves_carry:
+		carry_long.append("步数是上一关带过来的，每关补 %d 步。" % r.moves_bonus)
+		carry_long.append("没带满时有蒸笼，踩上去 +1 步。")
+		carry_short.append("步数带过关，每关补 %d 步；没带满有蒸笼。" % r.moves_bonus)
+	if r != null and r.hold_lamps > 0:
+		extra.append("手里有 %d 盏灯：指着空格按 %s 放下，" % [r.hold_lamps, "X" if pad else "E"])
+		extra.append("花一步，是个落脚点。")
+	if r != null and r.wind:
+		extra.append("有风向：顺风跳得远，逆风跳得近。")
+	if r != null and r.night_watch:
+		extra.append("夜巡：蜡烛烧完，最远的一盏灯就灭。")
+
+	var ditch := "有的沟只有靠道具才过得了，看准了再跳。"
+	var portal_line := "水车开了以后，踩空格不再扣步。" if portal_free else "水车开了以后，走回水车也要花步数。"
+	var tail: PackedStringArray = ["收灯给技能充能，充满了按 %s 放技能。" % _skill_key()]
+	var with_tail := 11 if pad else 10
+	var without_tail := with_tail + 1
+
+	# drop 是让到第几步：0 什么都留着，1 去掉收尾，2 步数带过关压成一行，3 去掉"水车开了…"那一句
+	for drop in range(4):
+		var body: PackedStringArray = []
+		body.append_array(core)
+		body.append_array(carry_short if drop >= 2 else carry_long)
+		body.append_array(extra)
+		if drop < 3: body.append(portal_line)
+		body.append(ditch)
+		if body.size() <= with_tail:
+			return [ops, body, tail]
+		if drop >= 1 and body.size() <= without_tail:
+			return [ops, body]
+	# 怎么都放不下（不该发生）：只留基本的打法、这一档的规矩和"有的沟…"，收尾不要
+	var body: PackedStringArray = []
+	body.append_array(core)
+	body.append_array(carry_short)
+	body.append_array(extra)
+	body.append(ditch)
+	return [ops, body]
 
 ## 一行放不下的话，在标点后面断开、分几行写（字不改）；放得下就还是一行。
 ## 先在句号后面断，一句自己就超过一行的宽，再在逗号后面断。
@@ -444,12 +519,12 @@ func _build_card() -> void:
 		rules.add_child(l)
 		_rules.append(l)
 
-	# 两栏中间的竖线：和左栏最长的时候（操作断成三行、规则九行）一样高
+	# 两栏中间的竖线：和左栏最长的时候（操作三行、规则十一行、中间一段空）一样高
 	var divider := ColorRect.new()
 	divider.name = "Divider"
 	divider.color = Color(MINT, 0.35)
 	divider.position = Vector2(DIVIDER_X, LEFT_Y)
-	divider.size = Vector2(2, 393)
+	divider.size = Vector2(2, 381)
 	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_card_box.add_child(divider)
 
@@ -614,3 +689,8 @@ func _process(delta: float) -> void:
 		_hint_left -= delta
 		if _hint_left <= 0.0:
 			hint_label.visible = false
+			# 这一条看完了，接着弹排着队的下一条
+			if not _pending.is_empty():
+				hint(_pending.pop_front())
+	# 难度里这一档多出来的规矩，开头各提示一次
+	rule_hints()

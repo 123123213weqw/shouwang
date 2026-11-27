@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Ruleset" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ruleset.gd" id="1_rs"]
+
+[resource]
+script = ExtResource("1_rs")
+id = "normal"
+title = "中等"
+summary = "给大多数人：步数刚够，没过可以原地再来，灯还是原来那一局。\n手里有两盏灯。练的就是它。"
+tier = 2
+lamp_mode = 0
+retry_level = true
+retry_max = 0
+portal_free = true
+spring_add = 0
+hold_lamps = 2

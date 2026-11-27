@@ -39,6 +39,10 @@ var _last_ripple_time := -10.0
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 河灯每盏带着 0 到 20 的 z_index（远的在下、近的在上），而 z_index 是整个画面层里一起排的：这个节点和标题页的界面
+	#（CanvasLayer/TitleControl）在同一层里，不压下去的话灯会漂到所有界面上面，盖住难度页的字、设置页的滑块。
+	# 所以把整条河（水面和灯）压到界面底下。菜单、标志后面灯淡下去的那一套（follow_menu、avoid）照旧
+	z_index = -(RiverLamps.Z_TOP + 1)
 	_water = ColorRect.new()
 	_water.name = "Water"
 	_water.mouse_filter = Control.MOUSE_FILTER_IGNORE

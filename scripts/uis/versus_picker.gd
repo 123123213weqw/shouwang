@@ -3,7 +3,7 @@ class_name VersusPicker extends Control
 ## 左边一列是对战的五种玩法（scripts/versus/），右边是鼠标停着的那个的说明；
 ## 点"开战"就用现在看着的这个开局（记进 Game.versus），去选同伴；按"返回"收起。
 ## 面板由 TitleControl 建出来，挂在 CanvasLayer/TitleControl 下；显示和收起都由 TitleControl 通知。
-## 卡片、字体、按钮和"玩法方案"那个面板（ruleset_picker.gd）是同一套。
+## 卡片、字体、按钮和"难度"那个面板（ruleset_picker.gd）是同一套。
 
 signal chosen(id: String)      ## 按了"开战"
 signal closed                  ## 按了"返回"

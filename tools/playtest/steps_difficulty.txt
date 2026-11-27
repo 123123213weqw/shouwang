@@ -1,0 +1,108 @@
+# 玩到一半换难度：暂停菜单里的加减器、没过的结算面板上的加减器。两种窗口各跑一遍：
+#   tools/playtest/agent.sh a7 drive tools/playtest/steps_difficulty.txt diff
+#   SW_RES=1280x720 tools/playtest/agent.sh a7 drive tools/playtest/steps_difficulty.txt diff_1280
+# 查的是：暂停菜单里点一下换一档、这一关按新难度从头载入（步数、旗子、蜡烛、手里的灯都对）、到头的那一边不露面；
+# 结算面板上点 › 只换过去、面板刷新，点 ‹ 调低一档马上重来这一关；两处的版面不出画面、不互相压；
+# 半路调过难度的这一局，成绩记在用过的最低一档名下。
+# 开头和结尾都把难度拨到中等（换难度是会写存档的，别的测试默认用中等）
+call pad_adapter.gd debug_ruleset 1
+call pad_adapter.gd debug_unlock_all
+click_btn PlayButton
+sleep 5
+call pad_adapter.gd debug_pick_character 0
+sleep 12
+click_btn TutorialCloseButton
+sleep 3
+call pad_adapter.gd debug_goto_level 6
+sleep 12
+click_btn TutorialCloseButton
+call pad_adapter.gd debug_difficulty_check normal playing
+
+# ---------- 暂停菜单 ----------
+key Escape
+sleep 2
+call pad_adapter.gd debug_menu_layout
+snap 02_pause_normal
+click_btn DiffDown
+sleep 5
+call pad_adapter.gd debug_difficulty_check easy pause
+snap 03_pause_easy
+click_btn DiffUp
+sleep 5
+click_btn DiffUp
+sleep 5
+call pad_adapter.gd debug_difficulty_check hard pause
+call pad_adapter.gd debug_menu_layout
+snap 04_pause_hard
+click_btn DiffUp
+sleep 5
+call pad_adapter.gd debug_difficulty_check extreme pause
+call pad_adapter.gd debug_menu_layout
+snap 05_pause_extreme
+# 已经最高：› 不露面，点不着，档位不变
+click_btn DiffUp
+sleep 1
+call pad_adapter.gd debug_difficulty_check extreme pause
+click_btn ResumeGameButton
+sleep 3
+call pad_adapter.gd debug_difficulty_check extreme playing
+snap 06_playing_extreme
+
+# ---------- 没过的结算面板 ----------
+call main.gd end_game
+sleep 8
+call pad_adapter.gd debug_over_layout
+call pad_adapter.gd debug_difficulty_check extreme over
+snap 07_over_extreme
+# 点 ‹：非常困难 → 困难，马上按困难重来这一关
+click_btn DiffDown
+sleep 8
+call pad_adapter.gd debug_difficulty_check hard playing
+snap 08_retried_hard
+call main.gd end_game
+sleep 8
+call pad_adapter.gd debug_over_layout
+call pad_adapter.gd debug_difficulty_check hard over
+ui
+snap 09_over_hard
+# 点 ›：困难 → 非常困难，只换过去，面板还在，"再守这一关"收回去
+click_btn DiffUp
+sleep 2
+call pad_adapter.gd debug_over_layout
+call pad_adapter.gd debug_difficulty_check extreme over
+snap 10_over_extreme
+# 点 ‹：非常困难 → 困难，马上重来
+click_btn DiffDown
+sleep 8
+call pad_adapter.gd debug_difficulty_check hard playing
+call main.gd end_game
+sleep 8
+call pad_adapter.gd debug_over_layout
+call pad_adapter.gd debug_difficulty_check hard over
+# 点 ‹：困难 → 中等，马上重来
+click_btn DiffDown
+sleep 8
+call pad_adapter.gd debug_difficulty_check normal playing
+call main.gd end_game
+sleep 8
+call pad_adapter.gd debug_over_layout
+call pad_adapter.gd debug_difficulty_check normal over
+# 点 ‹：中等 → 简单，马上重来
+click_btn DiffDown
+sleep 8
+call pad_adapter.gd debug_difficulty_check easy playing
+snap 11_retried_easy
+call main.gd end_game
+sleep 8
+call pad_adapter.gd debug_over_layout
+call pad_adapter.gd debug_difficulty_check easy over
+snap 12_over_easy
+# 已经最低：‹ 不露面，点不着
+click_btn DiffDown
+sleep 1
+call pad_adapter.gd debug_difficulty_check easy over
+# 这一局半路调过难度（简单、中等、困难、非常困难都走过）：成绩该记在最低的简单档名下
+call pad_adapter.gd debug_difficulty_check easy over
+
+# 收尾：拨回中等
+call pad_adapter.gd debug_ruleset 1
