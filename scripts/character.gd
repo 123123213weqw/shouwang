@@ -6,6 +6,7 @@ class_name Character extends Node3D
 @onready var body_sprite: Sprite3D = $SpriteContainer/BodySprite
 @onready var head_sprite: Sprite3D = $SpriteContainer/HeadSprite
 @onready var character_moves_left_label: Label3D = $SpriteContainer/CharacterMovesLeftLabel
+var held_label: Label3D               # 手里的灯还剩几盏（规矩"手里的灯"）：挂在步数标签旁边，比它小一号
 @onready var jump_launch_audio: AudioStreamPlayer3D = $JumpLaunchAudio
 @onready var jump_land_audio: AudioStreamPlayer3D = $JumpLandAudio
 @onready var damage_particles_3d: GPUParticles3D = $SpriteContainer/DamageParticles3D
@@ -84,6 +85,29 @@ func _process(delta: float) -> void:
 	sprite_container.scale = lerp(sprite_container.scale, Vector3.ONE, delta * 5.0)
 	character_moves_left_label.scale = lerp(character_moves_left_label.scale, Vector3.ONE, delta * 5.0)
 	body_sprite.material_override.set("shader_parameter/color", main.colors.current_color.darkened(0.5).lightened(min(main.combo / 10.0 / 5.0, 0.5)))
+
+## 建那个"手里还剩几盏灯"的标签。这一档没有这条规矩的时侯不建
+func make_held_label(font: Font) -> void:
+	if held_label != null or font == null: return
+	held_label = Label3D.new()
+	held_label.font = font
+	# 样子照着步数标签抄（字体、像素大小、描边、朝向），只是字小一号、位置在它上面一点。
+	# 挂在步数标签的同一个父节点下，和它用同一个坐标系
+	var src := character_moves_left_label
+	held_label.font_size = int(src.font_size * 0.7)
+	held_label.billboard = src.billboard
+	held_label.no_depth_test = src.no_depth_test
+	held_label.pixel_size = src.pixel_size
+	held_label.modulate = Color(src.modulate.r, src.modulate.g * 0.86, src.modulate.b * 0.55)
+	held_label.outline_size = src.outline_size
+	held_label.outline_modulate = src.outline_modulate
+	held_label.position = src.position + Vector3(0.0, 0.62, 0.0)
+	held_label.text = ""
+	src.get_parent().add_child(held_label)
+
+func set_held(n: int) -> void:
+	if held_label == null: return
+	held_label.text = "" if n <= 0 else "灯 ×%d" % n
 
 func load_resource(res: CharacterResource):
 	head_sprite.material_override.set("shader_parameter/texture_albedo", res.head_sprite)

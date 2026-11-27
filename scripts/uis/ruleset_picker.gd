@@ -1,39 +1,43 @@
 class_name RulesetPicker extends Control
-## 标题页的"玩法方案"选择面板。
-## 左边一列是所有方案（Game.rulesets），右边是鼠标停着的那个方案的说明，没停时显示现在选中的；
-## 点一个方案就选中它（Game.select_ruleset，会记进存档），按"返回"收起。
+## 标题页的"难度"选择面板（类名和节点名还是叫 Ruleset…：没改，省得测试的步骤文件跟着改）。
+## 左边一列是四档难度（Game.rulesets，简单、中等、困难、非常困难），右边是鼠标停着的哪一档的说明，
+## 没停时显示现在选中的：先是几句话（Ruleset.summary），再列出这一档打开了哪些规矩（Ruleset.rule_lines）。
+## 点一档就选中它（Game.select_ruleset，会记进存档），按"返回"收起。
+## 只在标题页上用：这儿地方大，写得下每一档的规矩。玩到一半想换走另一条路——暂停菜单里、没过的结算面板上的
+## 加减器（DifficultyStepper），一行点一下就换。
 ## 面板由 TitleControl 创建，挂在 CanvasLayer/TitleControl 下；显示和收起都由 TitleControl 通知
 ## （show_rulesets() / return_to_title()），面板自己不去动标题页的别的控件。
 ## 卡片、字体、按钮场景都和"玩法"卡片（Tutorial）是同一套。
 
-signal selected    ## 选了一套方案
+signal selected    ## 选了一档难度
 signal closed      ## 按了"返回"
 
 # ---- 版面（都是卡片里的坐标）----
 const CARD_SIZE := Vector2(940, 530)
-const TITLE := "玩法方案"
+const TITLE := "难度"
 const TITLE_Y := 62.0                    # 字顶离上边框线留出十来个像素
-const LIST_X := 63.0                     # 左栏：方案列表
+const LIST_X := 63.0                     # 左栏：难度列表
 const LIST_W := 150.0
 const LIST_Y := 112.0
-const OPTION_H := 40.0                   # 一个方案一行
+const OPTION_H := 40.0                   # 一档一行
 const OPTION_GAP := 6
-const OPTION_SIZE := 34                  # 方案名字号
+const OPTION_SIZE := 34                  # 难度名字的字号
 const DOT_X := 12.0                      # 选中标记（小圆点）
 const DOT_D := 12.0
-const TEXT_X := 34.0                     # 方案名字从这儿开始写（给圆点让地方；没选中的也一样，名字才对得齐）
+const TEXT_X := 34.0                     # 难度名字从这儿开始写（给圆点让地方；没选中的也一样，名字才对得齐）
 const DIVIDER_X := 242.0                 # 两栏中间的竖线
 const SUMMARY_X := 272.0                 # 右栏：说明
-const SUMMARY_W := 590.0                 # 24 个字一行：旧灯、万灯的头一句正好放得下
-const NAME_Y := 112.0                    # 右栏顶上：方案的名字
+const SUMMARY_W := 590.0                 # 24 个字一行
+const NAME_Y := 112.0                    # 右栏顶上：难度的名字
 const NAME_SIZE := 40
 const TAG_SIZE := 24
 const SUMMARY_Y := 168.0
 const SUMMARY_SIZE := 24
-const SUMMARY_SPACING := 9
+const SUMMARY_SPACING := 5               # 行距。说明加规矩最多 8 行（两行说明、一行空、五行规矩），行距 9 放不下
 const RETURN_X := 73.0                   # "返回"：和别的页面一样在左下角，带一个返回的箭头
 const RETURN_Y := 392.0
-const RETURN_W := 200.0
+const RETURN_W := 190.0                  # 比别的页面的返回按钮窄 10 像素：它的右头原本挨着右栏的说明（x 272），
+										##     难度四档以后说明长了，会和它报"重叠"。窄了这 10 像素，中间就空出 9 像素
 
 const IDLE := Color(0.40234375, 0.40234375, 0.40234375)   # 按钮主题里平时的灰
 const HOVER := Color(1, 1, 1)
@@ -54,7 +58,7 @@ var _summary: Label
 var _return_button: Button
 var _buttons: Array[Button] = []         # 和 _rulesets 一一对应
 var _rulesets: Array[Ruleset] = []
-var _ids := PackedStringArray()          # 上次建列表时的方案 id：没变就不用重建
+var _ids := PackedStringArray()          # 上次建列表时的难度 id：没变就不用重建
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -85,7 +89,7 @@ func debug_picker_layout() -> String:
 	_add_text(items, "标题", _title)
 	for i in _buttons.size():
 		var b := _buttons[i]
-		var what := "方案%d" % i
+		var what := "难度%d" % i
 		var h: float = Tutorial.FONT.get_height(OPTION_SIZE)
 		var rect := Rect2(b.global_position + Vector2(TEXT_X, (b.size.y - h) / 2.0), Vector2(Tutorial.text_width(b.text, OPTION_SIZE), h))
 		items.append([what, Rect2(_to_card(rect.position), rect.size), false])
@@ -116,9 +120,9 @@ func _rect_in_card(c: Control) -> Rect2:
 func _to_card(p: Vector2) -> Vector2:
 	return _card.get_global_transform().affine_inverse() * p
 
-# ---------- 选方案 ----------
+# ---------- 选难度 ----------
 
-## 方案列表跟着 Game.rulesets 走。方案没变就留着原来的按钮，只换一下标记
+## 难度列表跟着 Game.rulesets 走。难度没变就留着原来的按钮，只换一下标记
 func _sync_options() -> void:
 	var ids := PackedStringArray()
 	for r in Game.rulesets:
@@ -185,7 +189,7 @@ func _refresh() -> void:
 		b.add_theme_color_override("font_hover_pressed_color", CHOSEN_HOVER if chosen else HOVER)
 		b.get_node("SelectedDot").visible = chosen
 
-## 右栏显示哪一套的说明。r 是空（鼠标没停在哪个方案上）就显示现在选中的那套
+## 右栏显示哪一档的说明。r 是空（鼠标没停在哪个档上）就显示现在选中的那档
 func _show(r: Ruleset) -> void:
 	if r == null:
 		r = Game.ruleset
@@ -196,22 +200,29 @@ func _show(r: Ruleset) -> void:
 	if not has:
 		return
 	_name_label.text = r.title if r.title != "" else r.id
-	_summary.text = _summary_text(r.summary)
+	_summary.text = _summary_text(r)
 	# "现在选的"跟在名字右边；名字太长放不下就不显示
 	_tag.text = "现在选的"
 	var x := SUMMARY_X + Tutorial.text_width(_name_label.text, NAME_SIZE) + 16.0
 	_tag.position.x = x
 	_tag.visible = r == Game.ruleset and x + Tutorial.text_width(_tag.text, TAG_SIZE) <= SUMMARY_X + SUMMARY_W
 
-## 说明文字按资源里写的分段（资源里一行是一段），每一段再折成几行。
-## 不用标签自己的折行：它是"一行能放多少放多少"，最后常常剩两三个字单独成行
-func _summary_text(summary: String) -> String:
-	var paragraphs := PackedStringArray()
-	for paragraph in summary.split("\n"):
-		paragraph = paragraph.strip_edges()
-		if paragraph != "":
-			paragraphs.append("\n".join(_wrap(paragraph)))
-	return "\n\n".join(paragraphs)
+## 右栏的说明：先是资源里写的几句话（一句一行，放不下再折行），空一行，然后一条一行列出这一档打开的规矩
+func _summary_text(r: Ruleset) -> String:
+	var parts: PackedStringArray = []
+	var said: PackedStringArray = []
+	for sentence in r.summary.strip_edges().split("\n"):
+		sentence = sentence.strip_edges()
+		if sentence != "":
+			said.append("\n".join(_wrap(sentence)))
+	if not said.is_empty():
+		parts.append("\n".join(said))
+	var rules: PackedStringArray = []
+	for line in r.rule_lines():
+		rules.append("· " + line)
+	if not rules.is_empty():
+		parts.append("\n".join(rules))
+	return "\n\n".join(parts)
 
 ## 把一段话折成几行：先按宽度定下几行，再在标点后面找断点，让各行长短相近。每行都不会超过右栏的宽
 func _wrap(text: String) -> PackedStringArray:
@@ -318,7 +329,7 @@ func _build() -> void:
 	_return_button.pressed.connect(func(): closed.emit())
 	_card.add_child(_return_button)
 
-## 选中标记：方案名字左边的小圆点，自己画的（手写字体里没有"●"这个字形，写上去是个空框）
+## 选中标记：难度名字左边的小圆点，自己画的（手写字体里没有"●"这个字形，写上去是个空框）
 class SelectedDot extends Control:
 	var colour := Color(1.0, 0.84, 0.55)
 

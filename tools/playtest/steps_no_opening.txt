@@ -1,0 +1,6 @@
+# 设置里选了"不播"：游戏起来就在标题页上。开机的黑幕要撤掉（以前不撤，整个画面是黑的），标题页和河都看得见
+# SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_no_opening.txt noopen
+sleep 1
+call pad_adapter.gd debug_opening_state
+call pad_adapter.gd debug_lobby 0
+snap 01_title

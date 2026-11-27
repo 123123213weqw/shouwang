@@ -242,6 +242,7 @@ func _sprite(tex: Texture2D, height: float, colour: Color, at: Vector2, wobble :
 	m.set_shader_parameter("soft", 0.2)
 	m.set_shader_parameter("flash", 0.0)
 	m.set_shader_parameter("ghost", 0.0)
+	m.set_shader_parameter("alpha", 1.0)
 	r.material = m
 	if parent == null: parent = art
 	parent.add_child(r)

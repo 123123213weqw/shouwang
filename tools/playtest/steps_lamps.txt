@@ -1,0 +1,14 @@
+# 排查大厅的河灯（和录大厅那一次同样的条件：从一开始就录像、把灯凑到 11 盏、指针走一走），第 6 秒看每一盏的数
+# SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_lamps.txt lamps
+call pad_adapter.gd debug_record 8 20 lobby
+call pad_adapter.gd debug_lobby 2 11
+move 150 650
+sleep 0.4
+move 330 620
+sleep 0.4
+move 500 580
+sleep 0.4
+move 700 520
+sleep 1.2
+call pad_adapter.gd debug_lobby 3
+snap lamps

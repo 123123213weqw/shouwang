@@ -1,6 +1,6 @@
-# 导出包自检：按目录列出来读的方案、按路径读的道具和鱼，在包里都读得到；方案选择页里六套都在。
+# 导出包自检：按目录列出来读的四档难度、按路径读的道具和鱼、旗子和蜡烛的图，在包里都读得到；难度选择页里四档都在，而且是由易到难排的。
 # 给 agent.sh 的 smoke 用（先 export）：tools/playtest/agent.sh a7 smoke tools/playtest/steps_export.txt f_smoke_export
-# 结尾换回"灯谱"：选方案会写存档
+# 结尾换回"中等"：选难度会写存档
 sleep 4
 call pad_adapter.gd debug_export_check
 click_btn RulesetButton
@@ -8,11 +8,11 @@ sleep 2
 ui
 call ruleset_picker.gd debug_picker_layout
 snap picker
-click_btn RulesetOption_rush
+click_btn RulesetOption_extreme
 sleep 1
 call pad_adapter.gd debug_export_check
-snap picked_rush
-click_btn RulesetOption_dealt
+snap picked_extreme
+click_btn RulesetOption_normal
 sleep 1
 click_btn RulesetReturnButton
 sleep 2

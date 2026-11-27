@@ -1,0 +1,36 @@
+# 标题页那条河上的灯，画在界面底下：河上凑满灯的时候开难度页、开设置页，灯不能盖在上面的字和滑块。
+# 开着的时候量三回（debug_lobby 4：每盏灯的 z_index 都得比界面的小，再说一句有几盏灯正漂在卡片底下）。
+# 不播开场，一起来就在标题页上：
+# SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_river_layers.txt riverlayers
+call pad_adapter.gd debug_lobby 2 14
+sleep 3
+call pad_adapter.gd debug_lobby 4
+snap 01_title
+click_btn RulesetButton
+sleep 1
+call pad_adapter.gd debug_lobby 2 14
+sleep 2
+call pad_adapter.gd debug_lobby 2 14
+call pad_adapter.gd debug_lobby 4
+snap 02_picker
+sleep 3
+call pad_adapter.gd debug_lobby 2 14
+call pad_adapter.gd debug_lobby 4
+snap 03_picker
+sleep 3
+call pad_adapter.gd debug_lobby 2 14
+call pad_adapter.gd debug_lobby 4
+snap 04_picker
+click_btn RulesetReturnButton
+sleep 1
+click_btn SettingsButton
+sleep 1
+call pad_adapter.gd debug_lobby 2 14
+sleep 3
+call pad_adapter.gd debug_lobby 4
+snap 05_settings
+click_btn SettingsReturnButton
+sleep 1
+call pad_adapter.gd debug_lobby 2 0
+sleep 2
+snap 06_title

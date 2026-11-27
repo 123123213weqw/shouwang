@@ -201,6 +201,32 @@ static func pick_start(walkable: Dictionary, rng: RandomNumberGenerator) -> Vect
 	return Vector2i(candidates[rng.randi_range(0, candidates.size() - 1)])
 
 
+## 按难度增减补给格（规矩"补给格"），纯逻辑版：不开游戏的测试和调难度用。游戏里改的是 Tile 节点（main._adjust_springs），
+## 道理一样。delta 大于 0：把那么多普通格改成补给格，只挑不在路线上的；
+## 小于 0：把那么多补给格改回普通格。不改起点、传送门，也不改已经有东西的格子（occupied 里是路线上的格子）。
+## 返回真正改了几个（想改的格子不够就少改）
+static func adjust_springs(cells: Dictionary, start: Vector2i, portal: Vector2i, delta: int, occupied: Array, rng: RandomNumberGenerator) -> int:
+	if delta == 0: return 0
+	var keys: Array = []
+	for k in cells:
+		if k == start or k == portal or occupied.has(k): continue
+		keys.append(k)
+	shuffled(keys, rng)
+	var changed := 0
+	if delta > 0:
+		for k in keys:
+			if changed >= delta: break
+			if cells[k] == NORMAL:
+				cells[k] = SPRING
+				changed += 1
+	else:
+		for k in keys:
+			if changed >= -delta: break
+			if cells[k] == SPRING:
+				cells[k] = NORMAL
+				changed += 1
+	return changed
+
 ## 往普通格子里撒补给格和脆格；起点和传送门保持普通
 static func assign_special(cells: Dictionary, start: Vector2i, portal: Vector2i, p: Dictionary, rng: RandomNumberGenerator) -> void:
 	var keys: Array = []
@@ -262,6 +288,78 @@ const PLAIN_SLOT := -2
 ## 最近一次摆不出来卡在哪（排查用）
 static var last_fail := ""
 
+## 按一套难度（Ruleset）的规矩改摆法：贴极限、绕路、道具件数的加减；有风向的规矩就带上风；
+## 水车开了以后走回去还要花步数的档，最后一盏灯收完得正好够得着水车（must_end_at_portal）。
+## 游戏（main.deal_options）和算过关率的 tools/tier_rates.gd 都走这一个，两边摆出来的才是同一种局。不改传进来的 opt
+static func ruleset_opt(opt: Dictionary, r: Ruleset, wind: Vector2i) -> Dictionary:
+	var out: Dictionary = opt.duplicate()
+	if r == null: return out
+	out.gap = clampf(float(out.gap) + r.lamp_gap_add, 0.0, 0.95)
+	out.detour = clampf(float(out.detour) + r.lamp_detour_add, 0.0, 0.8)
+	out.items = maxi(0, int(out.items) + r.lamp_items_add)
+	out.gates = clampi(int(out.gates) + r.lamp_gate_add, 0, int(out.items))
+	if r.wind and wind != Vector2i.ZERO:
+		out.wind = wind
+		out.wind_bonus = r.wind_bonus
+		out.wind_penalty = r.wind_penalty
+		out.wind_floor = r.wind_floor
+	out.must_end_at_portal = not r.portal_free
+	return out
+
+## 按一套难度摆一局，连风向一起定下来。游戏（main.place_deal）和 tools/tier_rates.gd 都走这一个。
+## 没有风向的规矩：摆出来就是它，wind 是零。
+## 有风向的规矩：先按种子挑一个方向（level_initial_wind；last_wind 是上一关"头一个试的方向"）；这个方向实在摆不出来
+##（小棋盘、逆风那边没路）就换别的方向试，四个方向都试过还不行才算摆不出来。
+## 种子、上一关头一个试的方向、棋盘都一样，摆出来的局和风就一样：巡夜里每次开局都一样，重来一关也不变。
+## avoid 是上一关最后刮的风向（知道的话给上）：换方向的时侯把它排在最后试，尽量不连着两关刮同一种风。
+## 返回 {"deal": 一局（摆不出来是空字典）, "wind": 风往哪边吹, "wind_tried": 试了几个方向}
+static func deal_tiered(board: Dictionary, base_opt: Dictionary, r: Ruleset, deal_seed: int, last_wind: Vector2i, avoid: Vector2i = Vector2i.ZERO) -> Dictionary:
+	if r == null or not r.wind:
+		var rng0 := RandomNumberGenerator.new()
+		rng0.seed = deal_seed
+		return {"deal": deal(board, ruleset_opt(base_opt, r, Vector2i.ZERO), rng0), "wind": Vector2i.ZERO, "wind_tried": 0}
+	var first := level_initial_wind(deal_seed, last_wind)
+	var order: Array = [first]
+	var dirs: Array = [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.UP, Vector2i.DOWN]
+	dirs.erase(first)
+	var wr := RandomNumberGenerator.new()
+	wr.seed = deal_seed * 31 + 7
+	shuffled(dirs, wr)
+	if avoid != Vector2i.ZERO and dirs.has(avoid):
+		dirs.erase(avoid)
+		dirs.append(avoid)
+	order.append_array(dirs)
+	var fails: Dictionary = {}
+	for k in order.size():
+		var rng := RandomNumberGenerator.new()
+		rng.seed = deal_seed + 1000003 * k          # 头一个方向用的还是原来的种子
+		var d := deal(board, ruleset_opt(base_opt, r, order[k]), rng)
+		if not d.is_empty():
+			return {"deal": d, "wind": order[k], "wind_tried": k + 1}
+		fails[str(order[k])] = last_fail
+	if order.size() > 1:
+		var parts: Array[String] = []
+		for w in fails:
+			parts.append("风 %s：%s" % [w, fails[w]])
+		last_fail = "四个方向都试过了；" + "；".join(parts)
+	return {"deal": {}, "wind": first, "wind_tried": order.size()}
+
+## 这一关的风往哪边吹（规矩"风向"）：按这一关的种子在四个方向里挑一个；上一关刮的也是这个方向的时侯换成别的
+##（连着两关不刮同一种风）。last 是上一关的风向（没有上一关就是零）。种子一样，风就一样：巡夜里每一关的风是固定的
+static func level_wind(seed: int, last: Vector2i = Vector2i.ZERO) -> Vector2i:
+	var wr := RandomNumberGenerator.new()
+	wr.seed = seed
+	var dirs: Array = [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.UP, Vector2i.DOWN]
+	var w: Vector2i = dirs[wr.randi_range(0, 3)]
+	if w == last:
+		w = dirs[(dirs.find(w) + 1 + wr.randi_range(0, 2)) % dirs.size()]
+	return w
+
+## 某一关头一个试的风向：只跟这一关摆棋的种子和上一关"头一个试的风向"有关（prev 是上一关的，第一关是零）。
+## 所以一关的风和人是怎么来到这一关的无关：从头打上来、重来这一关、测试里直接跳到这一关，都是同一个风
+static func level_initial_wind(deal_seed: int, prev: Vector2i = Vector2i.ZERO) -> Vector2i:
+	return level_wind(deal_seed * 31 + 7, prev)
+
 ## 典型的几档跳跃距离：直线一格、斜一格、直线两格、（2,1）、（2,2）、直线三格……
 const JUMPS := [1.0, 1.41421356, 2.0, 2.23606798, 2.82842712, 3.0, 3.16227766, 3.60555128, 4.0, 4.12310563, 4.47213595, 5.0]
 
@@ -286,6 +384,16 @@ static func reach_of(combo: float, shoe: float, dash: float, rp: Dictionary) -> 
 
 static func dist(a: Vector2i, b: Vector2i) -> float:
 	return Vector2(a).distance_to(Vector2(b))
+
+## 规矩"风向"：风往 wind 那边吹，这一跳能跳多远。
+## 一跳在风向上的分量是 -1 到 1：顺风（大于 0）按比例多跳 bonus，逆风（小于 0）按比例少跳 penalty，横着跳不受影响。
+## 逆风再少跳，也保证还能跳 floor 这么远（floor 是 0 就不保证）：不然连击低的时侯逆风连一格都跳不动，
+## 人会被困住，河灯也常常摆不出来。没有风（wind 是零）就是原来的 reach。jump 只看方向，多长都行
+static func wind_reach(reach: float, jump: Vector2, wind: Vector2, bonus: float, penalty: float, floor: float = 1.0) -> float:
+	if wind == Vector2.ZERO or jump == Vector2.ZERO: return reach
+	var along := jump.dot(wind) / (jump.length() * wind.length())
+	var r := reach + bonus * along if along > 0.0 else reach + penalty * along
+	return maxf(r, floor + REACH_MARGIN) if floor > 0.0 else r
 
 ## 不超过 r（留了余量）的那几档跳跃距离，从小到大
 static func jumps_within(r: float) -> Array:
@@ -329,25 +437,30 @@ static func plan_things(lamps: int, items: int, gates: int, rng: RandomNumberGen
 		lamp_i += 1
 	return plan
 
-## 从 prev 出发，靠 kind 这件道具，能不能留出一道"不靠它过不去、靠它过得去"的沟
+## 从 prev 出发，靠 kind 这件道具，能不能留出一道"不靠它过不去、靠它过得去"的沟。
+## 有风的时侯各个方向能跳的不一样远，所以对着每个格子按它那个方向算
 static func _gate_possible(prev: Vector2i, cells: Dictionary, used: Dictionary, portal: Vector2i, kind: int,
-		combo: float, shoe: float, rp: Dictionary) -> bool:
+		combo: float, shoe: float, rp: Dictionary, wind: Vector2i = Vector2i.ZERO, wb: float = 0.0, wp: float = 0.0, fl: float = 1.0) -> bool:
 	var without := reach_of(combo, shoe, 0.0, rp)
 	var boosted := without
 	match kind:
 		Thing.UMBRELLA: boosted = without + UMBRELLA_DASH
 		Thing.SHOE: boosted = reach_of(combo, shoe + SHOE_REACH, 0.0, rp)
 		Thing.LOTUS: boosted = reach_of(combo + LOTUS_COMBO, shoe, 0.0, rp)
+	var w := Vector2(wind)
 	for c in cells:
 		if used.has(c) or c == portal or cells[c] == BLOCKED: continue
 		var d := dist(prev, c)
-		if d > without + REACH_MARGIN + 0.05 and d <= boosted - REACH_MARGIN:
+		var jump := Vector2(c - prev)
+		if d > wind_reach(without, jump, w, wb, wp, fl) + REACH_MARGIN + 0.05 and d <= wind_reach(boosted, jump, w, wb, wp, fl) - REACH_MARGIN:
 			return true
 	return false
 
 ## 从起点长一条路线。走不通就返回空字典（原因记在 last_fail），由 deal() 换一批随机数重来。
 ## opt 的键：lamps 盏数、items 道具件数、gates 其中带沟的件数、gap、detour、reach（角色能跳多远）、
-##           must_end_at_portal（最后一跳必须正好够得着水车；水车开了以后可以随便走的方案不用）
+##           must_end_at_portal（最后一跳必须正好够得着水车；水车开了以后可以随便走的档不用）、
+##           wind 风往哪边吹、wind_bonus 顺风多跳多远、wind_penalty 逆风少跳多远（规矩"风向"；没有这条规矩就不写）。
+## 每一跳都按"朝那个方向、那时能跳多远"来挑，所以有风的时侯这条路线照样走得通
 static func grow_route(board: Dictionary, opt: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
 	var cells: Dictionary = board.cells
 	var start: Vector2i = board.start
@@ -356,6 +469,11 @@ static func grow_route(board: Dictionary, opt: Dictionary, rng: RandomNumberGene
 	var gap: float = opt.get("gap", 0.5)
 	var detour: float = opt.get("detour", 0.3)
 	var must_end: bool = opt.get("must_end_at_portal", false)
+	var wind: Vector2i = opt.get("wind", Vector2i.ZERO)
+	var w := Vector2(wind)
+	var wb: float = float(opt.get("wind_bonus", 0.0))
+	var wp: float = float(opt.get("wind_penalty", 0.0))
+	var fl: float = float(opt.get("wind_floor", 1.0))
 	var plan := plan_things(int(opt.get("lamps", 8)), int(opt.get("items", 0)), int(opt.get("gates", 0)), rng)
 	var steps: int = plan.size()
 	var route: Array[Vector2i] = []
@@ -381,7 +499,7 @@ static func grow_route(board: Dictionary, opt: Dictionary, rng: RandomNumberGene
 				shuffled(kinds, rng)
 				var picked := -1
 				for k in kinds:
-					if _gate_possible(prev, cells, used, portal, k, combo, shoe, rp):
+					if _gate_possible(prev, cells, used, portal, k, combo, shoe, rp, wind, wb, wp, fl):
 						picked = k
 						break
 				if picked < 0:
@@ -401,34 +519,34 @@ static func grow_route(board: Dictionary, opt: Dictionary, rng: RandomNumberGene
 			pending = -1
 		var kind: int = plan[s]
 		var reach := reach_of(combo, shoe, dash, rp)
-		var target := 1.0
-		if gate >= 0:
-			# 带沟的那一跳：要比不靠道具时能跳的最远还远（看下面候选格子的距离）
-			target = reach
-		elif rng.randf() < gap:
-			var top := jumps_within(reach)
-			target = float(top.back())
-		else:
-			# 松的一跳：连击比现在少两点也够得着
-			target = float(jumps_within(reach_of(maxf(combo - 2.0, 0.0), shoe, 0.0, rp)).back())
+		# 连击比现在少两点的时候能跳多远：松的一跳按它来
+		var loose := reach_of(maxf(combo - 2.0, 0.0), shoe, 0.0, rp)
+		# 这一跳贴不贴极限：带沟的那一跳要尽量远；其余的按 gap 的比例抽。先抽签再挑格子，没有风的时侯和以前抽的是同一串数
+		var tight: bool = gate >= 0 or rng.randf() < gap
 		var best_score := -1e9
 		var best: Array = []
 		var trapped: Array = []        # 踩上去就没处可去的格子：实在没有别的选择了才考虑
+		var next_reach := reach_of(combo + 1.0, shoe, 0.0, rp)
 		for c in cells:
 			if used.has(c) or c == portal or cells[c] == BLOCKED: continue
 			var d := dist(prev, c)
-			if d > reach - REACH_MARGIN: continue
-			if must_end and s == steps - 1 and dist(c, portal) > reach_of(combo + 1.0, shoe, 0.0, rp) - REACH_MARGIN: continue
+			var jump := Vector2(c - prev)
+			var r := wind_reach(reach, jump, w, wb, wp, fl)
+			if d > r - REACH_MARGIN: continue
+			if must_end and s == steps - 1 and dist(c, portal) > wind_reach(reach_of(combo + 1.0, shoe, 0.0, rp), Vector2(portal - c), w, wb, wp, fl) - REACH_MARGIN: continue
 			# 剩下的跳数还多，踩上去却哪儿都去不了：死胡同
-			if s < steps - 1 and not _has_exit(c, cells, used, portal, reach_of(combo + 1.0, shoe, 0.0, rp)):
+			if s < steps - 1 and not _has_exit(c, cells, used, portal, next_reach, wind, wb, wp, fl):
 				trapped.append(c)
 				continue
 			var sc := _route_score(c, prev, portal, cells, used, combo, shoe, rp, float(steps - s - 1), gap, detour, rng, dense)
 			if gate >= 0:
-				if d <= gate_without + REACH_MARGIN + 0.05: continue
+				if d <= wind_reach(gate_without, jump, w, wb, wp, fl) + REACH_MARGIN + 0.05: continue
 				sc += d * 2.0               # 越远越好：挡得住人
 			else:
-				# 离想要的那一档越远扣得越多；越是"贴极限"的关越不愿意将就
+				# 离想要的那一档越远扣得越多；越是"贴极限"的关越不愿意将就。
+				# 想要的那一档：贴极限的一跳是朝这个方向现在能跳的最远一档，松的一跳是连击少两点也够得着的最远一档
+				var top := jumps_within(wind_reach(reach if tight else loose, jump, w, wb, wp, fl))
+				var target := float(top.back()) if not top.is_empty() else 1.0
 				sc -= absf(d - target) * (1.5 + 3.0 * gap)
 			if sc > best_score:
 				best_score = sc
@@ -453,7 +571,7 @@ static func grow_route(board: Dictionary, opt: Dictionary, rng: RandomNumberGene
 			combo += 1.0
 	if pending >= 0:
 		return _fail("道具在最后", "最后一件是道具，后面没有灯了")
-	var ends := dist(prev, portal) <= reach_of(combo, shoe, 0.0, rp) - REACH_MARGIN
+	var ends := dist(prev, portal) <= wind_reach(reach_of(combo, shoe, 0.0, rp), Vector2(portal - prev), w, wb, wp, fl) - REACH_MARGIN
 	if must_end and not ends:
 		return _fail("够不着水车", "收完最后一盏灯以后够不着水车")
 	# 水车会卷走身边两格内的灯。要是它够得着路线上后面还没踩的灯，路线就断了：换成不搅乱路线的道具
@@ -465,10 +583,12 @@ static func grow_route(board: Dictionary, opt: Dictionary, rng: RandomNumberGene
 				break
 	return {"route": route, "kinds": plan, "lamps": int(opt.get("lamps", 8)), "ends_at_portal": ends}
 
-## 从 c 出发还有没有没走过的格子可去
-static func _has_exit(c: Vector2i, cells: Dictionary, used: Dictionary, portal: Vector2i, reach: float) -> bool:
+## 从 c 出发还有没有没走过的格子可去。有风的时侯逆着风跳不了那么远，所以对着每个格子按它的方向算
+static func _has_exit(c: Vector2i, cells: Dictionary, used: Dictionary, portal: Vector2i, reach: float,
+		wind: Vector2i = Vector2i.ZERO, wb: float = 0.0, wp: float = 0.0, fl: float = 1.0) -> bool:
+	var w := Vector2(wind)
 	for n in cells:
-		if n != c and not used.has(n) and n != portal and cells[n] != BLOCKED and dist(c, n) <= reach - REACH_MARGIN:
+		if n != c and not used.has(n) and n != portal and cells[n] != BLOCKED and dist(c, n) <= wind_reach(reach, Vector2(n - c), w, wb, wp, fl) - REACH_MARGIN:
 			return true
 	return false
 
@@ -542,7 +662,7 @@ static func clamp_lamps(board: Dictionary, lamps: int, items: int) -> int:
 		if board.cells[c] != BLOCKED: landable_count += 1
 	return clampi(mini(lamps, int((landable_count - 2) * 0.5) - items), 3, 99)
 
-## 把一条路线从头走一遍，核对它真的走得通：每一跳都够得着、不重复、带沟的地方不靠道具过不去。
+## 把一条路线从头走一遍，核对它真的走得通：每一跳都够得着（有风的时侯按方向算）、不重复、带沟的地方不靠道具过不去。
 ## 顺便数一数岔路（每一步时，后面还有几盏灯也够得着）和最松的一跳余量
 static func check_deal(board: Dictionary, d: Dictionary, opt: Dictionary) -> Dictionary:
 	var out := {"ok": false, "error": "", "branches": 0, "min_slack": 99.0}
@@ -553,6 +673,11 @@ static func check_deal(board: Dictionary, d: Dictionary, opt: Dictionary) -> Dic
 	var start: Vector2i = board.start
 	var portal: Vector2i = board.portal
 	var rp: Dictionary = opt.get("reach", BASE_REACH)
+	var wind: Vector2i = opt.get("wind", Vector2i.ZERO)
+	var w := Vector2(wind)
+	var wb: float = float(opt.get("wind_bonus", 0.0))
+	var wp: float = float(opt.get("wind_penalty", 0.0))
+	var fl: float = float(opt.get("wind_floor", 1.0))
 	var route: Array = d.route
 	var kinds: Array = d.kinds
 	var used: Dictionary = {start: true}
@@ -581,17 +706,19 @@ static func check_deal(board: Dictionary, d: Dictionary, opt: Dictionary) -> Dic
 			return out
 		var reach := reach_of(combo, shoe, dash, rp)
 		var dd := dist(prev, t)
-		if dd > reach - REACH_MARGIN:
-			out.error = "%s够不着：隔 %.2f 格，只能跳 %.2f 格" % [what, dd, reach]
+		var jump := Vector2(t - prev)
+		var slack := wind_reach(reach, jump, w, wb, wp, fl) - dd
+		if slack < REACH_MARGIN:
+			out.error = "%s够不着：隔 %.2f 格，朝这个方向只能跳 %.2f 格" % [what, dd, dd + slack]
 			return out
-		if gate >= 0 and dd <= gate_without + REACH_MARGIN:
+		if gate >= 0 and dd <= wind_reach(gate_without, jump, w, wb, wp, fl) + REACH_MARGIN:
 			out.error = "%s前面那道沟不靠道具也过得了" % what
 			return out
 		if LAMP_THINGS.has(kind):
 			for j in range(i + 1, route.size()):
-				if LAMP_THINGS.has(kinds[j]) and dist(prev, route[j]) <= reach - REACH_MARGIN:
+				if LAMP_THINGS.has(kinds[j]) and dist(prev, route[j]) <= wind_reach(reach, Vector2(route[j] - prev), w, wb, wp, fl) - REACH_MARGIN:
 					out.branches += 1
-		out.min_slack = minf(out.min_slack, reach - dd)
+		out.min_slack = minf(out.min_slack, slack)
 		used[t] = true
 		prev = t
 		dash = 0.0
@@ -614,7 +741,7 @@ static func check_deal(board: Dictionary, d: Dictionary, opt: Dictionary) -> Dic
 	if lamps != int(d.lamps):
 		out.error = "灯数不对：数到 %d 盏，应为 %d 盏" % [lamps, int(d.lamps)]
 		return out
-	if bool(opt.get("must_end_at_portal", false)) and dist(prev, portal) > reach_of(combo, shoe, 0.0, rp) - REACH_MARGIN:
+	if bool(opt.get("must_end_at_portal", false)) and dist(prev, portal) > wind_reach(reach_of(combo, shoe, 0.0, rp), Vector2(portal - prev), w, wb, wp, fl) - REACH_MARGIN:
 		out.error = "收完最后一盏灯，够不着水车"
 		return out
 	out.ok = true
@@ -686,7 +813,7 @@ const CAMPAIGN_TABLE := [
 
 static func campaign_opt(index: int, lamps: int) -> Dictionary:
 	var row: Array = CAMPAIGN_TABLE[clampi(index, 0, CAMPAIGN_TABLE.size() - 1)]
-	# 方案把灯按比例缩过的（lamps 和表里差得远），道具也跟着表走
+	# 难度把灯按比例缩过的（lamps 和表里差得远），道具也跟着表走
 	return {
 		"lamps": int(row[0]) if absf(float(lamps) - float(row[0])) < 0.5 * float(row[0]) else lamps,
 		"items": int(row[1]),

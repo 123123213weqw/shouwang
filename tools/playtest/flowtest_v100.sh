@@ -63,6 +63,15 @@ sleep 10
 # 第一次进游戏会先弹"玩法"卡片（整局暂停）：有就点掉
 dismiss=$(btn TutorialCloseButton)
 [ -n "$dismiss" ] && { RC_WAIT=0.3 $RC "click $dismiss" >/dev/null 2>&1; sleep 1; echo "点掉了第一次的玩法卡片"; }
+# 现在是哪一档难度（debug_rules_state 的头几个字；要在游戏里调才答）
+tier() { rcc "call pad_adapter.gd debug_rules_state" | sed 's/^OK called debug_rules_state -> //' | cut -d'|' -f1 | tr -d '\n' | sed 's/ *$//'; }
+echo "难度: $(tier)"
+# 这套流程是按默认的「中等」写的（别的档有风向、蜡烛这些规矩，"一条一条吃鱼"未必走得通）。没临时指定难度的时侯，
+# 共用的测试存档里记的不是中等就报清楚，别让人以为是过关流程坏了
+if [ -z "${SW_RULESET:-}" ] && [ "$(tier)" != "难度 normal" ]; then
+	echo "[没过] 共用的测试存档里记的难度不是中等（$(tier)）。先不带 SW_RULESET 跑一遍 tools/playtest/steps_ruleset.txt 把它拨回去"
+	fail=1
+fi
 echo "开局: $(brief "$(state)")"
 snap 01_start
 echo "== 真实地走完第一关 =="

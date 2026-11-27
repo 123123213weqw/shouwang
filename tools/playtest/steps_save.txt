@@ -1,0 +1,15 @@
+# 存档隔离：测试里用环境变量临时指定的难度和开场（SW_RULESET、SW_OPENING）不该写进服务器上共用的测试存档。
+# 这一局里故意触发几次别的保存（记一条提示看过了、记一局成绩），然后读存档文件本身核对。
+# 用法（在工程根目录）: SW_RULESET=hard SW_OPENING=off tools/playtest/agent.sh a7 drive tools/playtest/steps_save.txt save_isolation
+# 不带环境变量跑的话 debug_save_check 会说查不了（报没过）。agent.sh 的 all 会带上环境变量跑一遍
+call pad_adapter.gd debug_tutorial_hint 1
+call pad_adapter.gd debug_unlock_all
+click_btn PlayButton
+sleep 5
+call pad_adapter.gd debug_pick_character 0
+sleep 12
+click_btn TutorialCloseButton
+call main.gd end_game
+sleep 3
+call pad_adapter.gd debug_save_peek
+call pad_adapter.gd debug_save_check

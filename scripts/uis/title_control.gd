@@ -21,20 +21,22 @@ class_name TitleControl extends Control
 @onready var settings_container: Control = $CanvasLayer/TitleControl/SettingsContainer
 @onready var settings_return_button: Button = $CanvasLayer/TitleControl/SettingsContainer/SettingsReturnButton
 
-@onready var ui_root: Control = $CanvasLayer/TitleControl     # 标题页所有界面的根，方案选择面板挂在它下面
+@onready var ui_root: Control = $CanvasLayer/TitleControl     # 标题页所有界面的根，难度选择面板挂在它下面
+@onready var _lobby_river: Node = $CanvasLayer/LobbyRiver     # 标题页的背景：一条夜里的河（scripts/uis/lobby_river.gd）
 
-## 标题页按钮列里的"方案"按钮和它点开的方案选择面板。场景里没有它们，是 _ready() 里用代码加的
+## 标题页按钮列里的"难度"按钮和它点开的难度选择面板（节点名还是叫 Ruleset…：测试的步骤文件里按名字找它们，没改）。
+## 场景里没有它们，是 _ready() 里用代码加的
 var ruleset_button: Button
 var ruleset_picker: RulesetPicker
 
 const BUTTON := preload("res://scenes/uis/button.tscn")
-const RULESET_BUTTON_SIZE := 36            # "方案 · 灯谱"是次要的入口，字比上面两个小一号
+const RULESET_BUTTON_SIZE := 36            # "难度 · 中等"是次要的入口，字比上面两个小一号
 
 @export var character_resources: Array[CharacterResource]
 const CHARACTER_SELECT_CONTROL = preload("res://scenes/uis/character_select_control.tscn")
 
-## 给别的模块用的三个入口。节点在场景里叫什么、放在哪，只有这个脚本知道；
-## 开场动画、设置页要动它们，只调这三个方法，不在别处写节点路径（改了场景名也不会悄悄失灵）
+## 给别的模块用的四个入口。节点在场景里叫什么、放在哪，只有这个脚本知道；
+## 开场动画、设置页、调试遥控要动它们，只调这几个方法，不在别处写节点路径（改了场景名也不会悄悄失灵）
 func logo_image() -> CanvasItem:
 	return $CanvasLayer/TitleControl/Panel/Title/TextureRect as CanvasItem
 
@@ -43,6 +45,9 @@ func menu_buttons() -> Control:
 
 func music_player() -> AudioStreamPlayer:
 	return get_node_or_null("MainTitle2") as AudioStreamPlayer
+
+func lobby_river() -> Node:
+	return get_node_or_null("CanvasLayer/LobbyRiver")
 
 func _ready() -> void:
 	Game.characters = character_resources
@@ -61,8 +66,23 @@ func _ready() -> void:
 	_add_ruleset_ui()
 	update_characters()
 	character_description.text = ""
+	_lobby_river.follow_menu(buttons_container)
+	_lobby_river.avoid(logo_image())
+	_lobby_start.call_deferred()
 
-## 在"长夜"后面加一个"方案"按钮，再建方案选择面板（挂在 CanvasLayer/TitleControl 下，画在最上面）。
+## 标题页露出来的那一下（开场动画收完）：河面从标志底下荡开一圈。
+## 开场那一层是 SceneManager 稍后才挂到标题页上的，所以要等这一帧过了再去找它；没播开场就现在荡
+func _lobby_start() -> void:
+	var centre := Vector2.ZERO
+	var logo := logo_image() as Control
+	if logo != null: centre = logo.get_global_rect().get_center()
+	var opening := get_node_or_null("Opening")
+	if opening != null and not opening.is_queued_for_deletion() and opening.has_signal("finished"):
+		opening.finished.connect(func() -> void: _lobby_river.wake(centre))
+	else:
+		_lobby_river.wake(centre)
+
+## 在"长夜"后面加一个"难度"按钮，再建难度选择面板（挂在 CanvasLayer/TitleControl 下，画在最上面）。
 ## 面板开着的时候标题页的按钮和标志都藏起来，按"返回"再回到标题页
 func _add_ruleset_ui() -> void:
 	ruleset_button = BUTTON.instantiate() as Button
@@ -86,10 +106,10 @@ func _add_ruleset_ui() -> void:
 	ruleset_picker.closed.connect(return_to_title)
 	update_ruleset_button()
 
-## "方案"按钮上写的是现在选的方案，例如"方案 · 灯谱"
+## "难度"按钮上写的是现在选的难度，例如"难度 · 中等"
 func update_ruleset_button() -> void:
 	var r: Ruleset = Game.ruleset
-	ruleset_button.text = "方案 · %s" % (r.title if r != null and r.title != "" else "—")
+	ruleset_button.text = "难度 · %s" % (r.title if r != null and r.title != "" else "—")
 
 func update_characters():
 	for child in characters_container.get_children():
@@ -130,7 +150,7 @@ func return_to_title():
 	buttons_container.set_visible(true)
 	title.set_visible(true)
 	
-## 打开方案选择面板。面板在正中，会压住标志，所以按钮和标志都先藏起来
+## 打开难度选择面板。面板在正中，会压住标志，所以按钮和标志都先藏起来
 func show_rulesets():
 	buttons_container.set_visible(false)
 	title.set_visible(false)

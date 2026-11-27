@@ -1,0 +1,12 @@
+# 落地的那一圈（水面上的涟漪 + 格子面上的环）：进第 1 关，录 3 秒（每秒 20 帧），录到第 1 秒左右时在主角脚下荡开一圈。
+# 遥控的 call 自己要等一秒才返回，所以不能用"触发 → 等 0.25 秒 → 截图"来看头一秒，得录下来看帧。
+# SW_STAGE=1 SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_ring.txt ring
+sleep 2
+call pad_adapter.gd debug_unlock_all
+click_btn PlayButton
+sleep 3
+call pad_adapter.gd debug_pick_character 0
+sleep 5
+call pad_adapter.gd debug_record 3 20 ring
+call pad_adapter.gd debug_stage 1
+sleep 3

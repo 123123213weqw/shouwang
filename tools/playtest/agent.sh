@@ -7,6 +7,9 @@
 # 命令：
 #   setup                   在 V100 上建这个标签的目录，上传测试脚本
 #   sync                    把当前工程同步到 V100 上这个标签的工程目录（音频不传，从 base 复制）
+#   rates [局数=200] [每步想几秒=1.0] [档的id，逗号隔开] ['set=名字=值 …']   难度四档的过关率：机器人（随手玩的打法）每一档打多少局、
+#                             每关过了多少（tools/tier_rates.gd）。最后的参数临时改 .tres 里的数再量，例如 'set=moves_cap_add=0 set=moves_bonus=2'
+#   check                   只检查脚本解析不解析得过，报出哪一行有错（比导入快；写代码的时侯先过这一道）
 #   import                  在 V100 上导入两遍，打印报错（不是 0 就是有问题）
 #   boards                  棋盘的自动测试（不开窗口，直接跑脚本）
 #   flow [campaign|endless] [前缀]     过关流程：真实地走完第一关（和最后一关），中间的关卡确认都能载入
@@ -14,6 +17,8 @@
 #   mechanics [前缀]         长夜模式的格子机制：补给格加步数、脆格碎掉后长回来、结算面板和本机成绩
 #   auto [campaign|endless] [1|2] [最多打到第几关] [前缀]
 #   opening [A|B|D] [秒数] [每秒几张]   录一段开场动画（真正的开机画面），帧取回到 builds/opening/<方案>/
+#   lobby [秒数=20] [每秒几张=20]   录一段大厅（标题页）的背景：那条夜里的河、河上的灯、指针划过和挪焦点时荡开的涟漪，
+#                             帧取回到 builds/lobby/rec/，再拼视频：tools/playtest/assemble_lobby.sh
 #                             机器人真机玩一局。1 = 照着摆好的路线走（必须一步不错、关关都过）；2 = 贪心打法（随手玩的玩家的下限）
 #   drive <步骤文件> [前缀]  按步骤文件操作游戏并截图（步骤怎么写见 drive_v100.sh 的开头）
 #   export                  在 V100 上把工程导出成 Linux 可执行文件（给掌机用），放在 V100 的 shouwang-agents/<标签>/shouwang.x86_64
@@ -24,8 +29,12 @@
 #   clean                   停掉并删掉 V100 上这个标签的目录（做完以后一定要执行，base 不用删）
 #   all                     一轮完整回归：import → boards → flow campaign → flow endless → aspect → mechanics → auto campaign 1，哪一步没过就停在那一步
 # 截图取回到 $SW_OUT（默认 builds/shots/<标签>/）。开了游戏的命令哪一步没过，退出码就不是 0。
-# 临时指定玩法方案：SW_RULESET=hard tools/playtest/agent.sh a7 auto campaign 2（六套的 id 见 resources/rulesets/）
+# 临时指定难度：SW_RULESET=hard tools/playtest/agent.sh a7 auto campaign 2（四档的 id 见 resources/rulesets/）
+# 让机器人按真人每走一步想多久来走（默认 0.4 秒；夜巡是真的计时，机器人想都不想就量不出蜡烛的影响）：SW_AUTO_PACE=5 tools/playtest/agent.sh a7 auto campaign 2
 # 机器人每一步都打进日志（查它为什么跳不到的时侯用）：SW_AUTO_TRACE=1 tools/playtest/agent.sh a7 auto campaign 1
+# 游戏里背景的三种布局（1 长河、2 远岸、3 月下）：SW_STAGE=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_stage.txt 远岸
+#   stage <布局 1|2|3> [秒数=18] [每秒几张=20]   录一段游戏里的背景：进游戏、在棋盘上跳几下（河灯在漂、落地荡开的那圈），
+#                             帧取回到 builds/stage/<布局>/，再拼视频：tools/playtest/assemble_stage.sh <布局>
 # 让机器人换关后只等 0.2 秒（平时 1.5 秒），试它在灯还没摆完的时侯会不会乱动：SW_AUTO_EAGER=1 tools/playtest/agent.sh a7 auto campaign 1
 # 渲染方式默认是游戏真正用的 Forward+（跑在服务器自带的显卡上，一个实例占 264 MB 显存）；SW_RENDERER=gl 是软件 OpenGL，不碰显卡
 TAG="$1"; CMD="$2"
@@ -51,12 +60,14 @@ export SW_AUTO_EAGER="${SW_AUTO_EAGER:-}"    # 设了（任何值）机器人换
 export SW_OPENING="${SW_OPENING:-}"          # 临时指定开场动画（A / B / C / D），不写存档
 export SW_BOOT_WAIT="${SW_BOOT_WAIT:-}"      # 游戏起来以后第一步之前等几秒才动手（平时 6 秒；查开场的时侯设 1）
 export SW_OPENING_TRACE="${SW_OPENING_TRACE:-}"   # 设了就把开场每一处创建的时刻打进日志（查卡顿用）
-export SW_RULESET="${SW_RULESET:-}"          # 临时指定玩法方案（灯谱 dealt / 流水 flow / 长明 hard / 万灯 party / 疾走 rush / 旧灯 legacy），不写存档
+export SW_RULESET="${SW_RULESET:-}"          # 临时指定难度（简单 easy / 中等 normal / 困难 hard / 非常困难 extreme），不写存档
+export SW_AUTO_PACE="${SW_AUTO_PACE:-}"      # 自动试玩的机器人每走一步等多久（秒），平时 0.4
+export SW_STAGE="${SW_STAGE:-}"              # 游戏里背景的布局：1 长河、2 远岸、3 月下；不写是原来那块铺满网纹的水
 pull() {
 	mkdir -p "$OUT"
 	rsync -a -e "$SSH" --include "${1}_*" --exclude '*' "WZU_V100:$REMOTE/shots/" "$OUT/" && echo "截图已取回到 ${OUT}（文件名以 ${1}_ 开头）"
 }
-ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER SW_RULESET=$SW_RULESET SW_AUTO_TRACE=$SW_AUTO_TRACE SW_AUTO_EAGER=$SW_AUTO_EAGER SW_OPENING=$SW_OPENING SW_BOOT_WAIT=$SW_BOOT_WAIT SW_OPENING_TRACE=$SW_OPENING_TRACE"
+ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER SW_RULESET=$SW_RULESET SW_AUTO_TRACE=$SW_AUTO_TRACE SW_AUTO_EAGER=$SW_AUTO_EAGER SW_OPENING=$SW_OPENING SW_BOOT_WAIT=$SW_BOOT_WAIT SW_OPENING_TRACE=$SW_OPENING_TRACE SW_STAGE=$SW_STAGE SW_AUTO_PACE=$SW_AUTO_PACE"
 BIN="$REMOTE/shouwang.x86_64"
 EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --exclude *.tmp --exclude __pycache__ --exclude tools/playtest"
 # 原作的两首曲子和音效很大，建环境的时侯从 base 复制过来，平时同步不传；开场动画的声音是我们自己的、很小，照常同步
@@ -64,11 +75,17 @@ EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --
 case "$CMD" in
 	setup)
 		$SSH WZU_V100 "mkdir -p $REMOTE/project $REMOTE/bin $REMOTE/shots; if [ '$TAG' != base ] && [ ! -e $REMOTE/project/project.godot ] && [ -d $ROOTS/base/project ]; then cp -a $ROOTS/base/project/. $REMOTE/project/; fi" \
-			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100,autoplay_v100,record_opening_v100}.sh "WZU_V100:$REMOTE/bin/" \
+			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100,autoplay_v100,record_opening_v100,record_lobby_v100,record_stage_v100,check_scripts}.sh "WZU_V100:$REMOTE/bin/" \
 			&& echo "V100 上的环境已建好：${REMOTE}（端口 ${SW_DEBUG_PORT}，渲染线程 ${SW_THREADS}）" ;;
 	sync)
 		rsync -a --delete $EXCLUDE -e "$SSH" "$ROOT/" "WZU_V100:$REMOTE/project/" \
 			&& echo "已同步到 ${REMOTE}/project" ;;
+	# 只检查脚本能不能解析（比导入快，写代码的时侯先过这一道）。导入日志里只报"依赖它的脚本编译不过"，
+	# 出错的那一行不一定打出来，所以这里把脚本逐个解析一遍
+	check)
+		scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT/tools/playtest/check_scripts.sh" "WZU_V100:$REMOTE/bin/" || exit 1
+		$SSH WZU_V100 "bash $REMOTE/bin/check_scripts.sh $REMOTE" | cut -c1-230
+		exit ${PIPESTATUS[0]} ;;
 	# 同步过去再导入，Godot 会改写一部分 .import 文件（导入缓存的路径），也会给新脚本生成 .uid 文件：都取回来，仓库里存的才是对的
 	import)
 		$SSH WZU_V100 bash -s "$REMOTE" <<'REMOTE_SH'
@@ -109,6 +126,31 @@ else
 fi
 REMOTE_SH
 		;;
+	rates)
+		# 难度四档的过关率：每一档打 RUNS 局（巡夜 + 游戏里摆好的 12 局 + 长夜）。THINK 是机器人每走一步想几秒（只对夜巡有用）。
+		# EXTRA 是临时改数的参数，例如 'set=moves_cap_add=0 set=moves_bonus=2'（可以写好几回）。
+		# 给 godot 的参数在这儿就拼成一串，放在远端的环境变量里带过去：ssh 不保留引号，当普通参数传的话带空格的会被拆开
+		RUNS="${3:-200}"; THINK="${4:-1.0}"; TIERS="${5:-}"; EXTRA="${6:-}"
+		USER_ARGS="runs=$RUNS think=$THINK"
+		[ -n "$TIERS" ] && USER_ARGS="$USER_ARGS tiers=$TIERS"
+		[ -n "$EXTRA" ] && USER_ARGS="$USER_ARGS $EXTRA"
+		$SSH WZU_V100 "SW_RATES_ARGS='$USER_ARGS' bash -s '$REMOTE'" <<'REMOTE_SH' | cut -c1-260
+G=~/apps/godot/Godot_v4.7.2-stable_linux.x86_64
+R="$1"; cd "$R/project" || exit 1
+$G --headless --path . --script res://tools/tier_rates.gd -- $SW_RATES_ARGS ascii=1 > "$1/rates.log" 2>&1
+code=$?
+errs=$(grep -a -c 'SCRIPT ERROR' "$1/rates.log")
+# 字符画（游戏里摆好的那 12 局长什么样）每一行都以"    | "开头，看总表的时侯滤掉；要看就到服务器上读 rates.log
+grep -a -v '^    | ' "$1/rates.log" | head -n 190
+[ "$errs" = 0 ] || { grep -a -A6 'SCRIPT ERROR' "$1/rates.log" | head -n 24; }
+if [ "$code" = 0 ] && [ "$errs" = 0 ] && grep -a -q 'RESULT failures=0' "$1/rates.log"; then
+	echo "RESULT 难度过关率：通过（完整日志在 $1/rates.log，字符画也在里面）"
+else
+	echo "RESULT 难度过关率：没过（退出码 $code，脚本报错 $errs 条，完整日志在 $1/rates.log）"
+	exit 1
+fi
+REMOTE_SH
+		exit ${PIPESTATUS[0]} ;;
 	drive)
 		STEPS="$3"; PREFIX="${4:-run}"
 		scp -q -o ConnectTimeout=30 -o BatchMode=yes "$STEPS" "WZU_V100:$REMOTE/steps.txt" || exit 1
@@ -140,6 +182,20 @@ REMOTE_SH
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/opening/$WHICH" && rm -f "$ROOT/builds/opening/$WHICH/"*.jpg
 		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_opening_$WHICH/" "$ROOT/builds/opening/$WHICH/" && echo "帧已取回到 builds/opening/$WHICH/（$(ls "$ROOT/builds/opening/$WHICH" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_opening.sh $WHICH"
+		exit $code ;;
+	lobby)
+		SECS="${3:-20}"; FPS="${4:-20}"
+		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/record_lobby_v100.sh $REMOTE/project $SECS $FPS" | cut -c1-300
+		code=${PIPESTATUS[0]}
+		mkdir -p "$ROOT/builds/lobby/rec" && rm -f "$ROOT/builds/lobby/rec/"*.jpg
+		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_lobby/" "$ROOT/builds/lobby/rec/" && echo "帧已取回到 builds/lobby/rec/（$(ls "$ROOT/builds/lobby/rec" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_lobby.sh $FPS"
+		exit $code ;;
+	stage)
+		N="${3:-1}"; SECS="${4:-18}"; FPS="${5:-20}"
+		$SSH WZU_V100 "$ENVS bash $REMOTE/bin/record_stage_v100.sh $REMOTE/project $N $SECS $FPS" | cut -c1-300
+		code=${PIPESTATUS[0]}
+		mkdir -p "$ROOT/builds/stage/$N" && rm -f "$ROOT/builds/stage/$N/"*.jpg
+		rsync -a -e "$SSH" "WZU_V100:/tmp/sw_stage_$N/" "$ROOT/builds/stage/$N/" && echo "帧已取回到 builds/stage/$N/（$(ls "$ROOT/builds/stage/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_stage.sh $N $FPS"
 		exit $code ;;
 	mechanics)
 		PREFIX="${3:-mechanics}"
@@ -173,6 +229,20 @@ REMOTE_SH
 			echo "========== $step =========="
 			"$0" "$TAG" $step || { echo "RESULT 完整回归：没过，停在「$step」"; exit 1; }
 		done
+		# 四档的规矩在游戏里的样子（旗子、蜡烛、放灯、灯灭、重来按钮），每一档各跑一遍
+		for t in easy normal hard extreme; do
+			echo "========== 规矩自检 $t =========="
+			SW_RULESET=$t "$0" "$TAG" drive tools/playtest/steps_rules.txt "rules_$t" || { echo "RESULT 完整回归：没过，停在「规矩自检 $t」"; exit 1; }
+		done
+		# 玩到一半换难度：暂停菜单里的加减器、结算面板上的加减器
+		echo "========== 换难度 =========="
+		"$0" "$TAG" drive tools/playtest/steps_difficulty.txt difficulty || { echo "RESULT 完整回归：没过，停在「换难度」"; exit 1; }
+		# 临时指定的难度、开场不写进共用的测试存档
+		echo "========== 存档隔离 =========="
+		SW_RULESET=hard SW_OPENING=off "$0" "$TAG" drive tools/playtest/steps_save.txt save_isolation || { echo "RESULT 完整回归：没过，停在「存档隔离」"; exit 1; }
+		# 标题页那条河上的灯画在界面底下（难度页的字被河灯盖住过）：河上凑满灯，开着难度页、设置页各量一遍
+		echo "========== 河灯的层级 =========="
+		SW_OPENING=off SW_BOOT_WAIT=2 "$0" "$TAG" drive tools/playtest/steps_river_layers.txt riverlayers || { echo "RESULT 完整回归：没过，停在「河灯的层级」"; exit 1; }
 		echo "RESULT 完整回归：通过" ;;
 	*) echo "不认识的命令: ${CMD}"; exit 1 ;;
 esac

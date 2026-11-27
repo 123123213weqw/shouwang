@@ -1,0 +1,28 @@
+# 游戏里的背景（SW_STAGE 选布局：1 长河、2 远岸、3 月下）：进游戏，在三个关上各看一眼——
+# 第 1 关（第一章的青绿、小棋盘）、第 8 关（第二章的土黄）、第 12 关（最大的棋盘、镜头最远），再看落地涟漪、量帧时间。
+# SW_STAGE=2 SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_stage.txt 远岸
+sleep 2
+call pad_adapter.gd debug_unlock_all
+click_btn PlayButton
+sleep 3
+call pad_adapter.gd debug_pick_character 0
+sleep 5
+call pad_adapter.gd debug_stage 0
+sleep 2
+snap 01_L1
+call pad_adapter.gd debug_goto_level 8
+sleep 3
+call pad_adapter.gd debug_stage 0
+snap 02_L8
+call pad_adapter.gd debug_goto_level 12
+sleep 3
+call pad_adapter.gd debug_stage 0
+call pad_adapter.gd debug_board_screen
+snap 03_L12
+# 主角往右跳一下：落地的那个格子底下荡开一圈
+key Right
+sleep 0.45
+snap 04_ripple
+call pad_adapter.gd debug_frame_clear
+sleep 4
+call pad_adapter.gd debug_frame_stats
