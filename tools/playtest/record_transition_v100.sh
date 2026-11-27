@@ -5,16 +5,16 @@
 # 帧留在服务器的 /tmp/sw_transition_<标签>_<样式>/，由 agent.sh 的 transition 命令取回本机 builds/transition/<样式>/，
 # 再用 assemble_transition.sh 拼视频：拼的时候按日志里的 RECORD_START 和 TRANSITION_BEGIN / TRANSITION_END 对齐，
 # 从过渡开始前一秒半截到结束后两秒半。
-# 用法: record_transition_v100.sh <工程目录> <样式> [录几秒，默认 12] [每秒存几张，默认 30]
+# 用法: record_transition_v100.sh <工程目录> <样式> [录几秒，默认 12] [每秒存几张，默认 30] [存成什么 jpg|png|both，默认 jpg]
 # 环境变量同 launch_v100.sh；SW_TRANSITION 由 agent.sh 传进来。
-PROJECT="$1"; STYLE="${2:-tiles}"; SECS="${3:-12}"; FPS="${4:-30}"
+PROJECT="$1"; STYLE="${2:-tiles}"; SECS="${3:-12}"; FPS="${4:-30}"; FMT="${5:-jpg}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 LOG="${SW_LOG:-/tmp/shouwang_run.log}"
 PORT="${SW_DEBUG_PORT:-9878}"
 DIR="/tmp/sw_transition_$(basename "${SW_RUN:-x}")_$STYLE"     # 带上标签：几个标签同时录同一种样式的时侯，别写进同一个目录
 RC="bash $HERE/rc.sh"
 rm -rf "$DIR"
-export SW_TRANSITION="$STYLE" SW_OPENING=off SW_BOOT_WAIT=2 SW_RULESET=normal SW_REC="$DIR"
+export SW_TRANSITION="$STYLE" SW_OPENING=off SW_BOOT_WAIT=2 SW_RULESET=normal SW_REC="$DIR" SW_REC_FMT="$FMT"
 bash "$HERE/launch_v100.sh" "$PROJECT" || exit 1
 up=0
 for i in $(seq 1 500); do
@@ -51,10 +51,15 @@ sleep 2
 begin=$(grep -a 'TRANSITION_BEGIN .* level' "$LOG" | tail -n 1 | awk '{print $2}')
 end=$(grep -a 'TRANSITION_END .* level' "$LOG" | tail -n 1 | awk '{print $2}')
 start=$(grep -a -m1 'RECORD_START' "$LOG" | awk '{print $2}')
-echo "$start ${begin:-0} ${end:-0}" > "$DIR/marks.txt"
+# 实际每秒存了几张（存 PNG 每帧慢，会比要求的少）：从录像开始到录完的时刻里数
+done_us=$(grep -a 'RECORD_DONE' "$LOG" | tail -n 1 | awk '{print $NF}')
+real="$FPS"
+[ -n "$done_us" ] && [ "${done_us:-0}" -gt "${start:-0}" ] 2>/dev/null && real=$(awk -v n="$n" -v a="$start" -v b="$done_us" 'BEGIN{printf "%.2f", (n - 1) / ((b - a) / 1000000)}')
+echo "$start ${begin:-0} ${end:-0} $real" > "$DIR/marks.txt"
+echo "实际每秒 $real 帧（要求的是 $FPS）"
 echo "对齐（微秒，从游戏启动算起）：录像开始 ${start:-?}，过渡开始 ${begin:-没录到}，过渡结束 ${end:-没录到}"
 echo "量出来：$(rcc "call pad_adapter.gd debug_transition 0" | sed 's/^OK called debug_transition -> //')"
-n=$(ls "$DIR"/transition_*.jpg 2>/dev/null | wc -l | tr -d ' ')
+n=$(ls "$DIR"/transition_*.jpg "$DIR"/transition_*.png 2>/dev/null | sed 's/\.[a-z]*$//' | sort -u | wc -l | tr -d ' ')      # both 的时侯同一帧有两个文件，按帧数数
 want=$(awk -v s="$SECS" -v f="$FPS" 'BEGIN{printf "%d", s*f*0.9}')
 [ "$n" -ge "$want" ] || echo "存帧跟不上：要 $SECS 秒 × 每秒 $FPS 张，只存到 $n 张"
 [ -n "$begin" ] && [ -n "$end" ] || echo "没录到换关：日志里没有换关的 TRANSITION_BEGIN / TRANSITION_END"

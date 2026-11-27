@@ -55,6 +55,11 @@ func _warm_up() -> void:
 	await style.warm_up()
 	_warm_done = true
 
+## 等到开机的掀幕可以开始（样式预热完）。开机的黑幕撤掉之前要先等它：黑幕先撤、掀幕后开始，标题页会裸露几帧
+func wait_ready() -> void:
+	while not _warm_done:
+		await get_tree().process_frame
+
 func open(ctx: Dictionary = {}) -> void:
 	if is_opened or _busy: return
 	_busy = true

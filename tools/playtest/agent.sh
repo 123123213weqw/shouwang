@@ -24,7 +24,8 @@
 #                             帧取回到 builds/stage/<布局>/，再拼视频：tools/playtest/assemble_stage.sh <布局>
 #   versus <1..5> [秒数=24] [每秒几张=20]   录一局对战（1 抢灯、2 追影、3 夺岸、4 轮战、5 对弈），主角交给机器人打，
 #                             帧取回到 builds/versus/<编号>/，再拼视频：tools/playtest/assemble_versus.sh <编号>
-#   transition <样式> [秒数=12] [每秒几张=30]   录一段换关的过渡（第 1 关踩上水车到进第 2 关，机器人打的），几种样式录的是同一段，
+#   transition <样式> [秒数=12] [每秒几张=30] [存成什么=jpg|png]   录一段换关的过渡（第 1 关踩上水车到进第 2 关，机器人打的），几种样式录的是同一段，
+#                             要给人看的片子用 png（无损；暗色的画面存 JPG 会偏色），帧会稀一点，拼的时侯按实际的帧数算帧率
 #                             帧取回到 builds/transition/<样式>/，再拼视频：tools/playtest/assemble_transition.sh <样式>；几种并排：… compare <样式> …
 #   drive <步骤文件> [前缀]  按步骤文件操作游戏并截图（步骤怎么写见 drive_v100.sh 的开头）
 #   export                  在 V100 上把工程导出成 Linux 可执行文件（给掌机用），放在 V100 的 shouwang-agents/<标签>/shouwang.x86_64
@@ -209,38 +210,38 @@ REMOTE_SH
 		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_opening_v100.sh $REMOTE/project $WHICH $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/opening/$WHICH" && rm -f "$ROOT/builds/opening/$WHICH/"*.jpg
-		rsync -a -e "$SSH" "$HOST:/tmp/sw_opening_$WHICH/" "$ROOT/builds/opening/$WHICH/" && echo "帧已取回到 builds/opening/$WHICH/（$(ls "$ROOT/builds/opening/$WHICH" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_opening.sh $WHICH"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_opening_$(basename "${SW_RUN:-x}")_$WHICH/" "$ROOT/builds/opening/$WHICH/" && echo "帧已取回到 builds/opening/$WHICH/（$(ls "$ROOT/builds/opening/$WHICH" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_opening.sh $WHICH"
 		exit $code ;;
 	lobby)
 		SECS="${3:-20}"; FPS="${4:-20}"
 		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_lobby_v100.sh $REMOTE/project $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/lobby/rec" && rm -f "$ROOT/builds/lobby/rec/"*.jpg
-		rsync -a -e "$SSH" "$HOST:/tmp/sw_lobby/" "$ROOT/builds/lobby/rec/" && echo "帧已取回到 builds/lobby/rec/（$(ls "$ROOT/builds/lobby/rec" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_lobby.sh $FPS"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_lobby_$(basename "${SW_RUN:-x}")/" "$ROOT/builds/lobby/rec/" && echo "帧已取回到 builds/lobby/rec/（$(ls "$ROOT/builds/lobby/rec" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_lobby.sh $FPS"
 		exit $code ;;
 	stage)
 		N="${3:-1}"; SECS="${4:-18}"; FPS="${5:-20}"
 		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_stage_v100.sh $REMOTE/project $N $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/stage/$N" && rm -f "$ROOT/builds/stage/$N/"*.jpg
-		rsync -a -e "$SSH" "$HOST:/tmp/sw_stage_$N/" "$ROOT/builds/stage/$N/" && echo "帧已取回到 builds/stage/$N/（$(ls "$ROOT/builds/stage/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_stage.sh $N $FPS"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_stage_$(basename "${SW_RUN:-x}")_$N/" "$ROOT/builds/stage/$N/" && echo "帧已取回到 builds/stage/$N/（$(ls "$ROOT/builds/stage/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_stage.sh $N $FPS"
 		exit $code ;;
 	versus)
 		N="${3:-1}"; SECS="${4:-24}"; FPS="${5:-20}"
 		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_versus_v100.sh $REMOTE/project $N $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/versus/$N" && rm -f "$ROOT/builds/versus/$N/"*.jpg
-		rsync -a -e "$SSH" "$HOST:/tmp/sw_versus_$N/" "$ROOT/builds/versus/$N/" && echo "帧已取回到 builds/versus/$N/（$(ls "$ROOT/builds/versus/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_versus.sh $N"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_versus_$(basename "${SW_RUN:-x}")_$N/" "$ROOT/builds/versus/$N/" && echo "帧已取回到 builds/versus/$N/（$(ls "$ROOT/builds/versus/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_versus.sh $N"
 		exit $code ;;
 # 录一段换关的过渡。样式放进 SW_TRANSITION 带过去（ENVS 里那一个是空的，会把先给的冲掉，所以先 export 再用）
 	transition)
-		STYLE="${3:-tiles}"; SECS="${4:-12}"; FPS="${5:-30}"
+		STYLE="${3:-tiles}"; SECS="${4:-12}"; FPS="${5:-30}"; FMT="${6:-jpg}"
 		scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT/tools/playtest/record_transition_v100.sh" "$HOST:$REMOTE/bin/" || exit 1
 		export SW_TRANSITION="$STYLE"
-		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_transition_v100.sh $REMOTE/project $STYLE $SECS $FPS" | LC_ALL=C cut -c1-400
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_transition_v100.sh $REMOTE/project $STYLE $SECS $FPS $FMT" | LC_ALL=C cut -c1-400
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/transition/$STYLE" && rm -f "$ROOT/builds/transition/$STYLE/"*
-		rsync -a -e "$SSH" "$HOST:/tmp/sw_transition_$(basename "$REMOTE")_$STYLE/" "$ROOT/builds/transition/$STYLE/" && echo "帧已取回到 builds/transition/$STYLE/（$(ls "$ROOT/builds/transition/$STYLE" | grep -c transition_) 张）；拼视频：tools/playtest/assemble_transition.sh $STYLE"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_transition_$(basename "$REMOTE")_$STYLE/" "$ROOT/builds/transition/$STYLE/" && echo "帧已取回到 builds/transition/$STYLE/（$(ls "$ROOT/builds/transition/$STYLE" | grep 'transition_' | sed 's/.*\.//' | sort | uniq -c | awk '{printf "%s 格式 %s 帧 ", $NF, $1}')）；拼视频：tools/playtest/assemble_transition.sh $STYLE"
 		exit $code ;;
 	mechanics)
 		PREFIX="${3:-mechanics}"

@@ -1720,6 +1720,8 @@ func _kind_of(fish: Fish) -> int:
 ## 按帧数存的话拼出来的视频开头会比真实的慢
 ##   call pad_adapter.gd debug_record 4 20 opening      录 4 秒、每秒 20 张，存成 <目录>/opening_0000.jpg …
 ##   环境变量 SW_REC 是存的目录（默认 /tmp/sw_rec）；SW_AUTOREC="秒数,每秒几张,名字" 设了的话，游戏一启动就自动开始录（录的是真正的开机画面）
+##   SW_REC_FMT 选存成什么：jpg（默认）是 JPG；png 是无损的 PNG（暗色的画面存 JPG 会偏色，要给人看的片子用这个）；
+##   both 是同一帧两种都存（量 JPG 偏多少用）。存 PNG 每帧要二三十毫秒，录出来的帧会稀一点（按真实时间存，时间不会错）
 ##   call pad_adapter.gd debug_opening 1               在标题页上立刻重播一遍开场动画（1 到 3 是 A、B、D；不给或者给 0 就按设置里的来）
 var _rec_left := 0.0
 var _rec_fps := 20.0
@@ -1727,6 +1729,7 @@ var _rec_acc := 0.0
 var _rec_name := "rec"
 var _rec_frame := 0
 var _rec_dir := "/tmp/sw_rec"
+var _rec_fmt := "jpg"
 
 func _record_boot() -> void:
 	if OS.get_environment("SW_REC") != "": _rec_dir = OS.get_environment("SW_REC")
@@ -1754,9 +1757,12 @@ func _record_tick(delta: float) -> void:
 	if _rec_acc < 1.0 / _rec_fps: return
 	_rec_acc = fmod(_rec_acc, 1.0 / _rec_fps)
 	var img := get_viewport().get_texture().get_image()
-	img.save_jpg("%s/%s_%04d.jpg" % [_rec_dir, _rec_name, _rec_frame], 0.88)
+	_rec_fmt = OS.get_environment("SW_REC_FMT") if OS.get_environment("SW_REC_FMT") != "" else "jpg"
+	var base := "%s/%s_%04d" % [_rec_dir, _rec_name, _rec_frame]
+	if _rec_fmt == "png" or _rec_fmt == "both": img.save_png(base + ".png")
+	if _rec_fmt != "png": img.save_jpg(base + ".jpg", 0.88)
 	_rec_frame += 1
-	if _rec_left <= 0.0: print("RECORD_DONE %s %d" % [_rec_name, _rec_frame])
+	if _rec_left <= 0.0: print("RECORD_DONE %s %d %d" % [_rec_name, _rec_frame, Time.get_ticks_usec()])      # 最后一个数是录完的时刻：拼片子的按它算实际的帧率
 
 func debug_opening(which: int = 0) -> String:
 	var scene := get_tree().current_scene

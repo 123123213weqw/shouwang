@@ -50,6 +50,11 @@ func drop_boot_cover() -> void:
 func _drop_boot_cover_soon() -> void:
 	for i in 3:
 		await get_tree().process_frame
+	# 换关的过渡要是带着样式，等它预热完（开机的掀幕是等它预热完才开始的）。不然黑幕先撤了、掀幕还没开始，标题页会裸露几帧
+	await scene_transition_control.wait_ready()
+	# 再让掀幕走两帧：撤黑幕的那一帧，画面已经是它盖着的了
+	for i in 2:
+		await get_tree().process_frame
 	drop_boot_cover()
 
 ## 开机第一幕是标题页的话，播开场动画（设置里可以关掉）。从游戏里回到标题页的不播

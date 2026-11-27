@@ -8,7 +8,7 @@ PROJECT="$1"; N="${2:-1}"; SECS="${3:-18}"; FPS="${4:-20}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 LOG="${SW_LOG:-/tmp/shouwang_run.log}"
 PORT="${SW_DEBUG_PORT:-9878}"
-DIR="/tmp/sw_stage_$N"
+DIR="/tmp/sw_stage_$(basename "${SW_RUN:-x}")_$N"      # 带上标签：几个标签同时录的时侯别写进同一个目录
 RC="bash $HERE/rc.sh"
 rm -rf "$DIR"
 export SW_STAGE="$N" SW_OPENING=off SW_BOOT_WAIT=2 SW_REC="$DIR" SW_AUTOREC="$SECS,$FPS,stage"
