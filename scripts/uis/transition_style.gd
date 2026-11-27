@@ -63,6 +63,26 @@ func warm_up() -> void:
 		await ctl.get_tree().process_frame
 	for n in _warm:
 		if is_instance_valid(n): n.visible = false
+	# 画过以后还要等引擎把这些材质的着色器参数登记好：着色器是在显卡那头编译的，编译完了材质上才有
+	# shader_parameter/… 这些属性。没登记好就去补间它们，引擎会说"这个属性不存在"、那一段不动。
+	# 这儿最多等半秒；着色器本来就没有参数的，数出来是 0 也照样等这么久（只发生在开机的黑幕底下，看不出来）
+	for i in 30:
+		if _params_ready(): return
+		await ctl.get_tree().process_frame
+
+## 登记了预热的那些节点的材质，着色器的参数都登记好了没有
+func _params_ready() -> bool:
+	for n in _warm:
+		if not is_instance_valid(n) or not n is CanvasItem: continue
+		var m: Material = (n as CanvasItem).material
+		if m is ShaderMaterial and (m as ShaderMaterial).shader != null and _param_names(m).is_empty(): return false
+	return true
+
+static func _param_names(m: Material) -> PackedStringArray:
+	var out := PackedStringArray()
+	for p: Dictionary in m.get_property_list():
+		if str(p.get("name", "")).begins_with("shader_parameter/"): out.append(str(p.name))
+	return out
 
 ## 世界坐标的某一点在画面上的位置（0 到 1，左上角是 0, 0）。没有这个点、或者它在镜头背后，就用 fallback
 func screen_uv(world: Variant, fallback := Vector2(0.5, 0.5)) -> Vector2:

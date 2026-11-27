@@ -47,13 +47,10 @@ var _armed := 0              # 这是第几次借东西：0 是没借。补间�
 var _tween: Tween            # 这一次借东西用的补间
 
 func build() -> void:
-	# 开机装上来的（这会儿画面是盖着的）不登记预热。登记了的话，底座的开机掀幕要等预热做完才来掀，而开机的黑幕
-	# 比预热早两帧就撤了，中间标题页会裸露两帧。不登记，掀幕从第一帧就开始，画面一直是水底，
-	# 着色器照样是在黑幕底下头一回画的。游戏里换到这个样式的照旧登记（趁还没换关先编译）
-	var at_boot := false
-	var control := ctl as SceneTransitionControl
-	if control != null: at_boot = control.is_opened
-	rect = add(full_rect(shader("wheel")), not at_boot)
+	# 登记预热：开机时这一层在黑幕底下先白画两帧。早先开机不登记（那会儿底座的开机掀幕要等预热，黑幕却先撤了，
+	# 标题页会裸露两帧）；后来底座改成黑幕等预热完再撤，而且平时是几种样式随机的——不预热的话，这一层要等到头一回
+	# 抽到它才头一回画，着色器还没编译，盖住时补间的 shader_parameter/zoom 在材质上还不存在（报错，那一段不动）
+	rect = add(full_rect(shader("wheel")), true)
 	rect.visible = false          # 平时藏着，盖的时候自己设回可见
 	_mat = rect.material as ShaderMaterial
 

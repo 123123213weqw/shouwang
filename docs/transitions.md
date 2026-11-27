@@ -14,8 +14,12 @@
 - `scripts/uis/transition_style.gd`（`TransitionStyle`）：样式的接口和公共工具。
 - `scripts/uis/transitions/transition_<样式>.gd`：每一种样式。第一行写 `extends TransitionStyle`，**不写 `class_name`**
   （调度按样式名到这个目录里找文件，`load` 了直接 `new`）。着色器放 `shaders/transition_<样式>.gdshader`。
-- 选哪一种：环境变量 `SW_TRANSITION=<样式>`（启动时读，不写存档）；或者在游戏里 `call pad_adapter.gd debug_transition <样式>`。
-  现在有的：`tiles`（原来的），`ripple` 涟漪开合，`lanterns` 河灯涌来，`steps` 石阶沉浮，`wheel` 镜头钻进水车，`ink` 墨迹晕开。
+- 平时是**随机**的：每一趟从 `RANDOM_POOL`（`scene_transition_control.gd`）里抽一种，不连着两趟一样。池里是 `lanterns` 河灯涌来、
+  `steps` 石阶沉浮、`wheel` 镜头钻进水车、`ink` 墨迹晕开和 `tiles`（原来的石砖墙）；`ripple` 涟漪开合不进随机。想增减就改那一个常量。
+- 要固定一种：环境变量 `SW_TRANSITION=<样式>`（启动时读，不写存档；写 `random` 是随机）；或者在游戏里
+  `call pad_adapter.gd debug_transition <样式>`（`debug_transition random` 改回随机）。
+- 开机的时侯一池里的样式都建好、一起预热（在黑幕底下），换关途中只抽签、不现建（现建要加载、编译，会卡一下）。
+- 有哪几种：`tiles`（原来的），`ripple` 涟漪开合，`lanterns` 河灯涌来，`steps` 石阶沉浮，`wheel` 镜头钻进水车，`ink` 墨迹晕开。
 
 ## 接口
 

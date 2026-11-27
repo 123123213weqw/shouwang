@@ -1204,9 +1204,27 @@ func debug_versus_check() -> String:
 	if not bad.is_empty(): return "RESULT 对战的局：没过，%s" % "；".join(bad)
 	return "RESULT 对战的局：通过（%s，没套标题页上选的难度）" % VersusBase.NAMES.get(main.versus.id, "?")
 
+## 量一下平时每帧多长：接下来几秒里每一帧的间隔，报平均的和最长的。到掌机上验过渡以前先量这个，
+## 才知道过渡期间量出来的数算不算卡（掌机的显卡比服务器弱得多）。在游戏里调：call pad_adapter.gd debug_frame_time 3
+## 参数不写类型，理由同 debug_record
+func debug_frame_time(seconds = 2) -> String:
+	var frames := 0
+	var worst := 0
+	var t0 := Time.get_ticks_usec()
+	var last := t0
+	while Time.get_ticks_usec() - t0 < int(float(str(seconds)) * 1000000.0):
+		await get_tree().process_frame
+		var now := Time.get_ticks_usec()
+		worst = maxi(worst, now - last)
+		last = now
+		frames += 1
+	var span := Time.get_ticks_usec() - t0
+	return "RESULT 帧时间：平均 %.1f 毫秒，最长 %.1f 毫秒（%d 帧 / %.1f 秒）" % [span / 1000.0 / maxi(frames, 1), worst / 1000.0, frames, span / 1000000.0]
+
 ## 换关的过渡（scripts/uis/scene_transition_control.gd，样式在 scripts/uis/transitions/）。在游戏里调：
-##   call pad_adapter.gd debug_transition 0          现在用的是哪一种、最近一趟量出来的数（盖住和掀开各多久、最长的一帧多长；卡了就报"没过"）
-##   call pad_adapter.gd debug_transition ripple     换成某一种：tiles 是原来的石砖墙，别的见 scripts/uis/transitions/
+##   call pad_adapter.gd debug_transition 0          现在是随机还是固定的一种、最近一趟量出来的数（用的是哪一种、盖住和掀开各多久、最长的一帧多长；卡了就报"没过"）
+##   call pad_adapter.gd debug_transition lanterns   固定成某一种：tiles 是原来的石砖墙，别的见 scripts/uis/transitions/；
+##                                                  call pad_adapter.gd debug_transition random 改回随机
 ##   call pad_adapter.gd debug_transition_test 0.5   现在就地放一遍（不换关）：盖住、停这么久、掀开。调样式、录片子的时侯用
 func debug_transition(id = 0) -> String:
 	var ctl = SceneManager.scene_transition_control      # 不写类型：SceneManager 里它本来就没写，写 := 推断不出来
@@ -1215,7 +1233,7 @@ func debug_transition(id = 0) -> String:
 		ctl.set_style(str(id))
 		return "过渡换成「%s」" % ctl.style_id
 	# 还没放过一次的时侯不写 RESULT：测试的步骤文件一看到"RESULT …：没过"就判这一步没过
-	if ctl.records.is_empty(): return "过渡：现在用的是「%s」，还没放过一次" % ctl.style_id
+	if ctl.records.is_empty(): return "过渡：现在用的是%s，还没放过一次" % ctl.describe()
 	return ctl.report()
 
 ## 参数不写类型，理由同 debug_record
