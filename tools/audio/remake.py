@@ -1,9 +1,4 @@
-#!/usr/bin/env python3
-"""Render River Lantern Walk from synthesis only. Requires Python and NumPy.
-
-Run python remake.py or specify --output PATH for the replacement assets/audio
-directory. The comparison preview defaults to preview.wav alongside this script.
-"""
+"""Render the ordered score and cues from CC0 instrument and foley recordings."""
 
 import argparse
 from functools import lru_cache
@@ -11,6 +6,8 @@ from pathlib import Path
 import wave
 
 import numpy as np
+
+import recorded_samples as rec
 
 
 RATE = 48_000
@@ -41,11 +38,8 @@ def edge(t, attack, release):
 
 
 def band_noise(t, rng, low, high):
-    samples = rng.standard_normal(len(t))
-    f = np.fft.rfftfreq(len(t), 1 / RATE)
-    band = (1 - np.exp(-(f / low) ** 4)) * np.exp(-(f / high) ** 4)
-    filtered = np.fft.irfft(np.fft.rfft(samples) * band, n=len(t))
-    return filtered / max(np.std(filtered), 1e-8)
+    family = "ocean" if len(t) > frames(1) else "shaker"
+    return rec.texture(len(t) / RATE, low, high, rng.integers(3), family) * 1.8
 
 
 def swipe(duration, rng, low, high, rise=0.6):
@@ -57,42 +51,30 @@ def swipe(duration, rng, low, high, rise=0.6):
 
 
 def strike(pitch, duration, decay=0.095, sharpness=0.5):
-    t = time(duration)
-    body = np.sin(TAU * (pitch * t + 0.024 * pitch * (1 - np.exp(-t / 0.018))))
-    rim = np.sin(TAU * pitch * 2.76 * t) * np.exp(-t / (0.30 * decay))
-    ring = np.sin(TAU * pitch * 4.81 * t) * np.exp(-t / (0.10 * decay))
-    return (body * np.exp(-t / decay) + sharpness * (rim + 0.31 * ring)) * edge(t, 0.003, 0.018)
+    family = "bassdrum" if pitch < 120 else "frame" if pitch < 320 else "block"
+    return rec.sound(family, duration, take=round(pitch / 53),
+                     speed=np.clip(pitch / (140 if pitch < 320 else 810), 0.69, 1.50),
+                     cutoff=3500 + 2500 * sharpness)
 
 
 @lru_cache(maxsize=256)
 def felt(note, duration, bright=False):
-    t = time(duration)
-    pitch = hz(note)
-    fundamental = np.sin(TAU * pitch * t) * np.exp(-t / 0.62)
-    quiet_string = 0.17 * np.sin(TAU * pitch * 1.0026 * t) * np.exp(-t / 0.78)
-    partials = np.zeros_like(t)
-    for number, strength, decay in ((2, 0.39, 0.33), (3, 0.15, 0.19), (4, 0.09, 0.12), (6, 0.035, 0.058)):
-        stretched = pitch * number * (1 + 0.0007 * (number - 1))
-        partials += strength * np.sin(TAU * stretched * t) * np.exp(-t / decay)
-    tine = np.sin(TAU * pitch * 7.04 * t) * np.exp(-t / 0.040)
-    return (fundamental + quiet_string + (1.08 if bright else 0.60) * partials + 0.036 * tine) * edge(t, 0.005, 0.13)
+    if bright:
+        return rec.sound("guqin", duration, note=note, cutoff=5900, release=min(.12, duration * .3))
+    piano = rec.sound("piano", duration, note=note, cutoff=3000, release=min(.14, duration * .32))
+    qin = rec.sound("guqin", duration, note=note, cutoff=3400, release=min(.14, duration * .32))
+    return .36 * piano + .64 * qin
 
 
 @lru_cache(maxsize=96)
 def bass(note, duration):
-    t = time(duration)
-    phase = TAU * hz(note) * (t + 0.021 * (1 - np.exp(-t / 0.055)))
-    body = np.sin(phase) + 0.26 * np.sin(2 * phase) + 0.065 * np.sin(3 * phase)
-    return body * np.exp(-t / 0.40) * edge(t, 0.016, 0.13)
+    return rec.sound("harp", duration, note=note, cutoff=1600, release=0.095)
 
 
 @lru_cache(maxsize=96)
 def glow(note, duration):
-    t = time(duration)
-    phase = TAU * hz(note) * t
-    flutter = 0.84 + 0.16 * np.sin(TAU * 2.8 * t)
-    harmonics = np.sin(phase) + 0.19 * np.sin(2.001 * phase) + 0.05 * np.sin(3.003 * phase)
-    return flutter * harmonics * edge(t, 0.24, 0.44)
+    return rec.sound("dizi", duration, note=note, cutoff=1980, attack=.10,
+                     release=min(.23, duration * .33))
 
 
 def clip_end(signal, duration=0.012):
@@ -297,7 +279,8 @@ def game_music():
         for index, (step, note) in enumerate(melody_table[bar % 16]):
             melody_note = note - 12 if 8 <= bar < 16 and index == 1 else note
             phrase = 0.83 if 16 <= bar < 24 else 1.0
-            mix.add(start + step * beat, felt(melody_note, 1.25), phrase * (0.136, 0.113, 0.096)[index], 0.12)
+            mix.add(start + step * beat, felt(rec.pentatonic(melody_note, 9), 1.25),
+                    phrase * (0.136, 0.113, 0.096)[index], 0.12)
             if 16 <= bar < 24 and index == 0:
                 mix.add(start + (step + 0.08) * beat, glow(note, 1.38), 0.028, -0.26)
         if bar % 2 == 0 or 24 <= bar < 31:
@@ -325,9 +308,8 @@ def crisp(duration, rng, low, high, tau):
 
 
 def bubble(duration, low, high):
-    t = time(duration)
-    phase = TAU * (low * t + (high - low) * 0.040 * (1 - np.exp(-t / 0.040)))
-    return (np.sin(phase) + 0.14 * np.sin(phase * 2)) * np.exp(-t / (duration * 0.29)) * edge(t, 0.005, 0.025)
+    return rec.sound("water", duration, take=round(low / 245), speed=np.clip(high / 720, 0.58, 1.62),
+                     cutoff=3000)
 
 
 def ui_sound(family, number, rng):
@@ -351,8 +333,7 @@ def movement(family, number, rng):
                   (0.012, strike(210 * spread, 0.10, 0.021, 0.23), 0.21))
         return peak(one_shot(duration, sounds), -16.3 + (number % 3) * 0.45)
     water = family == "wet"
-    body_pitch = 132 if water else 168
-    sounds = ((0.0, strike(body_pitch * spread, 0.155, 0.038, 0.36), 0.89),
+    sounds = ((0.0, rec.sound("water" if water else "step", 0.155, take=number, speed=spread, cutoff=4100), 0.89),
               (0.004, crisp(0.121, rng, 420 if water else 650, 2700 if water else 2070, 0.018), 0.31),
               (0.034 + 0.003 * (number % 4), bubble(0.10, 173 * spread, 440 * spread), 0.33 if water else 0.08))
     level = -12.3 if water else -11.4
