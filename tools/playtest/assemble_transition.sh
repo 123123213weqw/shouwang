@@ -50,8 +50,9 @@ one() {
 case "${1:-}" in
 	"") echo "用法见文件开头：assemble_transition.sh <样式> […]，或者 assemble_transition.sh compare <样式> …"; exit 1 ;;
 	compare)
-		shift
+		shift                                   # 这一种用法里位置参数都是样式名，不是帧率：每秒几帧固定 30（录制的默认值），从过渡开始前 1.5 秒起
 		[ $# -gt 0 ] || { echo "compare 后面要写样式名"; exit 1; }
+		FPS=30; PRE=1.5
 		mkdir -p "$D"
 		python3 - "$D" "$FPS" "$PRE" 3.0 "$@" <<'PY' || exit 1
 # 几种样式并排：每一种都从"过渡开始前 pre 秒"的那一帧起，数 (pre + post) 秒。帧拼成一张张的大图，再用 ffmpeg 拼成视频
