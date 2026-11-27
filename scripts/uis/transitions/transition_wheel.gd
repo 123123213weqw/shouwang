@@ -71,8 +71,16 @@ func cover(ctx: Dictionary) -> void:
 func reveal(ctx: Dictionary) -> void:
 	# 盖严的；掀幕那一趟没盖过，也是从盖严的开始。水色沿用盖住时定的那一个：盖严着的那一会儿画面是看得见的，
 	# 这会儿再换一次色，水底会跳一下（换场景的时侯盖住那头还不知道要去哪一关，两头取到的本来就不是同一个色）
-	var fresh := str(ctx.get("mode", "level")) == "boot"
-	_begin(ctx, 1.0, 0.0, fresh)
+	var boot := str(ctx.get("mode", "level")) == "boot"
+	_begin(ctx, 1.0, 0.0, boot)
+	if boot:
+		# 开机掀幕和预热（TransitionStyle.warm_up：空等三帧、白画两帧、最后把节点藏起来）是同时开始的：预热收尾那一下
+		# 会把节点藏掉，盖过上面设的可见，水层就没了。等它藏完了再把节点设回可见。
+		# 顺带外面那块黑幕也是过三帧才撤（SceneManager._drop_boot_cover_soon）：撤了、预热也完了，再放水线
+		for i in 8:
+			await ctl.get_tree().process_frame
+			if not rect.visible: break
+		rect.visible = true
 	var surfacing := _dived
 	_dived = false
 	var secs := duration(ctx, REVEAL, FAST)
