@@ -50,13 +50,14 @@ var versus: VersusBase               # 对战类的玩法（scripts/versus/）�
 var free_moves := false               # 跳格子不花步数。对战里有的玩法这样
 
 ## 技能选目标：有的技能要在棋盘上自己挑一格（守夜人点灯、钓叟收灯）。按下技能先进这个状态，
-## 候选格子亮起来；方向键在候选之间挪，A / 空格 确认，B / Esc 取消（选的时候不扣充能）。
-## 鼠标直接点候选格子也算确认。选够了才算用掉
+## 候选格子亮起来；WASD / 手柄十字键切换，A / 空格确认，B / Esc 取消（选的时候不扣充能）。
+## 鼠标点一次候选格子选中，再点同一格确认。选够了才用掉充能。
 enum Aim { NONE, PLACE, COLLECT }
 var aiming := Aim.NONE
 var aim_left := 0                    # 还要选几格
 var aim_list: Array = []             # 现在能选的格子
-var aim_index := 0                   # 方向键选中的是第几个
+var aim_index := 0                   # 当前选中的是第几个
+var _aim_mouse_target: Tile          # 已经点过一次、等鼠标确认的格子
 var _aim_label: Label
 var current_deal: Dictionary = {}    # 开局摆好的那一局（河灯开局摆好的档里用）；空 = 这一关是边收边刷的
 var _thing_resources: Dictionary = {}   # 摆棋时路线上每样东西用哪个资源（键是 BoardGen.Thing 的编号）
@@ -258,7 +259,7 @@ func _input(event: InputEvent) -> void:
 	#if event.is_action_pressed("ui_left"):
 		#reset_combo()
 	if aiming != Aim.NONE:
-		# 选目标的时候：方向键在候选之间挪，A / 空格 确认，B / Esc 取消
+		# 选目标的时候：WASD / 手柄十字键切换，A / 空格确认，B / Esc 取消
 		if event.is_action_pressed("ui_cancel"):
 			aim_cancel()
 			return
@@ -504,13 +505,15 @@ func update_tiles_color():
 		if tile: tile.is_last_position = true
 	if versus != null: versus.filter_tiles()
 	if aiming != Aim.NONE:
-		# 选目标：只有候选格子亮，其中方向键选中的那个最亮。别人一格都不亮
-		aim_list = aim_candidates(aiming)
-		aim_index = clampi(aim_index, 0, maxi(aim_list.size() - 1, 0))
+		# 选目标：只有候选格子亮，其中选中的那个最亮。别人一格都不亮
 		var chosen: Tile = aim_list[aim_index] if not aim_list.is_empty() else null
+		aim_list = aim_candidates(aiming)
+		aim_index = maxi(aim_list.find(chosen), 0)
+		chosen = aim_list[aim_index] if not aim_list.is_empty() else null
+		if _aim_mouse_target != chosen:
+			_aim_mouse_target = null
 		for tile in grid.tiles.values():
 			tile.is_available = aim_list.has(tile)
-			tile.is_hovered = tile == chosen
 			tile.aim_raise = 0.45 if tile == chosen else 0.0     # 选中的那一格抬起来、染成烛火色：一眼看出选的是哪个
 			tile.aim_pick = tile == chosen
 
@@ -901,6 +904,8 @@ func reset_upgrades():
 
 
 func load_level(level: LevelResource):
+	if aiming != Aim.NONE:
+		_finish_aim(false)
 	upgrade_random.rate = upgrade_chance
 	level_serial += 1
 	level_ready = false
@@ -1170,6 +1175,7 @@ func begin_aim(kind: Aim, count: int) -> bool:
 	aiming = kind
 	aim_left = count
 	aim_index = 0
+	_aim_mouse_target = null
 	_aim_hint()
 	update_tiles_color()
 	return true
@@ -1177,7 +1183,17 @@ func begin_aim(kind: Aim, count: int) -> bool:
 ## 方向键在候选之间挪（按到边界就绕回去）
 func aim_step(delta: int) -> void:
 	if aim_list.size() <= 1: return
+	_aim_mouse_target = null
 	aim_index = posmod(aim_index + delta, aim_list.size())
+	update_tiles_color()
+
+func aim_click(tile: Tile) -> void:
+	if aiming == Aim.NONE or not aim_list.has(tile): return
+	if tile == _aim_mouse_target:
+		aim_pick(tile)
+		return
+	_aim_mouse_target = tile
+	aim_index = aim_list.find(tile)
 	update_tiles_color()
 
 func aim_confirm() -> void:
@@ -1193,6 +1209,10 @@ func aim_cancel() -> void:
 ## 选中一格：放灯，或者把那盏灯收过来
 func aim_pick(tile: Tile) -> void:
 	if aiming == Aim.NONE or tile == null or not aim_list.has(tile): return
+	if not aim_candidates(aiming).has(tile):
+		update_tiles_color()
+		return
+	_aim_mouse_target = null
 	if aiming == Aim.PLACE:
 		var fish := FISH.instantiate() as Fish
 		add_child(fish)
@@ -1215,7 +1235,9 @@ func aim_pick(tile: Tile) -> void:
 ## 选完了：用掉充能；关掉提示
 func _finish_aim(used: bool) -> void:
 	aiming = Aim.NONE
+	aim_left = 0
 	aim_list = []
+	_aim_mouse_target = null
 	if used: reset_active_charges()
 	if _aim_label != null: _aim_label.visible = false
 	for tile in grid.tiles.values():
@@ -1238,7 +1260,7 @@ func _aim_hint() -> void:
 		_aim_label.offset_bottom = -186.0
 		$CanvasLayer/Control.add_child(_aim_label)
 	var what := "点灯的格子" if aiming == Aim.PLACE else "要收的灯"
-	_aim_label.text = "选%s：方向键换，空格/A 确认，Esc/B 取消（还能选 %d 个）" % [what, aim_left]
+	_aim_label.text = "选%s（剩 %d）：左键选格，再点同一格确认\nWASD / 十字键切换，空格 / A 确认，Esc / B 取消" % [what, aim_left]
 	_aim_label.visible = true
 
 ## 放一盏手里的灯。没给格子：鼠标（接手柄时是光标）正指着哪一格就放哪一格，没指着就挑最能把路接上的一格（见 _place_target）
@@ -1366,6 +1388,8 @@ func _night_extinguish() -> void:
 	far.object = null
 	_placed.erase(far)
 	lamp.go_out()
+	if aiming != Aim.NONE:
+		update_tiles_color()
 	popup("夜巡：最远的那盏灯灭了")
 	if current_fish_count + _lamps_left() < fish_before_end_portal and not _can_light_lamps():
 		night_on = false
@@ -1389,6 +1413,7 @@ func _add_rule_hud() -> void:
 	rule_hud.show_wind(wind_dir)
 
 func trigger_active_effect():
+	if aiming != Aim.NONE: return
 	if character.is_jumping: return;
 	if not active_control.is_charged: return;
 	var ch := Game.selected_character

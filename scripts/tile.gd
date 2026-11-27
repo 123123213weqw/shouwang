@@ -68,14 +68,16 @@ func _ready() -> void:
 		algae_sprite.material_override.set("shader_parameter/texture_albedo", algae_sprites.pick_random())
 
 func _input(event: InputEvent) -> void:
-	if not is_available or not is_hovered: return;
-	if event is InputEventMouseButton:
-		if event.is_pressed() and event.button_index == 1:
-			# 正在选技能的目标：点这一格就是选它，人不跟着跳过去
-			if main.aiming != Main.Aim.NONE:
-				main.aim_pick(self)
-			else:
-				main.character.move_to(self)
+	if main.aiming != Main.Aim.NONE or not is_available or not is_hovered: return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		main.character.move_to(self)
+
+func _input_event(_camera: Camera3D, event: InputEvent, _event_position: Vector3, _normal: Vector3, _shape_idx: int) -> void:
+	# 只让光标实际点中的格子接收技能点击。
+	if main.aiming == Main.Aim.NONE: return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if main.can_use_skill():
+			main.aim_click(self)
 
 func _process(delta):
 	update_color()
@@ -143,7 +145,7 @@ func get_color() -> Color:
 
 func update_color():
 	target_color = get_color()
-	sprite_3d.shaded = not (is_available and is_hovered)
+	sprite_3d.shaded = not (is_available and (is_hovered or aim_pick))
 
 func get_player_directions_tiles():
 	var player_pos = main.grid.world_to_grid_position(main.character.global_position)
