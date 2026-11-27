@@ -11,7 +11,7 @@ extends TransitionStyle
 ## 停的那一下要比盖住的长（给 3 秒），不然掀开那一下发过来时还在盖着，会被忽略，画面就一直盖着
 
 const SOFT := 0.02           # 圈边的软边有多宽（画面高度的几分之几）。主圈要多荡出这么一段才算盖严
-const WOBBLE := 0.025        # 圈边沿着圈起伏，最多往里缩这么多（着色器里 WOBBLE 的一半）。算盖严的半径时也要留出来
+const WOBBLE := 0.025        # 圈边沿着圈起伏，最多偏这么多（和着色器里一个数）。算盖严的半径时也要留出来
 const SQUASH := 0.72         # 游戏里的圈有多扁：俯着看，地上的圆在画面上是扁的。和落地的那圈环一个数（StageBackdrop.RING_SQUASH）
 # 平时的局盖住、掀开各多久（秒）。两头都不取长：量帧的步骤文件在换关后 1.3 秒上下会截一张图，截图那一帧本身就要
 # 二三十毫秒，过渡要在那以前做完（盖住 + 中间换棋盘的 0.1 到 0.2 秒 + 掀开），不然这一帧会被算成掀开的时侯卡了一下
@@ -36,7 +36,7 @@ const SEAL_PX := 70          # 印章的边长。开场那一方是 104，对着
 const GAP := 14              # 小字和大字之间隔多远
 const RULE_W := 46           # 小字两边两道细线的长，和离小字多远
 const RULE_GAP := 16
-const SEAL_GAP := 12         # 印章离大字多远
+const SEAL_GAP := 18         # 印章离大字多远（大字最右一笔会探出它的框几个像素，留够才不贴上）
 
 const JADE := Color(0.86, 0.94, 0.90)       # 落地那圈环的颜色（StageBackdrop._ring）：小字和两道细线用它
 const MOON := Color(0.95, 0.93, 0.85)       # 河里月亮的颜色，大字用它：和河面是一套
@@ -59,6 +59,7 @@ var _t0 := 0                           # 这一段开始的那一刻（微秒）
 var _secs := 0.001                     # 这一段多长（秒）
 var _ctx := {}                         # 这一段的说明
 var _titled := false                   # 这一趟题不题字
+var _seed := 0.0                       # 圈边起伏的相位：每一趟随手取一个，圈的形状不是回回一样
 var _x_text := 0.0                     # 盖住这一段走到几分之几，主圈才淹到题字那一块；这以前小字不开始淡入
 var _box := Rect2()                    # 题字（小字、大字、印章）在画面上占的一块（_group 里的坐标）
 var _last_index := 0                   # 上一趟是第几关：只有真的过了上一关才题字
@@ -78,15 +79,12 @@ func build() -> void:
 
 func cover(ctx: Dictionary) -> void:
 	_begin(ctx, "cover", duration(ctx, COVER, FAST))
-	# 河面从哪儿走到哪儿：起点是眼前这片水现在的颜色，终点是要去的那一关的水色。
-	# 起点问游戏里那条河要（main.colors.current_color）：连击的时侯它跟着灯的颜色走，不只是这一关的底色，
-	# 淹上来的水得和眼前这片接得上。不用 ctx.color_from：换关的时侯它拿到的已经是新一关的底色了
-	#（main.load_level 先把 current_level 换成新一关才来盖）。不在游戏里（标题页上）就是上一趟留下的样子
+	_seed = randf_range(0.0, TAU)
+	# 河面从哪儿走到哪儿：起点是上一趟留下的样子，终点是要去的那一关的水色。
+	# 不用 ctx.color_from 当起点：换关的时侯它拿到的已经是新一关的底色了（main.load_level 先把 current_level 换成新一关才来盖）。
+	# 在游戏里这两个数其实用不上：那儿河面每一帧直接跟着游戏里那条河此刻的水色走（见 _apply）
 	_tint_from = _river
 	_amount_from = _river_amount
-	var main: Variant = ctx.get("main")
-	if main != null and main.get("colors") != null:
-		_tint_from = main.colors.current_color
 	_tint_to = _aim(ctx)
 	_amount_to = _amount(ctx)
 	# 先判题不题字，再记下这一趟是第几关：反过来写的话就是拿自己比自己，永远不题
@@ -103,6 +101,7 @@ func cover(ctx: Dictionary) -> void:
 
 func reveal(ctx: Dictionary) -> void:
 	_begin(ctx, "reveal", duration(ctx, REVEAL, FAST))
+	_seed = randf_range(0.0, TAU)
 	# 掀开这一段河面的颜色，接着盖住那一段走完的样子往下走（换关的时侯两头是同一个颜色；没盖过就掀的那一趟是标题页那条河）
 	_tint_from = _tint_to
 	_amount_from = _amount_to
@@ -113,6 +112,8 @@ func reveal(ctx: Dictionary) -> void:
 	_phase = ""
 	_river = _tint_to
 	_river_amount = _amount_to
+	var main: Variant = ctx.get("main")
+	if main != null and main.get("colors") != null: _river = main.colors.current_color      # 离开游戏的时侯河面是什么颜色
 	_rect.visible = false
 	_group.visible = false
 
@@ -254,8 +255,15 @@ func _apply() -> void:
 	_mat.set_shader_parameter("front", front)
 	_mat.set_shader_parameter("rim", rim)
 	_mat.set_shader_parameter("trails", trail)
+	_mat.set_shader_parameter("seed", _seed)
 	var dyed := smoothstep(0.0, 1.0, minf(x, 1.0))
-	var tint := _river_of(_tint_from.lerp(_tint_to, dyed))
+	# 在游戏里，河面每一帧就是游戏里那条河此刻的水色：连击的时侯它跟着灯的颜色走，换关的时侯它自己慢慢从旧的底色
+	# 渐变到新的（每帧只挪一点点）。淹上来的水、掀到最后剩下的那一汪，和四周的水才永远是同一片。标题页上没有这条河，
+	# 就从这一段开始的底色走到要去的底色
+	var base := _tint_from.lerp(_tint_to, dyed)
+	var main: Variant = _ctx.get("main")
+	if main != null and main.get("colors") != null: base = main.colors.current_color
+	var tint := _river_of(base)
 	_mat.set_shader_parameter("water_tint", Vector3(tint.r, tint.g, tint.b))
 	_mat.set_shader_parameter("tint_amount", lerpf(_amount_from, _amount_to, dyed))
 
