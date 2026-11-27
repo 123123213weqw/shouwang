@@ -4,6 +4,7 @@ extends TransitionStyle
 ##
 ## 盖住：front 从"一滴"走到 FRONT_END。先让那一滴在纸上停一下（LAND_SECS），再往外晕，用缓出。
 ## 掀开：hole 从 0 走到 FRONT_END，淡痕在最后褪掉。没盖过就直接掀（开机掀幕）也走得通：先让墨铺满，再化开。
+## 题字：真的过了上一关的时侯，墨盖严前后那一瞬，画面正中用留白显一下要去的这一关的名字（见 _title_ok）。
 ## 改长短改下面那几个数；改样子改着色器。
 
 const SHADER := preload("res://shaders/transition_ink.gdshader")
@@ -25,9 +26,23 @@ const REVEAL_FAST := 0.30
 ## 1.3 秒上下截图的（call 一步等 1 秒、再 sleep 0.3），截图那一帧本身要 30 毫秒以上；过渡拖过了那一刻，量帧时间的
 ## 时候就会把截图算成"掀开的时候卡了一下"。要拖节奏也不该在这儿拖
 
+const PAPER := Color(0.88, 0.85, 0.74)     ## 留白的纸色（宣纸，比开场动画里的纸暗一点：这是夜里）
+const TITLE_BIG := 76                   ## 题字：关卡名多大
+const TITLE_SMALL := 30                 ##       上面那一小行"第 N 关"多大
+const TITLE_AT := 0.20                  ## 盖住开始这么久以后题字（那时墨已经把画面正中吞掉了）
+const TITLE_IN := 0.18                  ##       用多久显出来
+const TITLE_OUT := 0.14                 ##       掀开的时侯用多久褪掉
+
 var rect: TextureRect
 var _mat: ShaderMaterial
 var _tween: Tween
+var _title: Control                     ## 题字：一小行"第 N 关"，底下一个大字是关卡名，后面衬着一圈洇开的淡墨。平时藏着
+var _title_small: Label
+var _title_big: Label
+var _halo: Label
+var _title_on := false                  ## 这一趟题不题字
+var _last_index := 0                    ## 上一趟是第几关：只往后的关才题
+var _title_tween: Tween
 
 func build() -> void:
 	rect = full_rect(SHADER)
@@ -37,6 +52,18 @@ func build() -> void:
 	_mat.set_shader_parameter("texture_flow_map", FLOW)
 	add(rect, true)
 	rect.set("ink", self)                  # 那个脚本里的 ink 不是 TextureRect 自带的，只能这么给
+	# 题字也在这儿建好（过渡途中不新建节点）：一个跟着整张画面的空节点，字挂在它下面，淡入淡出只动它一个
+	_title = Control.new()
+	_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_title.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_title.visible = false
+	_halo = Tutorial.make_label(TITLE_BIG + 16, Color(0.36, 0.42, 0.40, 0.55))   # 留白周围那圈薄墨：比字大一圈的一层淡的
+	_title_big = Tutorial.make_label(TITLE_BIG, PAPER)
+	_title_small = Tutorial.make_label(TITLE_SMALL, Color(PAPER.r, PAPER.g, PAPER.b, 0.66))
+	for l in [_halo, _title_big, _title_small]:
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_title.add_child(l)
+	add(_title)
 
 ## 盖住。from 平时是主角这会儿站的地方（踩上水车的那一格）；换场景的时侯没有，就从画面正中晕
 func cover(ctx: Dictionary) -> void:
@@ -45,6 +72,7 @@ func cover(ctx: Dictionary) -> void:
 	_tween = ctl.create_tween()
 	_tween.tween_interval(land)           # 那一滴先落定
 	_tween.tween_method(_cover_at, 0.0, 1.0, _secs(ctx, COVER_SECS, COVER_FAST) - land)
+	_set_title(ctx)                       # 该题字的话，墨把正中吞掉以后字从墨里显出来
 	await _tween.finished
 	_cover_at(1.0)                         # 保险：做完的这一帧必须已经盖严
 
@@ -54,6 +82,11 @@ func reveal(ctx: Dictionary) -> void:
 	_mat.set_shader_parameter("front", FRONT_END)      # 开机掀幕没盖过：这一帧先铺满，下一帧才开始化开
 	_mat.set_shader_parameter("origin", screen_uv(ctx.to, CENTRE))
 	_mat.set_shader_parameter("seed", randf() * 20.0)   # 化开的形状和晕开的不是一套
+	_last_index = int(ctx.get("index", _last_index))     # 开机第一关没经过盖住，关号在这儿记
+	if _title.visible:                     # 题着的字跟着墨一起褪
+		_kill_title_tween()
+		_title_tween = ctl.create_tween()
+		_title_tween.tween_property(_title, "modulate:a", 0.0, TITLE_OUT)
 	_tween = ctl.create_tween()
 	_tween.tween_method(_reveal_at, 0.0, 1.0, _secs(ctx, REVEAL_SECS, REVEAL_FAST))
 	await _tween.finished
@@ -61,6 +94,48 @@ func reveal(ctx: Dictionary) -> void:
 	_tween = null
 	_reset()
 	rect.visible = false
+	_kill_title_tween()
+	_title.modulate.a = 0.0
+	_title.visible = false
+
+## 换样式的时候把题字的补间也收走
+func dispose() -> void:
+	_kill_title_tween()
+	super()
+
+## 这一趟题不题字、题什么。只题真的往前过的关（关号比上一趟大）、不是换得快的局、不是对战：
+## 重来、换难度、长夜、轮战换棋盘都不题——和涟漪那一种一个规矩。换场景、掀幕没有"上一关"，也不题
+func _set_title(ctx: Dictionary) -> void:
+	var index := int(ctx.get("index", 0))
+	var main := ctx.get("main") as Main
+	var level_name := str(ctx.get("name", ""))
+	_title_on = (
+		str(ctx.get("mode", "level")) == "level" and not bool(ctx.get("fast", false))
+		and index > _last_index and level_name != "" and main != null and main.versus == null
+	)
+	_last_index = index                   # 记的是上一趟：往回走过一关再往前过，照样题
+	_kill_title_tween()
+	_title.modulate.a = 0.0
+	_title.visible = _title_on
+	if not _title_on: return
+	_title_big.text = level_name
+	_title_small.text = "第 %d 关" % index
+	var size := ctl.get_viewport().get_visible_rect().size
+	_centre(_title_big, size, 0.47)
+	_centre(_halo, size, 0.47)
+	_centre(_title_small, size, 0.47 - (TITLE_BIG * 0.62 + TITLE_SMALL) / size.y)
+	_title_tween = ctl.create_tween()
+	_title_tween.tween_interval(TITLE_AT)
+	_title_tween.tween_property(_title, "modulate:a", 1.0, TITLE_IN)
+
+## 把一行字摆在画面横着的正中、竖着的 at 那么高
+func _centre(l: Label, size: Vector2, at: float) -> void:
+	# 用 get_minimum_size：字刚换过，节点自己的 size 要到下一帧排版时才跟上
+	l.position = Vector2(size.x * 0.5, size.y * at) - l.get_minimum_size() / 2.0
+
+func _kill_title_tween() -> void:
+	if _title_tween != null and _title_tween.is_valid(): _title_tween.kill()
+	_title_tween = null
 
 ## 排查用：把墨冻在盖住（phase 1）或者掀开（phase 2）走到千分之 step 的那一帧，长短按平时的局算。
 ## 落点给成画面的百分之 ox、oy；ox 给负数就用主角这会儿站的地方。phase 0 是收起来。见 transition_ink_layer.gd
