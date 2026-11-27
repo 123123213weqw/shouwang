@@ -86,6 +86,8 @@ func hold_camera(on: bool) -> void:
 ##（在"还没开始"的状态下得是整张透明的）。用 add(rect, true) 加上去，着色器就预热过了
 static func full_rect(shader: Shader) -> TextureRect:
 	var rect := TextureRect.new()
+	# 没贴贴图的 TextureRect 是不画的（着色器也就不会跑）：贴一张纯白的小方图，画面全看着色器
+	rect.texture = load("res://assets/sprites/rect.png")
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var m := ShaderMaterial.new()

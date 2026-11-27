@@ -51,9 +51,60 @@ func dispose() -> void:               # 换样式的时侯调：收走自己加�
 | `full_rect(shader)` | 一张铺满画面的贴图节点，套着给的着色器 |
 | `shader(id)` | `res://shaders/transition_<id>.gdshader` |
 
+样式自己不是节点（是个普通的对象）：补间和定时器借 `ctl` 的——`ctl.create_tween()`、`ctl.get_tree().create_timer()`、
+`ctl.get_tree().process_frame`。
+
 节点用 `add(node, true)` 加上去的，装上样式以后会先"白画两帧"：着色器头一回画要编译，那一帧很长，
 趁着开机的黑幕还在先花掉。所以这些节点在"还没开始"的状态下画出来必须什么都看不见——着色器整张透明。
 别靠藏节点或者 `modulate`：藏着的节点不会画，着色器也就不编译。
+
+## 最小的样子
+
+底下是一个能跑的最简样式（从触发点扩散的一个圆盖住，再朝落点收回），照着这个架子往里填。
+在服务器上验过：盖住、掀开各 0.5 秒，最长一帧 9 毫秒以内，盖住时四个角和正中都是同一层颜色，过渡前后画面逐像素一样。
+
+```gdscript
+extends TransitionStyle
+
+var rect: TextureRect
+
+func build() -> void:
+	rect = add(full_rect(shader("probe")), true)      # shader("probe") 是 shaders/transition_probe.gdshader
+	rect.visible = false                               # 预热是外面帮着做的；平时藏着，盖的时候自己设回可见
+
+func cover(ctx: Dictionary) -> void:
+	await _animate(screen_uv(ctx.from), Vector2(0.5, 0.5), 0.0, 1.0, duration(ctx, 0.5, 0.25))
+
+func reveal(ctx: Dictionary) -> void:
+	await _animate(Vector2(0.5, 0.5), screen_uv(ctx.get("to")), 1.0, 0.0, duration(ctx, 0.5, 0.25))
+	rect.visible = false
+
+func _animate(from: Vector2, to: Vector2, p_from: float, p_to: float, secs: float) -> void:
+	rect.visible = true
+	var m := rect.material as ShaderMaterial
+	var size := ctl.get_viewport().get_visible_rect().size
+	m.set_shader_parameter("aspect", size.x / size.y)
+	var t := ctl.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	t.tween_method(func(v: float) -> void:
+		m.set_shader_parameter("centre", from.lerp(to, v))
+		m.set_shader_parameter("progress", lerpf(p_from, p_to, v)), 0.0, 1.0, secs)
+	await t.finished
+```
+
+```glsl
+shader_type canvas_item;
+uniform float progress = 0.0;                                 // 0 什么都看不见，1 盖满
+uniform vec2 centre = vec2(0.5, 0.5);
+uniform float aspect = 1.6;
+uniform vec3 tint: source_color = vec3(0.42, 0.78, 0.70);
+void fragment() {
+	vec2 d = UV - centre;
+	d.x *= aspect;
+	float r = progress * 1.2;
+	float a = 1.0 - smoothstep(r - 0.08, r + 0.08, length(d));
+	COLOR = vec4(tint, a);
+}
+```
 
 ## 每一种样式都要守的
 

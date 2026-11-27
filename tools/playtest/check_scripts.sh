@@ -7,7 +7,7 @@
 R="$1"; cd "$R/project" || exit 1
 G=~/apps/godot/Godot_v4.7.2-stable_linux.x86_64
 fail=0
-for f in $(ls scripts/*.gd scripts/*/*.gd tools/*.gd 2>/dev/null); do
+for f in $(find scripts tools -name '*.gd' | sort); do      # 任意深度的目录都扫：原来只扫两层，scripts/uis/transitions/ 扫不到
 	# 每条报错两行：报错的那一行、"at:" 指的文件和行号。只留这个脚本自己的
 	out=$($G --headless --path . --check-only --script "res://$f" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' \
 		| grep -A1 'SCRIPT ERROR: \(Parse\|Compile\) Error' \
