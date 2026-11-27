@@ -18,6 +18,7 @@ var style: TransitionStyle    ## tiles 以外的那几种；用 tiles 的时侯�
 var records: Array = []       ## 最近几趟量出来的数，最新的一趟在最后（每趟一个 Dictionary，见 report）
 
 var _busy := false            # 正在盖或者正在掀。这中间又有谁来盖、来掀，不理
+var _warm_done := true        # 样式预热完了没有。开机掀幕要等它：预热到第 5 帧会把节点藏起来，掀幕要是先开始了，会被它拦腰截断
 var _phase := ""              # 正在量哪一段：cover 盖住、load 盖住到掀开之间、reveal 掀开
 var _mark := {}               # 这一段开始的那一刻、过了几帧、最长的一帧
 var _current := {}            # 这一趟的样式和几段
@@ -43,12 +44,17 @@ func set_style(id: String) -> String:
 			style = script.new()
 			style.ctl = self
 			style.build()
-			style.warm_up.call_deferred()
+			_warm_done = false
+			_warm_up.call_deferred()
 	style_id = id
 	tiles.visible = style == null
 	return id
 
 ## 盖住。ctx 里放这一趟的说明（见 transition_style.gd），盖完了才返回。已经盖着的时侯什么都不做
+func _warm_up() -> void:
+	await style.warm_up()
+	_warm_done = true
+
 func open(ctx: Dictionary = {}) -> void:
 	if is_opened or _busy: return
 	_busy = true
@@ -71,6 +77,9 @@ func open(ctx: Dictionary = {}) -> void:
 func close(ctx: Dictionary = {}) -> void:
 	if not is_opened or _busy: return
 	_busy = true
+	# 开机掀幕等样式预热完再掀（反正在开机的黑幕底下，看不出来）
+	while not _warm_done:
+		await get_tree().process_frame
 	_end("load")
 	var full := _context(ctx, true)
 	if _current.is_empty():
@@ -101,7 +110,8 @@ func _context(ctx: Dictionary, revealing: bool) -> Dictionary:
 	if revealing and not out.has("to"): out["to"] = where
 	var level: Variant = ctx.get("level", main.current_level if main != null else null)
 	out["color"] = level.base_color if level != null else INK
-	out["color_from"] = _current.get("from_color", INK) if revealing else (main.current_level.base_color if main != null and main.current_level != null else INK)
+	if not out.has("color_from"):      # 换关的时侯 main 给了（离开的那一关的底色）；没给就按现在这一关算
+		out["color_from"] = _current.get("from_color", INK) if revealing else (main.current_level.base_color if main != null and main.current_level != null else INK)
 	if level != null and not out.has("name"): out["name"] = level.level_name
 	return out
 
