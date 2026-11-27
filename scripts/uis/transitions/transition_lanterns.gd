@@ -104,13 +104,16 @@ func _covering(k: float) -> void:
 	_river.front = front
 	_river.front_soft = soft
 
-## 掀开进行到几分之几：洞从落脚的地方开到最远的一角外头，边越开越柔
+## 掀开进行到几分之几：洞从落脚的地方开到最远的一角外头，边越开越柔。
+## 过了三成，洞外剩下的灯开始散尽、夜色跟着变薄：远处的小灯挪得慢，等不到它们自己漂走
 func _revealing(k: float) -> void:
 	var e := smoothstep(0.0, 1.0, k)
 	var r := e * 1.6
 	_mat.set_shader_parameter("hole_r", r)
 	_mat.set_shader_parameter("hole_soft", lerpf(0.05, 0.30, e))
+	_mat.set_shader_parameter("ebb", smoothstep(0.3, 0.85, k))
 	_river.hole_r = r
+	_river.ebb = smoothstep(0.3, 0.8, k)
 
 ## 掀开做完：什么都归零。着色器整张透明，灯收起来，光海藏起来（ctl 那一层也会跟着藏）
 func _finish() -> void:
@@ -118,6 +121,7 @@ func _finish() -> void:
 	_mat.set_shader_parameter("dim", 0.0)
 	_mat.set_shader_parameter("front", River.FRONT_REST)
 	_mat.set_shader_parameter("hole_r", 0.0)
+	_mat.set_shader_parameter("ebb", 0.0)
 	_sea.visible = false
 	_river.stop()
 
@@ -210,6 +214,7 @@ class River extends Control:
 	var _hole := Vector2.ZERO                # 掀开的洞在哪儿；半径拿 _hole_far 当 1。hole_r 是 0 就是没开
 	var _hole_far := 1.0
 	var hole_r := 0.0
+	var ebb := 0.0                            # 掀开到后头洞外剩下的灯散尽（0 到 1）
 
 	func build(sea: ShaderMaterial) -> void:
 		_sea = sea
@@ -279,6 +284,7 @@ class River extends Control:
 		_hole = at
 		_hole_far = far
 		hole_r = 0.0
+		ebb = 0.0
 
 	## 过渡做完：灯都收起来，不再跟着水流走
 	func stop() -> void:
@@ -346,6 +352,10 @@ class River extends Control:
 				seen *= smoothstep(hole_r - 0.02, hole_r + 0.14, hd)
 				if hd < hole_r + 0.45:
 					l.push += hq.normalized() * (delta * PUSH * (1.0 - smoothstep(hole_r, hole_r + 0.45, hd)))
+				# 洞外的灯散尽（远处的小灯挪得慢，等不到它们自己漂走）；贴着洞边被挤着的那一圈留到最后
+				var re := (hd - hole_r) / 0.16
+				var rim := exp(-re * re)
+				seen *= 1.0 - ebb * (1.0 - rim)
 			if seen <= 0.004:
 				if l.root.visible: l.root.visible = false
 				continue

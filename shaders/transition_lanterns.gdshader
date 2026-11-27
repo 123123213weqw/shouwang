@@ -34,6 +34,7 @@ uniform vec2 hole_at = vec2(0.8, 0.55);   // 掀开：从哪一点先露（等�
 uniform float hole_far = 1.0;       // 离这一点最远的那一角有多远：洞的半径拿它当 1
 uniform float hole_r = 0.0;         // 洞现在多大（0 是关着的）
 uniform float hole_soft = 0.2;      // 洞边有多柔
+uniform float ebb = 0.0;            // 掀开到后头，洞外剩下的灯散尽、夜色跟着变薄（0 到 1）。盖住的时侯是 0
 uniform int lamp_n = 0;             // 近处真的灯有几盏
 uniform vec2 lamp_pos[36];          // 它们在画面上的位置（等比坐标）
 uniform vec4 lamp_lit[36];          // x 光晕的半径（等比），y 亮度
@@ -46,10 +47,16 @@ const float CORE = 0.0062;          // dy 是 1 的灯：亮芯的半径
 const float REFL = 0.30;            // dy 是 1 的灯：倒影有多长。倒影是水面上的距离，近处按 dy 的平方拉长
 const float LINE_GAP = 0.16;        // 水纹在河面上隔着多远
 
+// 格点上的一个随机数（0 到 1），只拿整数格点来问。
+// 没有照抄 lobby_river.gdshader 的那一个（它头一步取 p × 123.34 的小数部分：p 到十几的时侯这个数上千，
+// 小数部分只剩十几个比特，输入差最后一两位、或者前头哪一步的舍入不同，结果就整个换掉——2026-11-27 在服务器上对拍过，
+// 同一个格点从两边算能差 0.5）。噪声的四个角要是各算各的，格子边上就裂开：洞边的揉动是拿方向当输入的，
+// 正上正下正好是它的格子边，洞心上下出现直缝、刚开的时侯是个四角星。
+// 这一个头一步取 p × 0.1031 的小数部分，数很小、有效位都在小数里，同样的扰动只差千分之几
 float hash21(vec2 p) {
-	p = fract(p * vec2(123.34, 456.21));
-	p += dot(p, p + 45.32);
-	return fract(p.x * p.y);
+	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.x + p3.y) * p3.z);
 }
 
 vec4 hash42(vec2 p) {
@@ -168,7 +175,11 @@ void fragment() {
 	float open_n = mix(1.0, smoothstep(hole_r - hole_soft, hole_r + hole_soft, hd), hole_on);
 	float open_l = mix(1.0, smoothstep(hole_r - 0.02, hole_r + 0.10, hd), hole_on);
 	a *= open_n;
-	float rim = exp(-pow((hd - hole_r) / (hole_soft + 0.04), 2.0)) * hole_on;
+	float re = (hd - hole_r) / (hole_soft + 0.04);
+	float rim = exp(-re * re) * hole_on;              // 不用 pow：底数是负的时侯 pow 没定义，有的显卡上算出 NaN
+	// 掀开到后头洞外剩下的那几块（多半在顶上：远处的小灯挪得慢，等不到它们自己漂走）夜色也变薄，
+	// 不然灯散了以后留下一块块黑影子
+	a *= 1.0 - 0.85 * ebb * ebb;
 
 	// ---- 夜色：关卡的底色压进墨色里。四角再压暗一点，把眼睛收到中间
 	vec3 night = mix(night_from, night_to, night_mix);
@@ -186,7 +197,7 @@ void fragment() {
 
 	// ---- 光：河面上的灯；远处的光海（越往远处越亮，带着一团一团的起伏）；近处真的灯的烛光
 	vec3 l = lamps(gx, gz, p, vp, t);
-	float sea = smoothstep(1.0, 0.36, dy) * (0.55 + 0.45 * vnoise(vec2(gx * 2.2, gz * 1.4)));
+	float sea = (1.0 - smoothstep(0.36, 1.0, dy)) * (0.55 + 0.45 * vnoise(vec2(gx * 2.2, gz * 1.4)));
 	vec3 halo = vec3(0.0);
 	for (int i = 0; i < lamp_n; i++) {
 		float d = distance(p, lamp_pos[i]) / lamp_lit[i].x;
@@ -197,11 +208,12 @@ void fragment() {
 	}
 	float keep = lit * open_l;
 	l *= keep * (1.0 + 1.6 * rim);                 // 洞边：让开的时侯灯被挤到边上，那一圈更亮
-	halo *= keep;
+	l *= 1.0 - ebb * (1.0 - rim);                  // 洞外的灯散尽；被挤到洞边的那一圈留到最后
+	halo *= keep * (1.0 - ebb);
 
 	// ---- 合起来。亮芯偏白黄（烛火的芯）；光叠得多的地方也偏白
 	vec3 col = night * a;
-	col += candle * (l.y * 0.55 + sea * 0.16 * lit * open_l) + halo;
+	col += candle * (l.y * 0.55 + sea * 0.16 * lit * open_l * (1.0 - ebb)) + halo;
 	col += vec3(1.0, 0.97, 0.90) * l.x * 1.3;
 	col += ember * l.z * 0.6;
 	col += mix(night, vec3(0.78, 0.90, 0.86), 0.6) * water * 0.16 * a;
@@ -213,4 +225,5 @@ void fragment() {
 	// 夜色很暗，渐变会一条一条的（banding）：按像素掺一点抖动把它打散
 	col += (hash21(mod(floor(p * view_h), 64.0)) - 0.5) / 255.0 * a;
 	COLOR = vec4(col, a);
+	//COLOR = vec4(open_n, open_l, fract(hd0 * 4.0), 1.0);   // 排查用：洞的开合画出来（平时注释着）
 }
