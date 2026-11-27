@@ -6,7 +6,7 @@
 PROJECT="$1"; WHICH="$2"; SECS="${3:-4.8}"; FPS="${4:-20}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 LOG="${SW_LOG:-/tmp/shouwang_run.log}"
-DIR="/tmp/sw_opening_$WHICH"
+DIR="/tmp/sw_opening_$(basename "${SW_RUN:-x}")_$WHICH"      # 带上标签：几个标签同时录的时侯别写进同一个目录
 rm -rf "$DIR"
 export SW_REC="$DIR" SW_OPENING="$WHICH" SW_AUTOREC="$SECS,$FPS,open$WHICH"
 bash "$HERE/launch_v100.sh" "$PROJECT" || exit 1

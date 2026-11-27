@@ -10,7 +10,7 @@ PROJECT="$1"; SECS="${2:-20}"; FPS="${3:-20}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 LOG="${SW_LOG:-/tmp/shouwang_run.log}"
 PORT="${SW_DEBUG_PORT:-9878}"
-DIR="/tmp/sw_lobby"
+DIR="/tmp/sw_lobby_$(basename "${SW_RUN:-x}")"      # 带上标签：几个标签同时录的时侯别写进同一个目录
 RC="bash $HERE/rc.sh"
 rm -rf "$DIR"
 export SW_OPENING=off SW_BOOT_WAIT=3 SW_REC="$DIR" SW_AUTOREC="$SECS,$FPS,lobby"
