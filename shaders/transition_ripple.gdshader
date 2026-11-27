@@ -16,6 +16,7 @@ uniform vec4 trails = vec4(0.0);        // 两圈拖尾：(第一圈的半径, �
 uniform vec3 water_tint = vec3(0.0);    // 这一关的水色：游戏里那条河在画面上看着的颜色（sRGB，算式在 transition_ripple.gd）
 uniform float tint_amount = 0.0;        // 染多重：0 是标题页那条河本来的颜色，1 全是这一关的水色
 uniform float seed = 0.0;               // 圈边起伏的相位：每一趟随手取一个，圈的形状不是回回一样
+uniform float calm = 0.0;               // 题字周围的水纹压下去多少（跟着题字一起淡入淡出）
 
 // 底下这些和标题页那条河是同一套数（lobby_river.gdshader），两边看着才是同一条河
 const vec3 water_top = vec3(0.024, 0.035, 0.051);
@@ -34,6 +35,12 @@ const float NEAR_LINES = 12.0;          // 最下面一行里几条
 const float RIM_SIGMA = 0.0055;         // 亮纹那道细线有多粗（画面高度的几分之几）
 const float RIM_GLOW = 0.02;            // 亮纹外头那层淡的光有多宽
 const float WOBBLE = 0.025;             // 圈边沿着圈起伏多大（画面高度的几分之几）。最多偏这么多，可正可负
+// 游戏里那条河的水纹是俯着透着看的，越远（画面越往上）挤得越密：高度 y 处每画面高度有几条 = DYED_DENSE / (y + DYED_HORIZON)²，
+// 比标题页那条河密、也亮。这两组数是对着游戏里的截图量的（水纹占多少、亮线多亮），圈里的水和四周才是同一片
+const float DYED_DENSE = 26.0;             // 对着游戏里的截图量的：画面上方水纹占一成上下，下方占 2%
+const float DYED_HORIZON = 0.451;       // 地平线在画面上方多远（画面高度的几分之几）
+const float DYED_LINE_ALPHA = 0.36;
+const float DYED_LINE_PX = 1.8;
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -83,9 +90,13 @@ void fragment() {
 	vec2 nd = vec2(dir.x, dir.y * squash);
 	nd /= max(length(nd), 0.001);
 	vec2 w = p + nd * (e * 70.0 * exp(-e * e * 1800.0)) * rim * 0.012;
-	float dens = density(w.y);
+	// ---- 水纹。两种画法按染多重掺起来：标题页那条河是远处（上面）密、近处稀的一条条长线；
+	// 游戏里那条河越远挤得越密。相位取密度对高度的积分，线才不会疏密打架
+	float away = w.y + DYED_HORIZON;                          // 离地平线多远
+	// 最密的地方封在 90 条（不到 8 像素一条），再密就该糊成一片了
+	float dens = mix(density(w.y), clamp(DYED_DENSE / (away * away), NEAR_LINES, 90.0), tint_amount);
 	float spacing = 1.0 / dens;                                     // 相邻两条水纹隔着多高
-	float phase = FAR_LINES * w.y - 0.5 * (FAR_LINES - NEAR_LINES) * w.y * w.y - t * flow;
+	float phase = mix(FAR_LINES * w.y - 0.5 * (FAR_LINES - NEAR_LINES) * w.y * w.y, -DYED_DENSE / away, tint_amount) - t * flow;
 	float id = floor(phase + 0.5);                                  // 第几条
 	float lid = mod(id, 97.0);                                      // 拿它当随机数的种子。数越积越大以后浮点数就不准了，所以取余
 	float ys = w.y - t * flow / dens;                               // 跟着水一起往下走的坐标
@@ -94,12 +105,15 @@ void fragment() {
 	float delta = amp * sin(w.x * 4.0 + lid * 1.9 + t * 0.15);
 	delta += spacing * 0.05 * sin(w.x * 11.0 - lid * 2.6 + ys * 2.0 + t * 0.22);
 	float dl = abs(fract(phase + delta * dens) - 0.5) * spacing * view_h;   // 离最近一条水纹的中线多远（像素）
-	float ln = 1.0 - smoothstep(line_px * 0.5 - 0.7, line_px * 0.5 + 0.7, dl);
+	float px = mix(line_px, DYED_LINE_PX, tint_amount);               // 水纹多粗（逻辑像素）
+	float ln = 1.0 - smoothstep(px * 0.5 - 0.7, px * 0.5 + 0.7, dl);
 	// 断成一笔一笔的：每条线断的地方都不一样，一笔里面也有一段亮一段淡
 	float stroke = smoothstep(0.40, 0.56, vnoise(vec2(w.x * 6.5 + lid * 13.7, ys * 1.2 + lid * 0.37)));
 	stroke *= 0.75 + 0.25 * vnoise(vec2(w.x * 14.0 + lid * 5.0, ys * 3.0));
 	float near = smoothstep(-0.05, 1.05, w.y);                      // 0 远，1 近
-	float a = ln * stroke * line_alpha * mix(0.30, 1.0, near);
+	// 远处淡多少：标题页那条河淡得多（长线挤在一起会糊成一片灰）；游戏里那条河远处的反而更亮（挤在一起、一条压着一条）
+	float dim = mix(mix(0.30, 1.0, near), mix(1.0, 0.82, near), tint_amount);
+	float a = ln * stroke * mix(line_alpha, DYED_LINE_ALPHA, tint_amount) * dim;
 
 	// ---- 离画面正中多远（标题页那条河拿它压暗四角）
 	float rad = length((UV - vec2(0.5, 0.55)) * vec2(asp * 0.75, 1.0));
@@ -122,6 +136,8 @@ void fragment() {
 	float shimmer = 0.6 + 0.4 * vnoise(vec2(dx * 30.0, (p.y - mod(t, 600.0) * 0.05) * 22.0));
 	a += ln * stroke * path * moon_path;
 	col += moon_color * path * (0.045 * shimmer);
+	// 题字周围的水纹压一压：字底下不清爽读着累，也像字把水镇住了。压多少跟着题字走（没题字的时侯是 0）
+	a *= 1.0 - 0.65 * calm * (1.0 - smoothstep(0.17, 0.38, length((UV - vec2(0.5, 0.47)) * vec2(asp * 0.6, 1.0))));   // 只包住题字那一块
 
 	// ---- 月影：这是水里的月影，不是天上的月亮（这张图是俯着看河面，没有天空）。
 	// 边被水纹横着揉得弯弯曲曲，还有细碎的抖（一秒钟换八次相位；取余，别让它越积越大）

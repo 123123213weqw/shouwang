@@ -267,7 +267,12 @@ func _apply() -> void:
 	_mat.set_shader_parameter("water_tint", Vector3(tint.r, tint.g, tint.b))
 	_mat.set_shader_parameter("tint_amount", lerpf(_amount_from, _amount_to, dyed))
 
-	if _titled: _apply_text(x)
+	# 题字周围的水纹压下去多少：跟着小字淡入、跟着整组淡出；不题字的时侯是 0
+	var calm := 0.0
+	if _titled:
+		_apply_text(x)
+		calm = _kicker.modulate.a * _group.modulate.a
+	_mat.set_shader_parameter("calm", calm)
 
 ## 题字：盖住的时侯小字、大字先后淡入，印章落下来；掀开的时侯整组跟着圈一起缩小、淡出
 func _apply_text(x: float) -> void:
