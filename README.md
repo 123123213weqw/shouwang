@@ -262,10 +262,11 @@ SW_OPENING=off tools/playtest/agent.sh a7 drive tools/playtest/steps_versus.txt 
 |---|---|---|
 | 跳 | W A S D，或者点亮着的格子 | 左摇杆、十字键 |
 | 技能（菜单里是确认） | 空格 | A |
-| 菜单 | Esc | Start、Back |
+| 菜单 | Esc，或者关卡左上角的「返回」 | Start、Back，或者关卡左上角的「返回」 |
 | 返回 | | B |
 
 手柄的左摇杆同时带着屏幕上的一个光标，停在按钮上时按 A 等于鼠标点击。
+关卡左上角的「返回」打开的是暂停菜单，不直接退出：退不退在菜单里选。
 
 ## 跑起来
 

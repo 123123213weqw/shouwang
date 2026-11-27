@@ -1,4 +1,4 @@
-# 关卡左上角的"返回"按钮：在关卡里露面，按它回标题页；对战里也露面
+# 关卡左上角的"返回"按钮：在关卡里露面；点它先把暂停菜单叫出来（不直接退），菜单里选"继续"再回到关卡；对战里也露面
 #   SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a8 drive tools/playtest/steps_hud_back.txt hudback
 sleep 2
 call pad_adapter.gd debug_unlock_all
@@ -8,13 +8,28 @@ call pad_adapter.gd debug_pick_character 0
 sleep 7
 ui
 snap 01_level
+# 点"返回"：该出暂停菜单，还在关卡里，"返回"自己让开
 click_btn HudReturnButton
+sleep 1
+scene
+ui
+snap 02_menu
+# 菜单里选"继续"：回到关卡，"返回"又露面
+click_btn ResumeGameButton
+sleep 1
+scene
+ui
+snap 03_resumed
+# 再点"返回"，这次在菜单里选"主菜单"：回标题页
+click_btn HudReturnButton
+sleep 1
+click_btn MainMenu
 sleep 4
 scene
-snap 02_title
-# 对战里也看一眼
+snap 04_title
+# 从标题页开一局对战：按钮也露面
 call pad_adapter.gd debug_versus 3 1
 sleep 4
 call pad_adapter.gd debug_versus 0
 ui
-snap 03_versus
+snap 05_versus

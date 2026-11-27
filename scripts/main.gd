@@ -180,7 +180,7 @@ func _ready() -> void:
 	tutorial.name = "Tutorial"
 	tutorial.main = self
 	$CanvasLayer/Control.add_child(tutorial)
-	hud_return_button.pressed.connect(SceneManager.load_title)
+	hud_return_button.pressed.connect(_open_pause_menu)
 	for overlay in [pause_menu, final_score_control, tutorial.card, SceneManager.scene_transition_control]:
 		overlay.visibility_changed.connect(_update_hud_return_visibility)
 	endless_rng.randomize()
@@ -204,6 +204,13 @@ func _ready() -> void:
 
 	start_time = get_time()
 
+
+## 关卡左上角的"返回"：先把暂停菜单叫出来，退不退在菜单里选。
+## 不直接回标题页：手柄的 A 既是放技能又是点光标停着的按钮，光标停在它上面的时侯想放技能，一局就没了
+func _open_pause_menu() -> void:
+	if pause_menu == null or pause_menu.visible: return
+	if tutorial != null and tutorial.card_open(): return      # 新手卡片开着：和按 Esc 一样，先不动
+	pause_menu.visible = true
 
 func _update_hud_return_visibility() -> void:
 	hud_return_button.visible = (
