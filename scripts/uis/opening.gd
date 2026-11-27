@@ -8,7 +8,7 @@ class_name Opening extends CanvasLayer
 ##   D 守夜人点灯   五块石台升起，守夜人一格一格跳过去，每落一格点亮一盏灯，最后一举灯照亮全屏
 ## 按任意键（或手柄按键、鼠标）跳过。每个方案三四秒，标题页的标志和按钮在最后入场。
 ## 界面全是代码搭的（和新手教程的卡片一个做法），场景文件 title.tscn 不用改。
-## 每个方案配一段声音（assets/audio/opening/，由 tools/audio/opening.py 算出来，时刻对着下面的动画）：
+## 每个方案配一段声音（assets/audio/opening/，由 tools/audio/remake.py 生成，时刻对着下面的动画）：
 ## 开场一响，标题页自己的音乐先压低，揭出标题的时侯再回来。
 ## 旁白是可选的：assets/audio/opening/voice<A>.wav 在（真人录的一句话）就放，不在就不放。台词、录和收拾的办法见 tools/audio/voice.py
 
@@ -144,7 +144,7 @@ func _sound_start() -> void:
 		_voice.name = "OpeningVoice"
 		_voice.bus = &"SFX"
 		_voice.stream = SOUNDS[variant]
-		add_child(_voice)
+		title.add_child(_voice)
 		_voice.play()
 	# 旁白：有真人录的那一句才放
 	var path := "res://assets/audio/opening/voice%s.wav" % variant
@@ -155,7 +155,7 @@ func _sound_start() -> void:
 			_narration.name = "OpeningNarration"
 			_narration.bus = &"SFX"
 			_narration.stream = line
-			add_child(_narration)
+			title.add_child(_narration)
 			_narration.play(NARRATION_AT)
 			_after(NARRATION_AT).tween_property(_voice, "volume_db", NARRATION_DUCK_DB, 0.15)
 			_after(NARRATION_AT + line.get_length()).tween_property(_voice, "volume_db", 0.0, 0.4)
@@ -164,13 +164,15 @@ func _sound_start() -> void:
 ## 音乐回到平常的音量。这两个动画挂在标题页上，开场这一层销毁了也接着走完
 func _sound_stop() -> void:
 	if is_instance_valid(_voice):
-		var tv := create_tween()
+		_voice.name = "OpeningVoiceTail"
+		var tv := _voice.create_tween()
 		tv.tween_property(_voice, "volume_db", -60.0, 0.22)
 		tv.tween_callback(_voice.queue_free)
 	if is_instance_valid(_music):
-		create_tween().tween_property(_music, "volume_db", _music_home_db, 0.35)
+		_music.create_tween().tween_property(_music, "volume_db", _music_home_db, 0.35)
 	if is_instance_valid(_narration):
-		var tn := create_tween()
+		_narration.name = "OpeningNarrationTail"
+		var tn := _narration.create_tween()
 		tn.tween_property(_narration, "volume_db", -60.0, 0.12)
 		tn.tween_callback(_narration.queue_free)
 	_voice = null
