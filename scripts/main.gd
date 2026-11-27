@@ -202,6 +202,7 @@ func _ready() -> void:
 	tutorial.name = "Tutorial"
 	tutorial.main = self
 	$CanvasLayer/Control.add_child(tutorial)
+	hud_return_button.icon = Tutorial.icon_texture(hud_return_button.icon)
 	hud_return_button.pressed.connect(_open_pause_menu)
 	for overlay in [pause_menu, final_score_control, tutorial.card, SceneManager.scene_transition_control]:
 		overlay.visibility_changed.connect(_update_hud_return_visibility)
@@ -231,7 +232,7 @@ func _ready() -> void:
 	start_time = get_time()
 
 
-## 关卡左上角的"返回"：先把暂停菜单叫出来，退不退在菜单里选。
+## 关卡左上角的弯箭头打开暂停菜单。
 ## 不直接回标题页：手柄的 A 既是放技能又是点光标停着的按钮，光标停在它上面的时侯想放技能，一局就没了
 func _open_pause_menu() -> void:
 	if pause_menu == null or pause_menu.visible: return
@@ -1382,9 +1383,10 @@ func _night_fail() -> void:
 func _add_rule_hud() -> void:
 	rule_hud = RuleHud.new()
 	rule_hud.name = "RuleHud"
-	rule_hud.main = self
 	$CanvasLayer/Control.add_child(rule_hud)
 	$CanvasLayer/Control.move_child(rule_hud, 0)
+	var button_rect := hud_return_button.get_rect()
+	rule_hud.position = Vector2(button_rect.end.x + 4.0, button_rect.get_center().y)
 	rule_hud.setup(ruleset)
 	rule_hud.show_wind(wind_dir)
 

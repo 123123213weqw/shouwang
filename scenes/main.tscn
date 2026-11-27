@@ -160,19 +160,7 @@ shader_parameter/displacement_size = 100.0
 font = ExtResource("22_bjg73")
 font_size = 25
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hud_return"]
-content_margin_left = 12.0
-content_margin_right = 12.0
-bg_color = Color(0.03, 0.10, 0.09, 0.92)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.35, 0.53, 0.47, 0.7)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_hud_return"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_txyw0"]
 content_margin_left = 0.0
@@ -328,20 +316,21 @@ visible = false
 layout_mode = 1
 offset_left = 23.0
 offset_top = 12.0
-offset_right = 137.0
+offset_right = 71.0
 offset_bottom = 60.0
 focus_mode = 0
 tooltip_text = "暂停菜单"
-theme_override_colors/font_color = Color(0.87, 0.92, 0.89, 1)
-theme_override_colors/icon_normal_color = Color(0.87, 0.92, 0.89, 1)
-theme_override_constants/icon_max_width = 27
-theme_override_font_sizes/font_size = 28
-theme_override_styles/normal = SubResource("StyleBoxFlat_hud_return")
-theme_override_styles/hover = SubResource("StyleBoxFlat_hud_return")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_hud_return")
-text = "返回"
+theme_override_colors/icon_normal_color = Color(0.76, 0.80, 0.78, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(0.65, 0.78, 0.73, 1)
+theme_override_constants/icon_max_width = 28
+theme_override_styles/normal = SubResource("StyleBoxEmpty_hud_return")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_hud_return")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_hud_return")
+theme_override_styles/hover_pressed = SubResource("StyleBoxEmpty_hud_return")
+text = ""
 icon = ExtResource("24_hud_back")
-expand_icon = true
+icon_alignment = 1
 
 [node name="ComboControl" type="Control" parent="CanvasLayer/Control"]
 layout_mode = 1

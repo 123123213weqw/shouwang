@@ -12,13 +12,11 @@ const FLAG := preload("res://assets/sprites/ui/rules/wind_flag.png")
 const CANDLE := preload("res://assets/sprites/ui/rules/candle.png")
 const HOLDER := preload("res://assets/sprites/ui/rules/candle_holder.png")
 
-const X0 := 28.0                       # 离画面左边多远
-const Y0 := 20.0                       # 离画面顶上多远
-const FLAG_W := 84.0                   # 旗子那张图的框有多大。图是 311×316 的画布、旗子只占中间 141×155，
-										##     所以框要开到 84 像素，旗子在画面上才有 35×41 像素（54 的时侯只有 25 像素高，太小）
-const LABEL_SIZE := 30                 # 风的名字的字号
-const LABEL_W := 96.0
-const GAP := 24.0                      # 风和蜡烛之间
+const FLAG_W := 68.0                   # 旗子的图有留白，旗面在这块框里约 30×33 像素
+const LABEL_SIZE := 28
+const LABEL_W := 64.0
+const LABEL_H := 36.0
+const GAP := 10.0                      # 风和蜡烛之间
 
 const CANDLE_H := 66.0                 # 蜡烛没烧的时侯有多高
 const CANDLE_W := 23.0                 # 蜡烛多粗（图里蜡烛宽 63、高 181，等比）
@@ -30,6 +28,8 @@ const SINK := 13.0                     # 蜡烛脚插进灯盏里多深（这一
 const CANDLE_TEX := 256.0
 const CANDLE_BOX := Rect2(96.0, 40.0, 63.0, 181.0)
 const HOLDER_SCALE := HOLDER_W / 95.0          # 灯盏的图 311×316，盏占 x 108..203、y 122..192
+const NIGHT_HEIGHT := RIM_Y + 70.0 * HOLDER_SCALE
+const NIGHT_SCALE := 0.45
 
 const WIND_NAMES := {
 	Vector2i(0, 1): "北风",       # 从画面顶上往近处刮
@@ -42,7 +42,6 @@ const INK := Color(0.94, 0.96, 0.92)            # 旗子：和卡片上的正文
 const WAX := Color(0.98, 0.93, 0.80)            # 蜡：暖白
 const MINT := Color(0.56, 0.86, 0.77)           # 灯盏：和卡片的边框一个颜色
 
-var main: Node
 var _wind: Control
 var _flag: TextureRect
 var _label: Label
@@ -51,14 +50,12 @@ var _clip: Control                             # 裁蜡烛的框：只露出框�
 var _candle: TextureRect
 var _flame: Flame
 var _frac := 1.0                               # 蜡还剩几成
-var _night_x := 0.0                            # 蜡烛和灯盏的正中在 x 多少
 var _wind_dir := Vector2i.ZERO
 
 func _ready() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-## 按这一档搭出来：有风向才有旗子，有夜巡才有蜡烛
+## 按这一档搭出旗子和蜡烛，以这一行的中线为 y = 0。
 func setup(ruleset: Ruleset) -> void:
 	for child in get_children():
 		remove_child(child)
@@ -67,17 +64,16 @@ func setup(ruleset: Ruleset) -> void:
 	_night = null
 	_flame = null
 	if ruleset == null: return
-	var next_x := X0 + 14.0
+	var next_x := 0.0
 	if ruleset.wind:
-		_build_wind(Vector2(X0, Y0))
-		next_x = X0 + FLAG_W + 10.0 + LABEL_W + GAP
+		_build_wind()
+		next_x = FLAG_W + LABEL_W + GAP
 	if ruleset.night_watch:
-		_build_night(next_x)
+		_build_night(next_x + HOLDER_W * NIGHT_SCALE / 2.0)
 
-func _build_wind(at: Vector2) -> void:
+func _build_wind() -> void:
 	_wind = Control.new()
 	_wind.name = "Wind"
-	_wind.position = at
 	_wind.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_wind)
 	_flag = TextureRect.new()
@@ -86,23 +82,26 @@ func _build_wind(at: Vector2) -> void:
 	_flag.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_flag.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_flag.size = Vector2(FLAG_W, FLAG_W)
+	_flag.position.y = -FLAG_W / 2.0
 	_flag.pivot_offset = _flag.size / 2.0
 	_flag.self_modulate = INK
 	_flag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_wind.add_child(_flag)
 	_label = Tutorial.make_label(LABEL_SIZE, INK)
 	_label.name = "WindName"
-	_label.position = Vector2(FLAG_W + 10.0, (FLAG_W - 36.0) / 2.0)
-	_label.size = Vector2(LABEL_W, 34.0)
+	_label.position = Vector2(FLAG_W, -LABEL_H / 2.0)
+	_label.size = Vector2(LABEL_W, LABEL_H)
+	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_label.label_settings.outline_size = 8
 	_label.label_settings.outline_color = Color(0.0, 0.03, 0.03, 0.8)
 	_wind.add_child(_label)
 
 func _build_night(x: float) -> void:
-	_night_x = x
 	_night = Control.new()
 	_night.name = "Night"
 	_night.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_night.position = Vector2(x, -NIGHT_HEIGHT * NIGHT_SCALE / 2.0)
+	_night.scale = Vector2.ONE * NIGHT_SCALE
 	add_child(_night)
 	# 裁蜡烛的框：底边钉在蜡烛脚底下，高度跟着蜡走。它在灯盏的前面加进来，所以画在灯盏后面：插进盏里的那一截被盏挡着
 	_clip = Control.new()
@@ -128,7 +127,7 @@ func _build_night(x: float) -> void:
 	holder.self_modulate = MINT
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.size = Vector2(311.0, 316.0) * HOLDER_SCALE
-	holder.position = Vector2(x - HOLDER_W / 2.0 - 108.0 * HOLDER_SCALE, Y0 + RIM_Y - 122.0 * HOLDER_SCALE)
+	holder.position = Vector2(-HOLDER_W / 2.0 - 108.0 * HOLDER_SCALE, RIM_Y - 122.0 * HOLDER_SCALE)
 	_night.add_child(holder)
 	_flame = Flame.new()
 	_flame.name = "Flame"
@@ -157,13 +156,13 @@ func set_night(frac: float) -> void:
 	_frac = clampf(frac, 0.0, 1.0)
 	if _night == null: return
 	var shown: float = maxf(_frac * CANDLE_H, 1.5)
-	var foot: float = Y0 + RIM_Y + SINK            # 蜡烛脚（在灯盏里）
+	var foot: float = RIM_Y + SINK                 # 蜡烛脚（在灯盏里）
 	_clip.size = Vector2(_clip.size.x, shown + SINK + 2.0)
-	_clip.position = Vector2(_night_x - _clip.size.x / 2.0, foot + 2.0 - _clip.size.y)
+	_clip.position = Vector2(-_clip.size.x / 2.0, foot + 2.0 - _clip.size.y)
 	var s: float = CANDLE_H / CANDLE_BOX.size.y
 	_candle.size = Vector2(CANDLE_TEX, CANDLE_TEX) * s
 	_candle.position = Vector2(_clip.size.x / 2.0 - CANDLE_BOX.get_center().x * s, _clip.size.y - 2.0 - SINK - CANDLE_BOX.end.y * s)
-	_flame.position = Vector2(_night_x - Flame.W / 2.0, foot - shown - Flame.H + 5.0)
+	_flame.position = Vector2(-Flame.W / 2.0, foot - shown - Flame.H + 5.0)
 	_flame.low = _frac < 0.3
 
 func has_wind() -> bool:
