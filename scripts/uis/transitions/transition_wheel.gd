@@ -24,6 +24,7 @@ const PINCH := 14.0          # 盖住：视角收窄多少度
 const LOW := 0.3             # 掀开：镜头从多低的地方拉回来（平时到棋盘平面的距离的几成）
 const WHEEL_HEIGHT := 0.7    # 水车的轴心离格子多高：镜头朝那儿推，水最后盖住的也是画面上的那一点
 const SPIN := 0.75           # 盖住：水车在这一段里比平时多转几圈（转太快在 60 帧上看是一顿一顿的，别加多）
+const ZOOM := 0.15           # 焦散的网跟着镜头放大多少（见着色器里的 zoom）
 
 const WATCHDOG := 0.6        # 看门狗：这一段该做完以后再过这么久，不管中间出了什么事，把借走的东西还回去
 
@@ -58,6 +59,7 @@ func cover(ctx: Dictionary) -> void:
 	var t := ctl.create_tween().set_parallel(true)
 	# 水：先慢慢从边上漫进来，越涌越快。和推镜头是叠着走的，不是一前一后两件事
 	t.tween_property(_mat, "shader_parameter/cover", 1.0, secs).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	t.tween_property(_mat, "shader_parameter/zoom", 1.0 + (ZOOM if portal != null else 0.03), secs)
 	if portal != null:
 		_dived = true
 		_dive(ctx, portal, t, secs)
@@ -71,15 +73,18 @@ func reveal(ctx: Dictionary) -> void:
 	_dived = false
 	var secs := duration(ctx, REVEAL, FAST)
 	if surfacing: secs = minf(secs, REVEAL_DIVE)
+	_mat.set_shader_parameter("zoom", 1.0 + (ZOOM * 2.0 if surfacing else 0.06))
 	var t := ctl.create_tween().set_parallel(true)
 	# 水线往下滑。快慢的曲线在着色器里（先慢后快），这儿匀着走就行：最后那一丝不能在底边拖着不走
 	t.tween_property(_mat, "shader_parameter/drain", 1.0, secs)
+	t.tween_property(_mat, "shader_parameter/zoom", 1.0, secs)
 	if surfacing: _surface(ctx, t, secs)
 	t.chain().tween_callback(_give_back)
 	await t.finished
 	_give_back()
 	_mat.set_shader_parameter("cover", 0.0)          # 回到什么都看不见
 	_mat.set_shader_parameter("drain", 0.0)
+	_mat.set_shader_parameter("zoom", 1.0)
 	rect.visible = false
 
 ## 换样式的时侯：正借着的东西先还回去（过渡中间不会换样式，以防万一）
