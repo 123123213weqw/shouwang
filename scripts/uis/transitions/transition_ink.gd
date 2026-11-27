@@ -70,6 +70,7 @@ func debug_pose(phase: int, step: int, ox: int, oy: int) -> String:
 		_tween = null
 		_reset()
 		rect.visible = false
+		ctl.visible = false
 		return "墨收起来了"
 	var main := ctl.get_node_or_null("/root/Main") as Main
 	var where: Variant = main.character.global_position if main != null and is_instance_valid(main.character) else null
@@ -77,6 +78,12 @@ func debug_pose(phase: int, step: int, ox: int, oy: int) -> String:
 	var level: Variant = main.current_level if main != null else null
 	_begin(at, {"color": level.base_color if level != null else SceneTransitionControl.INK})
 	var x := clampf(float(step) / 1000.0, 0.0, 1.0)
+	ctl.visible = true                     # 平时这一整层是藏着的（open 才让它露面）
+	_mat.set_shader_parameter("peek", 0)
+	if phase >= 3:                         # 排查用（临时）：phase 3 起把中间量画成灰度，全盖住的状态
+		_mat.set_shader_parameter("peek", phase - 2)
+		_cover_at(1.0)
+		return "看中间量 %d" % (phase - 2)
 	if phase == 1:
 		_cover_at(clampf((x * COVER_SECS - LAND_SECS) / (COVER_SECS - LAND_SECS), 0.0, 1.0))
 		return "墨冻在盖住的第 %d 千分位，从 (%.2f, %.2f) 晕开" % [step, at.x, at.y]
@@ -112,9 +119,10 @@ func _land(ctx: Dictionary) -> float:
 func _secs(ctx: Dictionary, normal: float, fast: float) -> float:
 	return duration(ctx, normal, fast)
 
-## 盖住晕开的那一段走到 t（0 到 1），缓出：刚晕开的时侯快，快盖满的时侯慢下来往角里渗
+## 盖住晕开的那一段走到 t（0 到 1）。先提速后减速：那一滴停了一下才"化开"，然后越晕越慢、往角里渗
 func _cover_at(t: float) -> void:
-	var eased := 1.0 - pow(1.0 - clampf(t, 0.0, 1.0), 2.0)
+	t = clampf(t, 0.0, 1.0)
+	var eased := 1.0 - pow(1.0 - pow(t, 1.6), 2.0)
 	_mat.set_shader_parameter("front", lerpf(DROP, FRONT_END, eased))
 
 ## 掀开走到 x（0 到 1）：洞慢慢化开、越化越快；淡痕在后半段褪掉
