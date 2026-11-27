@@ -17,14 +17,14 @@ const INK := Color(0.04, 0.06, 0.07)     # 和 SceneTransitionControl.INK 是同
 # ------------------------------------------------------------------ 数都在这儿调
 const COVER_SECS := 0.48          # 平时的局盖住多久（规矩是 0.35 到 0.7）。别超过 0.5：调试用的 debug_transition_test 0.5 是过了
                                   # 0.5 秒来掀的，盖得比它久，那一下会被丢掉（见 pad_adapter.gd 的 debug_transition_test）
-const REVEAL_SECS := 0.62         # 平时的局掀开多久（规矩是 0.4 到 0.9）
+const REVEAL_SECS := 0.66         # 平时的局掀开多久（规矩是 0.4 到 0.9）：一圈一圈浮上来，圈和圈之间要隔得开，看得出是一圈一圈的
 const COVER_FAST := 0.28          # 长夜、轮战的局：各 0.2 到 0.35
 const REVEAL_FAST := 0.30
 const SINK_DEPTH := 5.0           # 沉多深。藏的不只是石阶：水面在 y = -1.26，石阶上的河灯顶到台面上 1.5，主角连头顶的步数有 3.4，
                                   # 所以要沉到 5 以下它们才全在水里（掀开一开头，别让灯、人先于石阶冒出水面）
 const GHOST_DEPTH := 6.0          # 旧棋盘上的对手（脚下已经没有石阶了）按到多深：比石阶还深，整个人在水里
 const OUT_DEPTH := 1.75           # 浮上来的时候离水面多近开始"出水"这一段（台面在水下 0.5）：从这儿到停稳是看得见的，带过冲
-const HIDDEN_RISE := 0.3          # 浮上来的时间里有这么一大段（占浮上来的时长）还在水底悄悄地升，剩下的才是出水
+const HIDDEN_RISE := 0.25         # 浮上来的时间里有这么一大段（占浮上来的时长）还在水底悄悄地升，剩下的才是出水
 const DROP_SECS := 0.03           # 每一块沉下去用多久（带一点加速：越落越快）
 const HERO_DROP_SECS := 0.11      # 主角脚下那一块：带着人和水车，沉得慢一点，看得出是一块大石头落下去
 const RISE_SECS := 0.30           # 每一块浮上来用多久（平时的局）：先在水底升，出水那一段是阻尼弹簧，冲过头的量由弹簧自己给
@@ -414,7 +414,7 @@ func _take_old_board(ctx: Dictionary) -> void:
 	var gap := _wave_gap(rings, _total * 0.5 - DROP_SECS)
 	var latest := 0.0
 	for s in _stones:
-		s.at = (s.ring - 1) * gap + s.tile.rseed * gap * 0.45     # 同一圈里的几块差一点点，不是齐刷刷的
+		s.at = (s.ring - 1) * gap + s.tile.rseed * gap * 0.3     # 同一圈里的几块差一点点，不是齐刷刷的
 		if s != _hero: latest = maxf(latest, s.at)
 	_hero.secs = _hero_drop
 	_hero.at = clampf(latest + DROP_SECS + 0.02, _total * 0.4, _total - _hero_drop - VEIL_TAIL - 0.05)
@@ -438,10 +438,10 @@ func _stone_of(tile: Tile) -> Stone:
 		if s.tile == tile: return s
 	return null
 
-## 一圈隔多久：想把 wave 这么长的一段分给 rings 圈，但每圈至少隔那么一下、至多也不过那么久
-func _wave_gap(rings: int, wave: float) -> float:
+## 一圈隔多久：想把 wave 这么长的一段分给 rings 圈，但每圈至少隔那么一下、至多也不过 top 那么久
+func _wave_gap(rings: int, wave: float, top := WAVE_GAP_MAX) -> float:
 	var lo := 0.02 if _total < 0.4 else WAVE_GAP_MIN
-	return clampf(wave / maxf(rings - 1.0, 1.0), lo, WAVE_GAP_MAX)
+	return clampf(wave / maxf(rings - 1.0, 1.0), lo, top)
 
 ## 还没拿起来的石阶都拿起来、按到水底（新棋盘每一块都从水底往上浮）
 func _hold_board(main: Main) -> void:
@@ -481,9 +481,10 @@ func _take_new_board(ctx: Dictionary) -> void:
 		if d < nearest:
 			nearest = d
 			_hero = s
-	var gap := _wave_gap(rings + 1, _total * 0.96 - _rise)
+	# 一圈隔一圈地浮，最后一圈到头还留一点余量。小棋盘圈少就隔得开些（一眼看得出是一圈一圈的），大棋盘圈多就挤一挤
+	var gap := _wave_gap(rings + 1, _total - _rise - 0.06, 0.12)
 	for s in _stones:
-		s.at = s.ring * gap + s.tile.rseed * gap * 0.45
+		s.at = s.ring * gap + s.tile.rseed * gap * 0.3
 	_hero.at = 0.02
 	# 主角站上新一关的起点。上一趟记下的主角那一条不要了（它脚下是旧棋盘的石头）；
 	# 别的角色（对战里的对手）照旧留着：脚下那一块还在的跟着走，不在了的沉在水底（见 _hold_ghosts），新对手摆好了游戏会把它收走
