@@ -1,11 +1,12 @@
-"""Render 灯市回响, an original Godot audio set, using Python and NumPy."""
+"""Render the ordered score and cues from CC0 instrument and foley recordings."""
 
 import argparse
-import importlib.util
 from pathlib import Path
 import wave
 
 import numpy as np
+
+import recorded_samples as rec
 
 
 RATE = 48000
@@ -36,54 +37,24 @@ SFX_LEVELS = {
 }
 
 
-def load_foley(tools):
-    spec = importlib.util.spec_from_file_location("instruments", tools / "instruments.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def frames(seconds):
     return round(seconds * RATE)
 
 
-def time(seconds):
-    return np.arange(frames(seconds)) / RATE
-
-
-def hz(note):
-    return 440 * 2 ** ((note - 69) / 12)
-
-
-def envelope(t, start, end, decay):
-    return np.clip(t / start, 0, 1) * np.clip((t.size / RATE - t) / end, 0, 1) * np.exp(-t / decay)
-
-
 def tone(note, duration, color):
-    t = time(duration)
-    phase = 2 * np.pi * hz(note) * t
-    if color == "glass":
-        # Uneven overtones reproduce the feel of a small struck instrument.
-        modes = ((1, 1, 0.37), (2.006, 0.38, 0.17), (3.045, 0.16, 0.08), (4.18, 0.06, 0.04))
-    elif color == "bass":
-        modes = ((1, 1, 0.46), (2, 0.29, 0.23), (3, 0.13, 0.18), (5, 0.04, 0.08))
-    else:
-        modes = ((1, 1, 0.41), (2.001, 0.52, 0.23), (2.997, 0.22, 0.09), (5.008, 0.08, 0.04))
-    signal = sum(loudness * np.sin(phase * ratio) * np.exp(-t / damping)
-                 for ratio, loudness, damping in modes)
-    return signal * envelope(t, 0.004 if color != "bass" else 0.009, 0.034, 4)
+    instrument = {"glass": "guzheng", "bass": "harp", "string": "guzheng"}[color]
+    return rec.sound(instrument, duration, note=note, cutoff=3400 if color == "bass" else None)
 
 
 def puff(start, end, duration, decay):
-    t = time(duration)
-    frequency = end + (start - end) * np.exp(-t / 0.032)
-    return np.sin(np.cumsum(frequency) * (2 * np.pi / RATE)) * envelope(t, 0.003, 0.02, decay)
+    instrument = "bassdrum" if start < 215 else "block"
+    return rec.sound(instrument, duration, take=round(start / 72),
+                     speed=np.clip(start / (145 if start < 215 else 1250), 0.73, 1.45),
+                     cutoff=2600 if end < 420 else 6200, release=min(0.042, duration * 0.35))
 
 
 def sand(rng, duration, decay):
-    t = time(duration)
-    source = rng.normal(size=len(t))
-    return np.diff(source, prepend=0) * envelope(t, 0.003, 0.02, decay) * 0.20
+    return rec.texture(duration, 2500, 7800, rng.integers(3)) * 0.8
 
 
 def splash(foley, rng, size, duration):
@@ -195,7 +166,7 @@ def music(title, rng):
         phrase = phrases[section * 4 + chord_index]
         for position, note in phrase:
             voice = "glass" if title and not quiet else "string"
-            lead = tone(note, 0.80 if title else 1.0, voice)
+            lead = tone(rec.pentatonic(note, 2), 0.80 if title else 1.0, voice)
             when = bar_start + position * beat
             add(track, lead, when, 0.19 * phrase_gain[group], 0.06, loop=True)
             add(echoes, lead, when, 0.045 * phrase_gain[group], -0.38, loop=True)
@@ -294,6 +265,7 @@ def opening(letter, foley, rng):
         add(track, foley.swish(0.19, 2300, 570, rng), 1.95, 0.15, 0.25)
         add(track, puff(170, 52, 0.74, 0.155), 2.12, 0.55, 0.10)
         add(track, foley.woodblock(830, 0.38, rng), 2.12, 0.24, 0.18)
+        add(track, rec.sound("gong", 0.98, cutoff=2800), 2.12, 0.24, 0.04)
         add(track, foley.swish(0.52, 3500, 620, rng), 2.55, 0.16)
         reveal = 3.28
     else:
@@ -341,10 +313,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="destination assets/audio directory")
     parser.add_argument("--preview", type=Path, help="optional 25 second comparison WAV")
-    parser.add_argument("--tools", type=Path, default=Path(__file__).resolve().parent,
-                        help="directory with the project's instruments.py and synth.py")
     args = parser.parse_args()
-    foley = load_foley(args.tools)
+    foley = rec.Foley()
     music_rng = np.random.default_rng(34817)
     sfx_rng = np.random.default_rng(60419)
     opening_rng = np.random.default_rng(83911)
