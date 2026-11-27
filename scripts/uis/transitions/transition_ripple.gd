@@ -246,8 +246,9 @@ func _apply() -> void:
 		var t2 := _opening_trail(x, lag * 2.0, far)
 		trail = Vector4(t1.x, t1.y * 0.55, t2.x, t2.y * 0.3)
 
-	# 可见每帧都设一回，而且延到这一帧的最后再设：外面预热完会把节点藏掉（TransitionStyle.warm_up），
-	# 开机掀幕又正好和预热挤在同一帧里开始，它那一下"藏"可能落在掀开的半道上。延后设，谁先谁后都盖得过它
+	# 可见每帧都设一回，而且延到这一帧的最后再设：外面预热完会把节点藏掉（TransitionStyle.warm_up）。
+	# 开机掀幕现在由 SceneTransitionControl 等预热做完再掀，碰不上；可在游戏里换了样式以后头几帧就换关的话还是会撞上，
+	# 它那一下"藏"会落在过渡的半道上。延后设，谁先谁后都盖得过它
 	_rect.set_deferred("visible", true)
 	_mat.set_shader_parameter("aspect", asp)
 	_mat.set_shader_parameter("view_h", view.y)
