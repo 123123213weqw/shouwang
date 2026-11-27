@@ -47,8 +47,14 @@ var _armed := 0              # 这是第几次借东西：0 是没借。补间�
 var _tween: Tween            # 这一次借东西用的补间
 
 func build() -> void:
-	rect = add(full_rect(shader("wheel")), true)
-	rect.visible = false          # 预热是外面帮着做的；平时藏着，盖的时候自己设回可见
+	# 开机装上来的（这会儿画面是盖着的）不登记预热。登记了的话，底座的开机掀幕要等预热做完才来掀，而开机的黑幕
+	# 比预热早两帧就撤了，中间标题页会裸露两帧。不登记，掀幕从第一帧就开始，画面一直是水底，
+	# 着色器照样是在黑幕底下头一回画的。游戏里换到这个样式的照旧登记（趁还没换关先编译）
+	var at_boot := false
+	var control := ctl as SceneTransitionControl
+	if control != null: at_boot = control.is_opened
+	rect = add(full_rect(shader("wheel")), not at_boot)
+	rect.visible = false          # 平时藏着，盖的时候自己设回可见
 	_mat = rect.material as ShaderMaterial
 
 func cover(ctx: Dictionary) -> void:
@@ -74,12 +80,9 @@ func reveal(ctx: Dictionary) -> void:
 	var boot := str(ctx.get("mode", "level")) == "boot"
 	_begin(ctx, 1.0, 0.0, boot)
 	if boot:
-		# 开机掀幕和预热（TransitionStyle.warm_up：空等三帧、白画两帧、最后把节点藏起来）是同时开始的：预热收尾那一下
-		# 会把节点藏掉，盖过上面设的可见，水层就没了。等它藏完了再把节点设回可见。
-		# 顺带外面那块黑幕也是过三帧才撤（SceneManager._drop_boot_cover_soon）：撤了、预热也完了，再放水线
-		for i in 8:
-			await ctl.get_tree().process_frame
-			if not rect.visible: break
+		# 开机掀幕从第一帧就开始了，这会儿画面是一整片水底。外面那块黑幕要过三帧才撤（SceneManager._drop_boot_cover_soon）：
+		# 等它撤了再放水线，水线才是从头走到底的
+		for i in 3: await ctl.get_tree().process_frame
 		rect.visible = true
 	var surfacing := _dived
 	_dived = false
