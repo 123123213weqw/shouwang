@@ -101,12 +101,12 @@ void fragment() {
 	float vig = smoothstep(0.55, 1.25, rad);
 
 	// ---- 底色：标题页那条河的渐变；在游戏里则换成这一关的水色，再照游戏里那条河的样子补上棋盘底下那一汪月光
-	//（中间亮一点，四角暗一点）。淹上来的水和棋盘底下原来的水才是同一片，不是一块黑压过来
+	//（中间亮一点，往四角收下去）。淹上来的水和棋盘底下原来的水才是同一片，不是一块黑压过来
 	float v = smoothstep(0.0, 1.0, UV.y);
 	vec3 plain = mix(water_top, water_bottom, v);
-	vec3 dyed = water_tint + moon_color * 0.030 * (1.0 - smoothstep(0.35, 1.05, rad));
+	vec3 dyed = water_tint + moon_color * 0.030 * (1.0 - smoothstep(0.25, 0.75, rad));
 	vec3 col = mix(plain, dyed, tint_amount);
-	col *= 1.0 - mix(0.30, 0.12, tint_amount) * vig;
+	col *= 1.0 - 0.30 * vig;
 
 	// ---- 月光：月亮底下一道，越往近处越宽；水纹走进去会亮起来，两条水纹之间也浮着一点
 	float mx = moon.x * asp;

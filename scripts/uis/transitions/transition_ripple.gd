@@ -62,9 +62,9 @@ var _titled := false                   # 这一趟题不题字
 var _x_text := 0.0                     # 盖住这一段走到几分之几，主圈才淹到题字那一块；这以前小字不开始淡入
 var _box := Rect2()                    # 题字（小字、大字、印章）在画面上占的一块（_group 里的坐标）
 var _last_index := 0                   # 上一趟是第几关：只有真的过了上一关才题字
-var _river := TITLE_RIVER              # 河面这会儿染的是什么颜色（上一趟掀开完留下的）
+var _river := TITLE_RIVER              # 眼前这片水是按哪个底色染的（上一趟掀开完留下的）；不在游戏里的时侯当起点用
 var _river_amount := 0.0
-var _tint_from := TITLE_RIVER          # 这一段河面的颜色从哪儿走到哪儿
+var _tint_from := TITLE_RIVER          # 这一段河面从哪个底色走到哪个底色（都是关卡底色本身，换算在 _apply 里）
 var _tint_to := TITLE_RIVER
 var _amount_from := 0.0
 var _amount_to := 0.0
@@ -78,12 +78,17 @@ func build() -> void:
 
 func cover(ctx: Dictionary) -> void:
 	_begin(ctx, "cover", duration(ctx, COVER, FAST))
-	# 河面现在染的是离开的那一关的水色（上一趟留下的），这一趟走到要去的那一关的水色。
-	# 不用 ctx.color_from 当起点：换关的时侯它拿到的已经是新一关的底色了（main.load_level 先把 current_level 换成新一关才来盖）
+	# 河面从哪儿走到哪儿：起点是眼前这片水现在的颜色，终点是要去的那一关的水色。
+	# 起点问游戏里那条河要（main.colors.current_color）：连击的时侯它跟着灯的颜色走，不只是这一关的底色，
+	# 淹上来的水得和眼前这片接得上。不用 ctx.color_from：换关的时侯它拿到的已经是新一关的底色了
+	#（main.load_level 先把 current_level 换成新一关才来盖）。不在游戏里（标题页上）就是上一趟留下的样子
 	_tint_from = _river
 	_amount_from = _river_amount
+	var main: Variant = ctx.get("main")
+	if main != null and main.get("colors") != null:
+		_tint_from = main.colors.current_color
 	_tint_to = _aim(ctx)
-	_amount_to = 0.0 if ctx.get("level") == null else TINT
+	_amount_to = _amount(ctx)
 	# 先判题不题字，再记下这一趟是第几关：反过来写的话就是拿自己比自己，永远不题
 	_titled = _wants_title(ctx)
 	if ctx.has("index"): _last_index = int(ctx["index"])
@@ -102,7 +107,7 @@ func reveal(ctx: Dictionary) -> void:
 	_tint_from = _tint_to
 	_amount_from = _amount_to
 	_tint_to = _aim(ctx)
-	_amount_to = 0.0 if ctx.get("level") == null else TINT
+	_amount_to = _amount(ctx)
 	_start()
 	await _until()
 	_phase = ""
@@ -204,7 +209,13 @@ static func _river_of(level_color: Color) -> Color:
 	return level_color.darkened(0.78).srgb_to_linear().lerp(WATER_INK, NIGHT).linear_to_srgb()
 
 func _aim(ctx: Dictionary) -> Color:
-	return _river_of(ctx.color)
+	return ctx.color          # 关卡的底色本身（还没换算）。换算成画面上的水色只在 _apply 里做一回（_river_of）
+
+## 在哪儿河面就染多重：在游戏里全染（这一关的水色），在标题页上不染（标题页那条河本来的颜色）。
+## 看的是人在不在游戏里，不是 ctx 里有没有 level：从标题页进游戏那一趟掀开，说明里就没带这个键
+##（SceneTransitionControl._context 只拿它推出底色，没写回去），可那时候人已经在游戏里了
+static func _amount(ctx: Dictionary) -> float:
+	return TINT if ctx.get("main") != null else 0.0
 
 func _apply() -> void:
 	var x := _elapsed() / _secs
