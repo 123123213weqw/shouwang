@@ -23,6 +23,7 @@ const COVER_EASE := 1.4        # 盖住的前锋按时间的几次方扫下来�
 const STREAM_S := 1.2          # 水流多快（河面上的距离每秒）：盖住的时候、盖严了以后都是它
 const OUT_S := 2.0             # 掀开的时侯流得更急：灯涌出画面
 const DIM := 0.6               # 盖住的时侯，还没淹到的旧画面最多先暗下去多少
+const BOOT_HOLD := 0.35        # 开机掀幕：先给人看这么久的一整条灯河，再让开（头零点一秒还在开机的黑幕底下）
 
 var _sea: TextureRect
 var _mat: ShaderMaterial
@@ -38,14 +39,35 @@ var _covered := false          # 现在是不是盖严的。开机掀幕没盖�
 func build() -> void:
 	_sea = full_rect(shader("lanterns"))
 	_mat = _sea.material as ShaderMaterial
-	add(_sea, true)             # 着色器头一回画要编译，趁着开机的黑幕先花掉
-	_sea.visible = false        # 预热是外面帮着做的；平时藏着，盖的时侯自己设回可见
 	_river = River.new()
 	_river.name = "Lamps"
+	# 新手教程弹出卡片的时侯会把场景树暂停。灯河是背景，暂停时也照常流，不然掀开的半路上灯会冻住
+	_river.process_mode = Node.PROCESS_MODE_ALWAYS
+	# 开机的时侯画面本来就是盖着的（SceneTransitionControl.is_opened 一开头是真）。
+	# ctl 声明的是 CanvasLayer，is_opened 是它挂的脚本上的成员，写明类型才推得出
+	var boot: bool = ctl.is_opened
+	# 先加光海、后加灯河：同一层里先加的画在底下，灯才压在光海上头
+	add(_sea, not boot)
+	if not boot:
+		# 运行中换到这个样式：画面上没盖着。光海先什么都看不见，白画两帧把编译花掉（预热是外面帮着做的）；平时藏着，
+		# 盖的时侯自己设回可见
+		_sea.visible = false
 	add(_river)
 	_river.build(_mat)
+	if boot:
+		# 开机：光海从一开始就摆成盖严的灯河，一直画着——着色器头一回画要编译，正好还在开机的黑幕底下花掉。
+		# 不能等掀幕开始了再摆：黑幕只盖几帧就撤，等预热完再掀，中间有几帧没人盖，标题页先露一下、
+		# 灯河才"啪"地出现（2026-11-27 录开机画面看到的）
+		_fit()
+		_river.speed = STREAM_S
+		_river.begin()
+		_covering(1.0)
+		_covered = true
 
 func cover(ctx: Dictionary) -> void:
+	# 测试的时侯（SW_TRANSITION 设了）把这一层下面的节点数打进日志：换多少次关它都不该涨（节点都在 build() 里建了一次）
+	if OS.get_environment("SW_TRANSITION") != "":
+		print("河灯涌来：过渡这一层下面有 %d 个节点" % _count_nodes(ctl))
 	_fit()
 	_night_from = _night(ctx.get("color_from"))
 	_night_to = _night(ctx.get("color"))
@@ -86,6 +108,9 @@ func reveal(ctx: Dictionary) -> void:
 	_mat.set_shader_parameter("hole_far", _hole_far)
 	_river.speed = OUT_S
 	_river.open(_hole, _hole_far)
+	# 开机掀幕：先让人看一眼整条灯河，再让开（别的时侯盖严到掀开之间本来就隔着换棋盘的那一段）
+	if str(ctx.get("mode", "level")) == "boot":
+		await ctl.get_tree().create_timer(BOOT_HOLD).timeout
 	await _run(duration(ctx, REVEAL_S, REVEAL_FAST_S), _revealing)
 	_finish()
 
@@ -147,6 +172,13 @@ func _fit() -> void:
 func _aspect() -> float:
 	var size := ctl.get_viewport().get_visible_rect().size
 	return size.x / maxf(size.y, 1.0)
+
+## 一个节点连它底下所有的子孙一共几个
+static func _count_nodes(node: Node) -> int:
+	var n := 1
+	for child in node.get_children():
+		n += _count_nodes(child)
+	return n
 
 ## 从 at 到画面四个角最远有多远（等比坐标：画面的高是 1）
 static func _far_corner(at: Vector2, aspect: float) -> float:
