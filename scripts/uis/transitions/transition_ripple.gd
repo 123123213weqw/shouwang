@@ -296,13 +296,13 @@ func _apply_text(x: float) -> void:
 
 ## 这一趟题不题字：只在真的过了上一关的时侯题（第几关比上一趟大）。重来、换难度、换场景、掀幕、对战都不题；
 ## 换关换得快的局（长夜、轮战）也不题，两段本来就短。
-## 就地放的那一遍（debug_transition_test）没带第几关，一定题：调样式用的
+## 就地放的那一遍（debug_transition_test）没带第几关：在游戏里一定题（调样式用），在标题页上没字可题
 func _wants_title(ctx: Dictionary) -> bool:
+	var main: Variant = ctx.get("main")
+	if not ctx.has("index"): return main != null
 	if bool(ctx.get("fast", false)): return false
 	if str(ctx.get("mode", "level")) != "level": return false
-	var main: Variant = ctx.get("main")
 	if main != null and main.get("versus") != null: return false
-	if not ctx.has("index"): return true
 	return int(ctx["index"]) > _last_index
 
 func _build_card() -> void:
