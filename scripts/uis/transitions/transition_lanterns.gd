@@ -22,6 +22,8 @@ const REVEAL_FAST_S := 0.27
 const COVER_EASE := 1.5        # 盖住的前锋按时间的几次方扫下来：1 是匀速，比 1 大是远处慢、近处急（涌过来的那一下）
 const STREAM_S := 1.2          # 水流多快（河面上的距离每秒）：盖住的时候、盖严了以后都是它
 const OUT_S := 2.0             # 掀开的时侯流得更急：灯涌出画面
+const DIM := 0.6               # 盖住的时侯，还没淹到的旧画面最多先暗下去多少
+
 var _sea: TextureRect
 var _mat: ShaderMaterial
 var _river: River
@@ -69,8 +71,9 @@ func reveal(ctx: Dictionary) -> void:
 		_river.speed = STREAM_S
 		_river.begin()
 		_covering(1.0)
-	# 前锋已经在画面外面了，盖严靠它；把"整张盖实"那道保险撤掉，洞才开得了
+	# 前锋已经在画面外面了，盖严靠它；把"整张盖实"和"先暗下去"那两道撤掉，洞才开得了
 	_mat.set_shader_parameter("cover", 0.0)
+	_mat.set_shader_parameter("dim", 0.0)
 	_night_to = _night(ctx.get("color"))
 	_mat.set_shader_parameter("night_to", _night_to)
 	var uv := screen_uv(ctx.get("to"), Vector2(0.5, 0.52))
@@ -87,7 +90,7 @@ func reveal(ctx: Dictionary) -> void:
 	_finish()
 
 ## 盖住进行到几分之几（0 到 1）：前锋从画面顶的外面扫到画面底的外面；柔边越近越宽（近处的灯大，边也该粗）；
-## 夜色在半路上从离开的那一关换成要去的那一关；最后一成多的时间把整张压实
+## 夜色在半路上从离开的那一关换成要去的那一关；还没淹到的旧画面一路暗下去；最后两成多的时间把整张压实
 func _covering(k: float) -> void:
 	var e := pow(k, COVER_EASE)
 	var front := lerpf(River.FRONT_REST, _front_end, e)
@@ -95,7 +98,9 @@ func _covering(k: float) -> void:
 	_mat.set_shader_parameter("front", front)
 	_mat.set_shader_parameter("front_soft", soft)
 	_mat.set_shader_parameter("night_mix", smoothstep(0.2, 0.9, k))
-	_mat.set_shader_parameter("cover", smoothstep(0.82, 1.0, k))
+	# 旧画面先沉进夜里：技能图标、连击这些在画面底下和角上，是最后才淹到的，等水漫到它们早就不显了
+	_mat.set_shader_parameter("dim", DIM * smoothstep(0.1, 0.8, k))
+	_mat.set_shader_parameter("cover", smoothstep(0.76, 1.0, k))
 	_river.front = front
 	_river.front_soft = soft
 
@@ -110,6 +115,7 @@ func _revealing(k: float) -> void:
 ## 掀开做完：什么都归零。着色器整张透明，灯收起来，光海藏起来（ctl 那一层也会跟着藏）
 func _finish() -> void:
 	_mat.set_shader_parameter("cover", 0.0)
+	_mat.set_shader_parameter("dim", 0.0)
 	_mat.set_shader_parameter("front", River.FRONT_REST)
 	_mat.set_shader_parameter("hole_r", 0.0)
 	_sea.visible = false

@@ -29,6 +29,7 @@ uniform float flow = 0.0;           // 水已经流了多远（河面上的距�
 uniform float front = 0.12;         // 盖住：灯河的前锋到了哪个深度（dy）。比它远的已经淹了
 uniform float front_soft = 0.05;    // 前锋的柔边有多宽
 uniform float cover = 0.0;          // 整张有多实：盖严那一瞬是 1（保险：不管前锋算到哪儿，四角和正中都不漏）
+uniform float dim = 0.0;            // 盖住的时侯，前锋前面还没淹到的旧画面先暗下去多少（0 到 1）。掀开的时侯是 0
 uniform vec2 hole_at = vec2(0.8, 0.55);   // 掀开：从哪一点先露（等比坐标：画面的高是 1）
 uniform float hole_far = 1.0;       // 离这一点最远的那一角有多远：洞的半径拿它当 1
 uniform float hole_r = 0.0;         // 洞现在多大（0 是关着的）
@@ -151,6 +152,8 @@ void fragment() {
 	lit = max(lit, cover);
 	float a = 1.0 - smoothstep(front - front_soft, front + front_soft, fdy);
 	a = max(a, cover);
+	// 还没淹到的旧画面先沉进夜里：灯河一来，旧关卡就暗下去，水漫到的时候图标、文字早就不显了（它们都在画面底下和角上，最后才轮到）
+	a = a + (1.0 - a) * dim;
 	// 前锋前面先看见从灯河那边漫过来的一点暖光。只加不减：旧画面是被照亮的，不是被压暗的
 	float spill = exp(-max(fdy - front - lead, 0.0) * 8.0) * (1.0 - lit) * smoothstep(0.2, 0.4, front);
 
