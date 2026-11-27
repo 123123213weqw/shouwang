@@ -164,6 +164,30 @@ tools/playtest/assemble_transition.sh <样式>     # 本机拼（要 ffmpeg）�
    同样地带上 `steps_aim.txt`、`steps_versus_play.txt`，以及 `SW_RULESET=normal tools/playtest/agent.sh aN drive tools/playtest/steps_rules.txt rules_normal`。
 4. 片子留在 `builds/transition/` 里（`builds/` 不进仓库），最后的报告里写清观感、量出来的数、没做到的地方。
 
+## 做头五种时踩过的坑
+
+- **标题页河面着色器里的 `hash21` 数值不稳**（`lobby_river.gdshader`，`vnoise` 用它）。它头一步取 `p × 123.34` 的小数部分，
+  输入到十几以上时小数只剩十几个比特；`vnoise` 又是拿格子角上的整数坐标算哈希的，相邻两个像素落在格子两边、算同一个角却得到不同的值，
+  噪声就沿着格子边裂开——直缝、四角星、带直边的暗三角。拿方向向量或者带 `seed × 17` 这种大偏移当输入的地方一定中招。
+  抄那份着色器的时侯把函数体换成下面这个（头一步取 `p × 0.1031` 的小数部分），调用不用动；标题页那一份没换，它只拿噪声调一点亮度，看不出来：
+
+  ```glsl
+  float hash21(vec2 p) {
+  	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  	p3 += dot(p3, p3.yzx + 33.33);
+  	return fract((p3.x + p3.y) * p3.z);
+  }
+  ```
+
+- **`FlowMap.png` 不是噪声图**：它是逐像素的随机色，拿它当噪声采样画出来是雪花点。要噪声就用现算的值噪声，或者 `voronoi.png`。
+- **二维着色器吃到的是 sRGB 的数**：照抄三维水面着色器里"底色怎么变"的算式，画出来会暗十倍。同一个算式算完要再变回 sRGB。
+- **录像存的 JPG 颜色可信**：同一帧和无损比，平均差 1.7 个色阶、最大 2.1。存 PNG 在服务器上每帧要两三百毫秒，帧率掉到每秒三四帧，别拿它录。
+- **开机**：不播开场的时侯，黑幕撤得很快。标题页自己会 `close({"mode": "boot"})` 掀幕；底座让黑幕等样式预热完、掀幕开始了才撤，
+  样式不用再为这个绕。要看开机的头几帧，用 `tools/playtest/agent.sh aN opening off 4 30`（它会报"没录对"，帧照样取回来）。
+- **进游戏头一趟，掀开以前有两帧很长**（一百多毫秒）：是游戏自己释放标题页、第一次搭 Main 的开销，原来的样式也一样，藏在盖严的那一层底下。
+- 服务器上几个标签同时录的时侯，存帧的目录是按标签分开的（`/tmp/sw_transition_<标签>_<样式>/`）；网络慢的时侯取帧会断，
+  `agent.sh transition` 会接着传并核对本机和服务器上的帧数，不够就报"帧没取全"，再跑一遍就接着传。
+
 ## 现成能用的
 
 - `shaders/lobby_river.gdshader`：标题页那条河——水纹、月亮和月光、六圈涟漪（`ripple0` 到 `ripple5`）。`scripts/uis/lobby_river.gd` 是怎么驱动它的。
