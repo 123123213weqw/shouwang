@@ -17,3 +17,7 @@ func debug_last() -> String:
 ## 排查用（call steps_driver.gd debug_trace）：过渡做完以后查一遍，石阶、灯、主角是不是都回到了平时的样子
 func debug_trace() -> String:
 	return str(style.call("debug_trace")) if style != null else "样式还没装上"
+
+## 排查用（call steps_driver.gd debug_frames）：就地放一遍，在几处要紧的时刻各存一张无损的 PNG（录像存的 JPG 深色偏色）
+func debug_frames() -> String:
+	return str(style.call("debug_frames")) if style != null else "样式还没装上"

@@ -33,14 +33,17 @@ const SPRING_W := TAU             # 弹簧的快慢：整个浮上来的过程�
 const LAG_SECS := 0.05            # 灯、人比石阶慢这么一拍：石阶冲过头往回落的那一下，它们还往上飘一点，像浮在水上
 const LAG_GAIN := 0.6             # 慢这一拍能差出多高（乘在石阶前后两拍的高度差上），封顶 LAG_CAP
 const LAG_CAP := 0.16
+const WATER_Y := -1.262           # 水面在多高（main.tscn 里 Water 那个节点的高度）：石阶擦过水面的那一刻荡开涟漪
 const WAVE_GAP_MIN := 0.035       # 一圈和一圈之间隔多久。大棋盘圈多就挤一挤（换关换得快的局挤得更紧），小棋盘就慢一点
 const WAVE_GAP_MAX := 0.11
 const VEIL_TAIL := 0.06           # 盖住的最后这么长是纯暗的：换棋盘那一帧有多长看不出来
-const VEIL_OUT := 0.36            # 掀开的开头这么一段暗幕退开
-const TITLE_SECS := 0.2           # 关卡名换字：旧的那一行淡出、新的淡入，用这么久（调用的人在盖住一开始就把字换了）
+const VEIL_OUT := 0.5             # 掀开的开头这么一大段（占掀开的时长）暗幕退开：先快后慢，剩一点青色慢慢散掉
+const TITLE_SECS := 0.24          # 关卡名换字用这么久（调用的人在盖住一开始就把字换了）：旧的先淡出，再淡入新的，
+                                  # 两行字不同长，叠在一起淡会糊成一团
 
 const RINGS := 72                 # 池子里备着多少圈涟漪（一块石阶一圈；最大的一关五六十块）
-const RING_LIFE := 0.5            # 一圈荡多久
+const RING_LIFE := 0.42           # 一圈荡多久：短。一圈圈石阶挨着沉，圈活得久就叠成一张网
+const SPLASH_AT := 0.56           # 沉下去沉到这个份上（0 到 1）台面正好没进水里：那一刻荡开一圈
 
 var veil: TextureRect             # "潜进水里"的那层暗幕，铺满画面、压在所有界面上（在"还没开始"的状态下整张透明）
 var under: CanvasLayer            # 画在三维棋盘上面、界面底下的那一层：涟漪、换字时旧的那行关卡名
@@ -51,6 +54,7 @@ var _phase: int = Phase.IDLE
 var _clock := 0.0                 # 这一段过了几秒
 var _time := 0.0                  # 装上样式以后过了几秒（涟漪按它算）
 var _delta := 0.0                 # 这一帧过了多久（给不带参数的那几个小函数用）
+var _snap_cost := 0.0             # 排查用的存图花了多久：那一帧不计入过渡的时钟（见 _snap）
 var _stones: Array[Stone] = []    # 这一趟手里拿着的石阶
 var _hero: Stone                  # 主角脚下那一块（盖住时最后沉，掀开时最先浮）
 var _riders: Array[Rider] = []    # 站在石阶上的角色（主角、对战里的对手）和它脚下那一块
@@ -72,6 +76,8 @@ var _first_note := ""              # 掀开头一帧量出来的两半
 var _ring_nodes: Array[ColorRect] = []
 var _ring_at := PackedFloat32Array()      # 每一圈什么时候荡开的（-1：这个位置空着）
 var _ring_amp := PackedFloat32Array()
+var _ring_from := PackedFloat32Array()    # 每一圈从多大的半径荡起（0 中心，1 方块的边）
+var _ring_front := PackedFloat32Array()   # 每一圈是不是迎着镜头的前半圈亮、后半圈淡（石阶还立在那儿的时侯）
 var _ring_next := 0
 
 # 关卡名换字
@@ -89,7 +95,9 @@ class Stone:
 	var at := 0.0                  # 第几秒开始动
 	var secs := 0.0                # 动多久
 	var ring := 0                  # 离中心第几圈（1 是紧挨着的那一圈）
-	var done := false              # 沉到底 / 浮到位了没有（那一刻荡开一圈涟漪）
+	var surface := 1.262           # 离原处还差多高的时侯台面正好在水面上
+	var splashed := false          # 擦过水面的那一圈荡过了没有
+	var done := false              # 沉到底 / 浮到位了没有
 
 ## 站在石阶上的角色和它脚下那一块。stone 是空的、或者那一块已经收走了：让它一直待在水底下
 class Rider:
@@ -100,7 +108,6 @@ class Rider:
 
 func build() -> void:
 	veil = add(full_rect(shader("steps")), true)
-	(veil.material as ShaderMaterial).set_shader_parameter("noise_tex", preload("res://assets/sprites/FlowMap.png"))
 	veil.visible = false          # 预热是外面帮着做的；平时藏着，盖的时候自己设回可见
 	# 三维棋盘上面、界面底下的一层（游戏自己的界面在编号 1 的那一层）
 	under = CanvasLayer.new()
@@ -108,6 +115,8 @@ func build() -> void:
 	_ring_nodes.resize(RINGS)
 	_ring_at.resize(RINGS)
 	_ring_amp.resize(RINGS)
+	_ring_from.resize(RINGS)
+	_ring_front.resize(RINGS)
 	for i in RINGS:
 		var r := ColorRect.new()
 		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -150,9 +159,11 @@ func cover(ctx: Dictionary) -> void:
 	veil.visible = true
 	under.visible = true
 	_take_old_board(ctx)
+	_fit_pool()
 	_begin_title()
-	# 暗幕：有旧棋盘的时侯等主角脚下那一块落完了再压上来（落的时候暗幕还很淡，看得清）；没有旧棋盘（从标题页进游戏）就是一路暗下去
-	_veil_from = clampf(_hero_end - 0.05, 0.0, _total * 0.74) if not _stones.is_empty() else 0.0
+	# 暗幕：有旧棋盘的时侯等主角脚下那一块快落完了再压上来（压上来是先慢后快的，见 _tick_cover：它落的时侯暗幕还很淡，看得清）；
+	# 没有旧棋盘（从标题页进游戏）就是一路暗下去
+	_veil_from = clampf(_hero_end - 0.09, 0.0, _total * 0.6) if not _stones.is_empty() else 0.0
 	_veil_to = _total - VEIL_TAIL
 	_set_veil(0.0)
 	driver.set_process(true)
@@ -170,6 +181,7 @@ func reveal(ctx: Dictionary) -> void:
 	_fit_veil()
 	# 一进来就把新棋盘按在水底：和调用的人在同一帧里、渲染之前。不然会先闪一帧摆好的棋盘
 	_take_new_board(ctx)
+	_fit_pool()
 	if _stones.is_empty() and not _veil_is_up():
 		veil.visible = false       # 开机掀幕：没盖过，画面上也没有石阶，什么都不用做
 		_phase = Phase.IDLE
@@ -181,7 +193,10 @@ func reveal(ctx: Dictionary) -> void:
 	driver.set_process(true)
 	while _phase == Phase.REVEAL:
 		await ctl.get_tree().process_frame
-	if ctx.has("title"): _title_shown = str(ctx.title)      # 掀开完，画面上这一行就是这一关了
+	# 掀开完，画面上那一行关卡名就是这一关的了，记下来：下一趟盖住时旧的这一行要淡出去。
+	# 从标题页进游戏的头一趟是换场景那次 close() 触发的，说明里没有关卡名，所以直接读那一行字
+	var main := ctl.get_node_or_null("/root/Main") as Main
+	if main != null and main.level_label != null: _title_shown = main.level_label.text
 	_give_back()
 
 ## 换样式的时侯：先把借走的东西都还回去（万一正做到一半），再让基类收走节点
@@ -206,6 +221,9 @@ func _tick(delta: float) -> void:
 			_frames["%s_at" % key] = _clock          # 最长的那一帧出现在这一段的第几秒：查是哪一下卡的
 		if took > 20000: _slow.append("%s %.0f 毫秒（第 %.2f 秒）" % [key, took / 1000.0, _clock])
 	_last_us = now
+	if _snap_cost > 0.0:           # 上一帧存图花的时间不算：过渡里的东西都按时间走，不然存一张图就把后面的时候全跳过去了
+		delta = maxf(delta - _snap_cost, 0.0)
+		_snap_cost = 0.0
 	_delta = delta
 	_time += delta
 	_tick_rings()
@@ -231,11 +249,16 @@ func _tick_cover() -> void:
 		var p := clampf((_clock - s.at) / s.secs, 0.0, 1.0)
 		# 越落越快：开头几乎不动，末了直落下去
 		_set_stone_y(s, lerpf(s.from, s.rest - SINK_DEPTH, p * p * (0.55 + 0.45 * p)))
+		if p >= SPLASH_AT and not s.splashed:
+			s.splashed = true           # 台面没进水里的那一刻
+			_splash(s, 0.8 if s == _hero else 0.42)
 		if p >= 1.0 and not s.done:
 			s.done = true
-			_splash(s, 1.0 if s == _hero else 0.55)
+			if s == _hero: _splash(s, 0.6, true)      # 连人带水车都没进去了：再荡开一圈大的
 	_tick_title()
-	_set_veil(_veil_amount())
+	# 暗幕压上来是先慢后快的：头几帧只是暗了一点，看得出主角脚下那一块在落
+	var x := _veil_amount()
+	_set_veil(x * x)
 
 func _tick_middle() -> void:
 	# 摆河灯是一件隔一帧落下的：每一帧都看一眼树上有没有新来的石阶，有就按到水底
@@ -252,7 +275,8 @@ func _tick_reveal() -> void:
 	for s in _stones:
 		if not is_instance_valid(s.tile): continue
 		var u := clampf((_clock - s.at) / s.secs, 0.0, 1.0)
-		_set_stone_y(s, s.rest - _rise_gap(u))
+		var gap := _rise_gap(u)
+		_set_stone_y(s, s.rest - gap)
 		# 灯、人比石阶慢一拍：石阶冲过头往回落的那一下，它们还往上飘一点
 		var lag := clampf((_rise_gap(u) - _rise_gap(u - LAG_SECS / s.secs)) * LAG_GAIN, -LAG_CAP, LAG_CAP)
 		var f := _lamp_of(s)
@@ -263,14 +287,17 @@ func _tick_reveal() -> void:
 			if r.stone == s and is_instance_valid(r.node):
 				var who: Character = r.node as Character
 				if who != null: who.sprite_container.position.y = lag * 0.5
-		if u >= 1.0 and not s.done:
-			s.done = true
-			_splash(s, 1.0 if s == _hero else 0.55)
+		if gap <= s.surface and not s.splashed:
+			s.splashed = true           # 台面破水而出
+			# 从石阶的轮廓外头荡起：石阶浮上来了，圈要绕着它往外走，别压在它和河灯的脸上
+			_splash(s, 0.8 if s == _hero else 0.42, false, 0.72, 1.0)
+			if s == _hero: _water_ripple(s, 1.0)      # 水面上真起波浪的那一圈只有六个位置，主角脚下这一块用
+		if u >= 1.0 and not s.done: s.done = true
 	_hold_ghosts()
 	_tick_title()
-	# 暗幕退开；破水那一下顶上漫下来一点光，退到一半最亮，退净就没了
+	# 暗幕退开是先快后慢的：头两三帧就看见河了，剩一点青色慢慢散掉；破水那一下顶上漫下来一点光，退到一半最亮，退净就没了
 	var gone := _veil_amount()
-	_set_veil(1.0 - gone)
+	_set_veil(pow(1.0 - gone, 1.6))
 	veil.material.set("shader_parameter/shine", 4.0 * gone * (1.0 - gone))
 
 ## 浮上来的时候离原处还差多高（正数是还在下面）。前 HIDDEN_RISE 那一段在水底从 SINK_DEPTH 升到 OUT_DEPTH，越升越快，
@@ -311,8 +338,39 @@ func _veil_is_up() -> bool:
 	return _veil > 0.0
 
 func _set_veil_tint(ctx: Dictionary) -> void:
-	# 水底的墨色里透一点要去的这一关的底色：换了一关，暗幕的颜色也不一样
-	veil.material.set("shader_parameter/tint", Color(ctx.get("color", INK)).darkened(0.5))
+	# 潜进水里看见的就是这条河，颜色照着游戏里水面的算法来：colors.gd 把关卡的底色压暗 0.78 当水的底色，
+	# stage_water.gdshader 再往墨色里压四成（那一步是在线性色里做的，这里也在线性色里做，算出来才一模一样）。
+	# 换了一关，暗幕的颜色跟着那一关的水走，和棋盘露出来时接得上
+	var water: Color = Color(ctx.get("color", INK)).darkened(0.78).srgb_to_linear().lerp(Color(0.012, 0.017, 0.024), 0.40).linear_to_srgb()
+	veil.material.set("shader_parameter/tint", water)
+
+## 月光那一汪在画面上的什么地方、多大（照 stage_backdrop.gd 的 _fit_board 的算法：盖住整张棋盘再往外 3.2、2.4）。
+## 潜进水里看见它就在头顶上；浮上来时水面上的那一汪正在同一个地方
+func _fit_pool() -> void:
+	var main := ctl.get_node_or_null("/root/Main") as Main
+	var centre := Vector2(0.5, 0.5)
+	var radius := Vector2(0.001, 0.001)
+	if main != null and main.camera_3d != null and main.grid != null and not _stones.is_empty():
+		var lo := Vector2(1e9, 1e9)
+		var hi := Vector2(-1e9, -1e9)
+		for s in _stones:
+			if not is_instance_valid(s.tile): continue
+			var at := Vector2(s.tile.global_position.x, s.tile.global_position.z)
+			lo = lo.min(at)
+			hi = hi.max(at)
+		if lo.x < 1e8:
+			var cam: Camera3D = main.camera_3d
+			var view: Vector2 = ctl.get_viewport().get_visible_rect().size
+			var half: float = main.grid.tile_size.x * 0.5
+			var c := Vector3((lo.x + hi.x) * 0.5, WATER_Y, (lo.y + hi.y) * 0.5)
+			var size := (hi - lo) * 0.5 + Vector2.ONE * half + Vector2(3.2, 2.4)
+			var mid: Vector2 = cam.unproject_position(c)
+			var ex: Vector2 = cam.unproject_position(c + Vector3(size.x, 0.0, 0.0)) - mid
+			var ez: float = ((cam.unproject_position(c + Vector3(0.0, 0.0, size.y)) - mid).length() + (cam.unproject_position(c - Vector3(0.0, 0.0, size.y)) - mid).length()) * 0.5
+			centre = mid / view
+			radius = Vector2(maxf(ex.length(), 1.0) / view.x, maxf(ez, 1.0) / view.y)
+	veil.material.set("shader_parameter/pool", centre)
+	veil.material.set("shader_parameter/pool_r", radius)
 
 ## 暗幕按画面算宽高（画面是 1152×720，掌机的窗口是 2560×1600，不写死）
 func _fit_veil() -> void:
@@ -346,6 +404,7 @@ func _take_old_board(ctx: Dictionary) -> void:
 		s.rest = _rest_y(tile)
 		s.from = tile.global_position.y
 		s.secs = DROP_SECS
+		s.surface = s.rest - WATER_Y
 		s.ring = int(floor(Vector2(tile.global_position.x - centre.x, tile.global_position.z - centre.y).length() / unit + 0.5))
 		rings = maxi(rings, s.ring)
 		_stones.append(s)
@@ -355,7 +414,7 @@ func _take_old_board(ctx: Dictionary) -> void:
 	var gap := _wave_gap(rings, _total * 0.5 - DROP_SECS)
 	var latest := 0.0
 	for s in _stones:
-		s.at = (s.ring - 1) * gap + s.tile.rseed * gap * 0.2     # 同一圈里的几块差一点点，不是齐刷刷的
+		s.at = (s.ring - 1) * gap + s.tile.rseed * gap * 0.45     # 同一圈里的几块差一点点，不是齐刷刷的
 		if s != _hero: latest = maxf(latest, s.at)
 	_hero.secs = _hero_drop
 	_hero.at = clampf(latest + DROP_SECS + 0.02, _total * 0.4, _total - _hero_drop - VEIL_TAIL - 0.05)
@@ -396,6 +455,7 @@ func _hold_board(main: Main) -> void:
 		s.rest = _rest_y(tile)
 		s.from = s.rest - SINK_DEPTH
 		s.secs = _rise
+		s.surface = s.rest - WATER_Y
 		s.done = true
 		_stones.append(s)
 		_set_stone_y(s, s.from)
@@ -423,7 +483,7 @@ func _take_new_board(ctx: Dictionary) -> void:
 			_hero = s
 	var gap := _wave_gap(rings + 1, _total * 0.96 - _rise)
 	for s in _stones:
-		s.at = s.ring * gap + s.tile.rseed * gap * 0.2
+		s.at = s.ring * gap + s.tile.rseed * gap * 0.45
 	_hero.at = 0.02
 	# 主角站上新一关的起点。上一趟记下的主角那一条不要了（它脚下是旧棋盘的石头）；
 	# 别的角色（对战里的对手）照旧留着：脚下那一块还在的跟着走，不在了的沉在水底（见 _hold_ghosts），新对手摆好了游戏会把它收走
@@ -493,10 +553,12 @@ static func _rest_y(tile: Tile) -> float:
 
 # ------------------------------------------------------------------ 涟漪
 
-## 一块石阶沉到底 / 浮到位：在它那一格荡开一圈（画在格子面上，照 stage_backdrop.gd 落地那圈环的样子）。
-## 水面上真起波浪的涟漪只有六个位置轮着用，留给主角脚下那一块
-func _splash(s: Stone, amp: float) -> void:
-	if s == _hero: _water_ripple(s, amp)
+## 一块石阶擦过水面（沉下去没进水里、浮上来破水而出）：在它那一格荡开一小圈。画在格子面上、界面底下，
+## 样子照 stage_backdrop.gd 落地那圈环（俯着看是扁的）。
+## from：从多大的半径荡起（石阶的半边是 0.52）。沉下去的时侯石阶已经没了，从当中起；浮上来的时侯它还在那儿，从轮廓外头起。
+## front：迎着镜头的前半圈亮、后半圈淡（石阶还立在那儿的时侯用）。
+## big：荡得更大的一圈，给主角脚下那一块连人一起没进去的那一下
+func _splash(s: Stone, amp: float, big := false, from := 0.3, front := 0.0) -> void:
 	var main := ctl.get_node_or_null("/root/Main") as Main
 	if main == null or main.camera_3d == null: return
 	var cam: Camera3D = main.camera_3d
@@ -506,17 +568,23 @@ func _splash(s: Stone, amp: float) -> void:
 	var half_cell: float = main.grid.tile_size.x * 0.5
 	var ex: Vector2 = cam.unproject_position(p + Vector3(half_cell, 0.0, 0.0)) - c
 	var ez: Vector2 = cam.unproject_position(p + Vector3(0.0, 0.0, half_cell)) - c
-	var half: float = maxf(ex.length(), 4.0) * 1.5            # 方块的半边：环荡到边上（半径 1）是差不多一格宽
+	var half: float = maxf(ex.length(), 4.0) * (2.6 if big else 1.9)      # 方块的半边：环荡到边上（半径 1）有一格多宽，细而薄，像水面自己的水纹
 	var i := _ring_next
 	_ring_next = (_ring_next + 1) % RINGS
 	_ring_at[i] = _time
 	_ring_amp[i] = amp
+	_ring_from[i] = from
+	_ring_front[i] = front
 	var r := _ring_nodes[i]
 	r.position = c - Vector2(half, half)
 	r.size = Vector2(half * 2.0, half * 2.0)
-	(r.material as ShaderMaterial).set_shader_parameter("squash", clampf(ez.length() / maxf(ex.length(), 0.001), 0.3, 1.0))
+	var m := r.material as ShaderMaterial
+	m.set_shader_parameter("squash", clampf(ez.length() / maxf(ex.length(), 0.001), 0.3, 1.0))
+	m.set_shader_parameter("phase", s.tile.rseed * TAU)
+	m.set_shader_parameter("front", front)
 
-## 水面上真荡开一圈（stage_backdrop.gd 的 ripple）
+## 水面上真荡开一圈（stage_backdrop.gd 的 ripple）。水面上这样的涟漪只有六个位置轮着用，一圈要荡一秒多，
+## 所以只给掀开时主角脚下那一块破水而出的那一下（盖住时落地那圈已经在那儿了，别再叠一圈：它会一直荡到新棋盘露出来，抢戏）
 func _water_ripple(s: Stone, amp: float) -> void:
 	var main := ctl.get_node_or_null("/root/Main")
 	if main == null: return
@@ -525,7 +593,7 @@ func _water_ripple(s: Stone, amp: float) -> void:
 	var p: Vector3 = s.tile.global_position
 	stage.call("ripple", Vector2(p.x, p.z), amp)
 
-## 池子里的每一圈：荡开、淡下去
+## 池子里的每一圈：荡开、淡下去。先快后慢；亮一下就淡，活得短（一圈圈石阶挨着沉，圈活得久就叠成一张网）
 func _tick_rings() -> void:
 	for i in RINGS:
 		if _ring_at[i] < 0.0: continue
@@ -536,8 +604,8 @@ func _tick_rings() -> void:
 			m.set_shader_parameter("strength", 0.0)
 			continue
 		var k := age / RING_LIFE
-		m.set_shader_parameter("radius", lerpf(0.40, 1.0, 1.0 - (1.0 - k) * (1.0 - k)))       # 先快后慢
-		m.set_shader_parameter("strength", _ring_amp[i] * minf(age / 0.04, 1.0) * (1.0 - smoothstep(0.15, 1.0, k)))
+		m.set_shader_parameter("radius", lerpf(_ring_from[i], 1.0, 1.0 - (1.0 - k) * (1.0 - k)))
+		m.set_shader_parameter("strength", _ring_amp[i] * minf(age / 0.03, 1.0) * (1.0 - smoothstep(0.08, 1.0, k)))
 
 # ------------------------------------------------------------------ 关卡名换字
 
@@ -570,10 +638,11 @@ func _begin_title() -> void:
 func _tick_title() -> void:
 	if _title_fade >= 1.0: return
 	_title_fade = minf(_title_fade + _delta / TITLE_SECS, 1.0)
-	_title_old.modulate.a = _label_modulate.a * (1.0 - _title_fade)
+	# 前四成：旧的淡出；后六成：新的淡入
+	_title_old.modulate.a = _label_modulate.a * (1.0 - minf(_title_fade / 0.4, 1.0))
 	var main := ctl.get_node_or_null("/root/Main") as Main
 	if main != null and main.level_label != null:
-		main.level_label.modulate.a = _label_modulate.a * _title_fade
+		main.level_label.modulate.a = _label_modulate.a * clampf((_title_fade - 0.4) / 0.6, 0.0, 1.0)
 	if _title_fade >= 1.0: _finish_title()
 
 ## 换完了：旧的那行收走，真的那行亮出来（这时暗幕盖严了，或者本来就不用换）
@@ -596,6 +665,38 @@ func debug_last() -> String:
 	if _first_note != "": text += "；" + _first_note
 	if not _slow.is_empty(): text += "；过了 20 毫秒的帧：" + "，".join(_slow.slice(0, 12))
 	return text
+
+## 排查用（call steps_driver.gd debug_frames）：就地放一遍（盖住、停一下、掀开），在几处要紧的时刻各存一张全分辨率的 PNG。
+## 录像存的 JPG 深色偏色（暗青的水会存成暗棕），暗幕、水面这种暗处要看无损的图才准。
+## 文件在 <SW_SNAP>_steps_<时刻>.png：c 是盖住、m 是盖严、r 是掀开，后面的数是那一段过了几百分之几秒
+func debug_frames() -> String:
+	_shoot_frames()
+	return "正在存图：%s_steps_*.png" % _snap_base()
+
+func _snap_base() -> String:
+	var base := OS.get_environment("SW_SNAP")
+	return base if base != "" else "/tmp/sw_snap"
+
+func _shoot_frames() -> void:
+	var scene_ctl: Node = SceneManager.scene_transition_control
+	if scene_ctl == null or scene_ctl.is_opened: return
+	scene_ctl.call("open", {"mode": "level"})
+	for t in [8, 16, 24, 33, 42]:
+		while _phase == Phase.COVER and _clock < float(t) / 100.0: await ctl.get_tree().process_frame
+		_snap("c%02d" % t)
+	await ctl.get_tree().create_timer(0.2).timeout
+	_snap("m00")
+	scene_ctl.call("close", {"mode": "level"})
+	for t in [4, 9, 14, 19, 24, 30, 38, 50]:
+		while _phase == Phase.REVEAL and _clock < float(t) / 100.0: await ctl.get_tree().process_frame
+		_snap("r%02d" % t)
+
+func _snap(tag: String) -> void:
+	# 存的是上一帧画出来的那张（这一帧还没画）：盖住、掀开里的东西都按时间算位置，所以它就是"这一刻"的样子。
+	# 存一张要大半秒：这段时间从下一帧的 delta 里扣掉，过渡的时钟只走真实玩的时候该走的那一点
+	var t0 := Time.get_ticks_usec()
+	ctl.get_viewport().get_texture().get_image().save_png("%s_steps_%s.png" % [_snap_base(), tag])
+	_snap_cost = float(Time.get_ticks_usec() - t0) / 1000000.0
 
 ## 过渡做完以后查一遍。哪一块石阶、哪盏灯、哪个角色没回到平时的样子就报出来
 func debug_trace() -> String:
