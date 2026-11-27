@@ -19,7 +19,7 @@ const COVER_S := 0.46          # 平时的局盖住多久
 const COVER_FAST_S := 0.25     # 换关换得快的局（长夜、轮战）
 const REVEAL_S := 0.56         # 掀开多久
 const REVEAL_FAST_S := 0.27
-const COVER_EASE := 1.5        # 盖住的前锋按时间的几次方扫下来：1 是匀速，比 1 大是远处慢、近处急（涌过来的那一下）
+const COVER_EASE := 1.4        # 盖住的前锋按时间的几次方扫下来：1 是匀速，比 1 大是远处慢、近处急（涌过来的那一下）
 const STREAM_S := 1.2          # 水流多快（河面上的距离每秒）：盖住的时候、盖严了以后都是它
 const OUT_S := 2.0             # 掀开的时侯流得更急：灯涌出画面
 const DIM := 0.6               # 盖住的时侯，还没淹到的旧画面最多先暗下去多少
@@ -174,16 +174,17 @@ class River extends Control:
 	const TEX_LAMP: Texture2D = preload("res://assets/sprites/upgrades/fish.png")
 	const LAMP_CENTRE := Vector2(0.49, 0.743)    # 那张涂鸦里图形的中心在贴图的什么地方（图形只占贴图的下半截）
 
-	const LAMPS := 32              # 最多几盏灯。节点建一次，轮着用
+	const LAMPS := 48              # 最多几盏灯。节点建一次，轮着用（要和着色器里 lamp_pos、lamp_lit 的长度一样）
 	const VP_X := 0.5              # 消失点横着在画面的正中
 	const VP_Y := -0.35            # 竖着在画面上方外面这么远（画面高的几分之几）。要和着色器里的 VP_Y 一样
 	const Z_IN := 5.4              # 灯从多远出生（dy ≈ 0.19：画面顶的外面）
 	const Z_OUT := 0.62            # 涌到这么近就算出了画面（dy ≈ 1.6），收回来再用
-	const SPAWN_DZ := 0.15         # 水每流这么远来一盏灯（河面上的距离）。乘上 LAMPS 刚好铺满 Z_OUT 到 Z_IN
-	const LAMP_PX := 100.0         # dy 是 1 的那盏灯，贴图有多高（按 720 高的画面算）
+	const SPAWN_DZ := 0.1          # 水每流这么远来一盏灯（河面上的距离）。乘上 LAMPS 刚好铺满 Z_OUT 到 Z_IN
+	const LAMP_PX := 110.0         # dy 是 1 的那盏灯，贴图有多高（按 720 高的画面算；标题页最近的那盏是 112）
 	const Z_TOP := 30              # 最近的灯 z_index 有多大：近的压着远的
 	const PUSH := 1.6              # 掀开的时侯，洞边的灯被推开多快（画面高 / 秒）
-	const FRONT_REST := 0.12      # 还没开始：灯河的前锋停在这个深度（画面顶还在它前面一截，一点光也不显）
+	const FRONT_REST := 0.2       # 还没开始：灯河的前锋停在这个深度（画面顶还在它前面一点点，一点光也不显；
+	                             # 离得近，一开头远处就亮起来，不空半拍）
 
 	## 一盏灯
 	class Lamp:

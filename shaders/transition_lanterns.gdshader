@@ -36,8 +36,8 @@ uniform float hole_r = 0.0;         // 洞现在多大（0 是关着的）
 uniform float hole_soft = 0.2;      // 洞边有多柔
 uniform float ebb = 0.0;            // 掀开到后头，洞外剩下的灯散尽、夜色跟着变薄（0 到 1）。盖住的时侯是 0
 uniform int lamp_n = 0;             // 近处真的灯有几盏
-uniform vec2 lamp_pos[36];          // 它们在画面上的位置（等比坐标）
-uniform vec4 lamp_lit[36];          // x 光晕的半径（等比），y 亮度
+uniform vec2 lamp_pos[48];          // 它们在画面上的位置（等比坐标）
+uniform vec4 lamp_lit[48];          // x 光晕的半径（等比），y 亮度
 
 const float VP_Y = -0.35;           // 消失点在画面上方外面这么远（画面高的几分之几）。越远透视越平，和游戏里俯着看棋盘的镜头越像
 const float CELL_X = 0.14;          // 河面上横着相邻两盏灯隔多远（dy 是 1 的时候在画面上隔多宽）
@@ -83,12 +83,12 @@ float vnoise(vec2 p) {
 // 旁边一行里一盏更近的灯，在画面上落到老远的地方，它的光晕伸过来的那片像素根本没查到它，就沿着格子边出现直的切口
 //（2026-11-27 本机预览里看到的）。所以按画面找：每一行里只看屏幕位置真落在这一像素上下的那三列，
 // 行多查一行近的（它的光晕往下搭过来）、两行远的（它们的倒影往下拖）
-vec3 lamps(float gx, float gz, vec2 p, vec2 vp, float t) {
+vec4 lamps(float gx, float gz, vec2 p, vec2 vp, float t) {
 	// 揉一下：水流把灯冲散，别排成整齐的格子
 	float wx = gx + (vnoise(vec2(gx * 0.8, gz * 0.8)) - 0.5) * 0.05;
 	float wz = gz + (vnoise(vec2(gx * 0.8 + 7.3, gz * 0.8 + 2.1)) - 0.5) * 0.07;
 	float jr = floor(wz / CELL_Z);
-	vec3 sum = vec3(0.0);
+	vec4 sum = vec4(0.0);               // x 亮芯，y 光晕，z 倒影，w 光晕里偏红的那一部分（灯有红有黄）
 	for (int a = 0; a < 4; a++) {
 		float j = jr + float(a) - 1.0;
 		float zc = (j + 0.5) * CELL_Z - flow;       // 这一行现在离镜头多远（格子是跟着水走的，要减去水流）
@@ -107,13 +107,16 @@ vec3 lamps(float gx, float gz, vec2 p, vec2 vp, float t) {
 			}
 			float lamp_dy = 1.0 / lamp_z;
 			// 有没有灯：远处密、近处稀；一簇一簇的（水面上有的地方挤成一堆，有的地方空着）
-			float p_here = mix(0.85, 0.15, smoothstep(0.45, 0.95, lamp_dy)) * (0.25 + 1.5 * vnoise(vec2(id.x * 0.7 + 3.1, id.y * 0.55)));
+			float p_here = mix(0.85, 0.24, smoothstep(0.45, 0.95, lamp_dy)) * (0.25 + 1.5 * vnoise(vec2(id.x * 0.7 + 3.1, id.y * 0.55)));
 			if (h.w > p_here) {
 				continue;
 			}
 			float lamp_x = (id.x + 0.5 + (h.y - 0.5) * 0.7) * CELL_X;
 			vec2 off = p - (vp + vec2(lamp_x * lamp_dy, lamp_dy));
-			float len = REFL * lamp_dy * lamp_dy;            // 倒影有多长
+			// 倒影有多长：是水面上的距离，近处按 dy 的平方拉长。远处的水纹早把它切碎了，碎成看不清的亮点，所以再按远近收一道
+			//（不收的话远处满屏都是竖条，像挂了一道道雨丝——2026-11-27 录出来看到的）
+			float len = REFL * lamp_dy * lamp_dy * smoothstep(0.3, 0.9, lamp_dy)
+				* (1.0 - 0.45 * smoothstep(0.8, 1.3, lamp_dy));   // 最近的那几盏也别拖成一根杆子
 			if (off.y > len || off.y < -HALO * 4.0 * lamp_dy || abs(off.x) > max(HALO * 4.0 * lamp_dy, len * 0.5)) {
 				continue;                       // 光晕够不着，倒影也不在下面
 			}
@@ -133,11 +136,12 @@ vec3 lamps(float gx, float gz, vec2 p, vec2 vp, float t) {
 			if (off.y > 0.0) {
 				float ry = off.y / len;
 				float sway = sin(ry * 9.0 - t * 2.0 + h.x * 6.2831) * 0.12 * ry;
-				float rx = (off.x / r - sway) / (0.42 * (1.0 + ry));
-				float glint = 0.5 + 0.5 * vnoise(vec2(h.z * 37.0 + id.x, ry * 6.0 - t * 1.2));
+				float rx = (off.x / r - sway) / (0.55 * (1.0 + ry));
+				float glint = 0.3 + 0.7 * vnoise(vec2(h.z * 37.0 + id.x, ry * 7.0 - t * 1.2));
 				refl = exp(-rx * rx) * (1.0 - ry) * (1.0 - ry) * glint;
 			}
-			sum += vec3(core * fade, halo * fade, refl) * bright;
+			float warm = halo * fade * smoothstep(0.55, 0.95, h.y) * 0.6;      // 少数几盏偏红，像纸罩得厚一点的河灯
+			sum += vec4(core * fade, halo * fade, refl, warm) * bright;
 		}
 	}
 	return sum;
@@ -161,7 +165,9 @@ void fragment() {
 	a = max(a, cover);
 	// 还没淹到的旧画面先沉进夜里：灯河一来，旧关卡就暗下去，水漫到的时候图标、文字早就不显了（它们都在画面底下和角上，最后才轮到）
 	a = a + (1.0 - a) * dim;
-	// 前锋前面先看见从灯河那边漫过来的一点暖光。只加不减：旧画面是被照亮的，不是被压暗的
+	// 前锋那一排灯合起来的一层光，打头压过来；再前面漫过去一点暖光。都只加不减：旧画面是被照亮的，不是被压暗的
+	float fe = (fdy - front - lead * 0.5) / (0.05 + front * 0.10);
+	float surge = exp(-fe * fe) * smoothstep(0.25, 0.45, front) * (1.0 - cover);
 	float spill = exp(-max(fdy - front - lead, 0.0) * 8.0) * (1.0 - lit) * smoothstep(0.2, 0.4, front);
 
 	// ---- 掀开：从 hole_at 让开一个洞，边也不是圆的。夜色的边柔一些；灯贴着洞边就让开了，被挤成亮亮的一圈
@@ -196,7 +202,7 @@ void fragment() {
 	float water = ln * stroke * (0.35 + 0.65 * smoothstep(0.4, 1.0, dy));
 
 	// ---- 光：河面上的灯；远处的光海（越往远处越亮，带着一团一团的起伏）；近处真的灯的烛光
-	vec3 l = lamps(gx, gz, p, vp, t);
+	vec4 l = lamps(gx, gz, p, vp, t);
 	float sea = (1.0 - smoothstep(0.36, 1.0, dy)) * (0.55 + 0.45 * vnoise(vec2(gx * 2.2, gz * 1.4)));
 	vec3 halo = vec3(0.0);
 	for (int i = 0; i < lamp_n; i++) {
@@ -213,12 +219,12 @@ void fragment() {
 
 	// ---- 合起来。亮芯偏白黄（烛火的芯）；光叠得多的地方也偏白
 	vec3 col = night * a;
-	col += candle * (l.y * 0.55 + sea * 0.16 * lit * open_l * (1.0 - ebb)) + halo;
+	col += (candle * (l.y - l.w) + ember * l.w) * 0.55 + candle * sea * 0.16 * lit * open_l * (1.0 - ebb) + halo;
 	col += vec3(1.0, 0.97, 0.90) * l.x * 1.3;
 	col += ember * l.z * 0.6;
 	col += mix(night, vec3(0.78, 0.90, 0.86), 0.6) * water * 0.16 * a;
-	// 前锋前面漫过来的暖光
-	col += candle * spill * 0.10 * open_n * (1.0 - cover);
+	// 前锋那一排灯的光，和它前面漫过来的暖光
+	col += candle * (surge * 0.10 + spill * 0.10 * (1.0 - cover)) * open_n;
 	// 刚露出来的地方留一点烛光的余晖，往洞里很快淡掉：这一关像是从灯底下送出来的
 	float after = exp(-max(hole_r - hd, 0.0) * 4.0) * hole_on * (1.0 - open_n);
 	col += candle * after * 0.06;
