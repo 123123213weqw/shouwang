@@ -1,10 +1,10 @@
 extends TransitionStyle
 ## 墨迹晕开：一滴墨落在水车那儿，在纸上晕开，吞掉棋盘；然后从主角落脚的地方化开、褪净，新的关卡从墨底下出来。
-## 画面的全在着色器里（shaders/transition_ink.gdshader），这儿只管三件事：墨从哪儿开始、走多快、是什么颜色。
+## 画面的全在着色器里（shaders/transition_ink.gdshader），这儿只管墨从哪儿开始、走多快、是什么颜色，再管题字。
 ##
 ## 盖住：front 从"一滴"走到 FRONT_END。先让那一滴在纸上停一下（LAND_SECS），再往外晕，用缓出。
 ## 掀开：hole 从 0 走到 FRONT_END，淡痕在最后褪掉。没盖过就直接掀（开机掀幕）也走得通：先让墨铺满，再化开。
-## 题字：真的过了上一关的时侯，墨盖严前后那一瞬，画面正中用留白显一下要去的这一关的名字（见 _title_ok）。
+## 题字：真的过了上一关的时侯，墨盖严前后那一瞬，画面正中用留白显一下要去的这一关的名字（见 _set_title）。
 ## 改长短改下面那几个数；改样子改着色器。
 
 const SHADER := preload("res://shaders/transition_ink.gdshader")
@@ -40,7 +40,6 @@ var _title: Control                     ## 题字：一小行"第 N 关"，底�
 var _title_small: Label
 var _title_big: Label
 var _halo: Label
-var _title_on := false                  ## 这一趟题不题字
 var _last_index := 0                    ## 上一趟是第几关：只往后的关才题
 var _title_tween: Tween
 
@@ -109,15 +108,15 @@ func _set_title(ctx: Dictionary) -> void:
 	var index := int(ctx.get("index", 0))
 	var main := ctx.get("main") as Main
 	var level_name := str(ctx.get("name", ""))
-	_title_on = (
+	var on := (
 		str(ctx.get("mode", "level")) == "level" and not bool(ctx.get("fast", false))
 		and index > _last_index and level_name != "" and main != null and main.versus == null
 	)
 	_last_index = index                   # 记的是上一趟：往回走过一关再往前过，照样题
 	_kill_title_tween()
 	_title.modulate.a = 0.0
-	_title.visible = _title_on
-	if not _title_on: return
+	_title.visible = on
+	if not on: return
 	_title_big.text = level_name
 	_title_small.text = "第 %d 关" % index
 	var size := ctl.get_viewport().get_visible_rect().size
