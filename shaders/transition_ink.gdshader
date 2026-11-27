@@ -74,9 +74,11 @@ void fragment() {
 	vec2 o2 = vec2(seed * 0.71 + 31.7, seed * 1.91 + 3.3);
 	vec2 o3 = vec2(seed * 1.13 + 17.9, seed * 0.53 + 23.3);
 
-	// ---- 纸纹。R 是竖纤维，G 是横纤维，B 是小块的深浅。一张 64×64 的小图铺在画面上，一格二百多像素，一个纹素三个多像素
+	// ---- 纸纹。那张小图里 R 是竖纤维、G 是横纤维、B 是纸浆似的小颗粒。
+	// 墨心的颗粒用 B：竖纤维加横纤维是规则的布纹，放大了看像布不像纸；纤维只拿来做边上细碎的起伏和淡墨里的纹路
 	vec3 fiber = texture(texture_flow_map, q * 3.2 + seed * 0.37).rgb;
 	float fuzz = (fiber.r + fiber.g) * 0.5;
+	float pulp = texture(texture_flow_map, q * 5.8 + seed * 0.61).b - 0.82;   // 0 上下的一个小数；铺得比纤维细一档
 
 	// ---- 形状
 	float lobe = vnoise(dir * 1.7 + q * 0.45 + o1) - 0.5;
@@ -106,7 +108,7 @@ void fragment() {
 	float rim_a = in_body * (1.0 - smoothstep(rim_w - feather, rim_w + feather, s)) * (0.45 + 0.55 * wet2);
 	// 墨心：刚晕到的地方薄，透一点（薄的这一圈一处宽一处窄，不是匀匀的一道）；
 	// 盖满之前墨就实了（盖满的那一帧后面不能看见棋盘）
-	float thin_band = (1.0 - smoothstep(0.0, BAND * (0.35 + 0.65 * wet), s)) * smoothstep(0.06, 0.2, front);
+	float thin_band = (1.0 - smoothstep(0.0, BAND * mix(1.0, 0.55, revealing) * (0.35 + 0.65 * wet), s)) * smoothstep(0.06, 0.2, front);
 	float set = smoothstep(SET_AT, 0.98, front);
 	float body_a = in_body * (1.0 - 0.28 * thin_band * (1.0 - set) * (1.0 - revealing));
 
@@ -164,8 +166,8 @@ void fragment() {
 	thick *= 1.0 - 0.6 * thin_band;                               // 紧挨着湿边的里面是薄的
 	vec3 pale = mix(ink, vec3(0.36, 0.40, 0.39), 0.6);            // 薄处：墨淡了，纸的颜色透上来
 	vec3 body = mix(pale, ink, thick);
-	body += (fuzz - 0.5) * (0.06 + 0.14 * (1.0 - thick));          // 纸纹：墨越薄越看得见纸
-	body += (fiber.b - 0.5) * 0.03;                                // 小块的深浅
+	body += pulp * (0.10 + 0.24 * (1.0 - thick));                  // 纸纹：墨越薄越看得见纸
+	body += (fuzz - 0.5) * (0.015 + 0.04 * (1.0 - thick));          // 纤维只留一点点
 	body += (hash21(FRAGCOORD.xy) - 0.5) / 255.0;                 // 底色很暗，只有几个色阶：掺一点抖动，免得一条一条的
 	vec3 rim = ink * 0.2;                                          // 湿边：墨往前走的时侯色都堆在边上
 	vec3 wisp_col = mix(ink, vec3(0.50, 0.56, 0.54), mix(0.85, 0.45, revealing));   // 淡墨：渗出去的比退掉的浅一些
