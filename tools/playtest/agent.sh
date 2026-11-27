@@ -240,7 +240,7 @@ REMOTE_SH
 		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_transition_v100.sh $REMOTE/project $STYLE $SECS $FPS" | LC_ALL=C cut -c1-400
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/transition/$STYLE" && rm -f "$ROOT/builds/transition/$STYLE/"*
-		rsync -a -e "$SSH" "$HOST:/tmp/sw_transition_$STYLE/" "$ROOT/builds/transition/$STYLE/" && echo "帧已取回到 builds/transition/$STYLE/（$(ls "$ROOT/builds/transition/$STYLE" | grep -c transition_) 张）；拼视频：tools/playtest/assemble_transition.sh $STYLE"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_transition_$(basename "$REMOTE")_$STYLE/" "$ROOT/builds/transition/$STYLE/" && echo "帧已取回到 builds/transition/$STYLE/（$(ls "$ROOT/builds/transition/$STYLE" | grep -c transition_) 张）；拼视频：tools/playtest/assemble_transition.sh $STYLE"
 		exit $code ;;
 	mechanics)
 		PREFIX="${3:-mechanics}"

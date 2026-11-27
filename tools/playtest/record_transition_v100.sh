@@ -1,16 +1,17 @@
 #!/bin/bash
 # 录一段换关的过渡（样式由 SW_TRANSITION 给）：从标题页进游戏，机器人在第 1 关照着摆好的路走到水车上，过渡，进第 2 关。
 # 几种样式录的都是同一段（关卡是固定的那一局、机器人走的路固定、难度固定用中等），片子能逐帧对比。
-# 录像是 debug_record 让游戏按真实时间存的帧（默认每秒 30 张）。帧留在服务器的 /tmp/sw_transition_<样式>/，
-# 由 agent.sh 的 transition 命令取回本机 builds/transition/<样式>/，再用 assemble_transition.sh 拼视频：
-# 拼的时候按日志里的 RECORD_START 和 TRANSITION_BEGIN / TRANSITION_END 对齐，从过渡开始前一秒半截到结束后两秒半。
+# 录像是 debug_record 让游戏按真实时间存的帧（默认每秒 30 张）。
+# 帧留在服务器的 /tmp/sw_transition_<标签>_<样式>/，由 agent.sh 的 transition 命令取回本机 builds/transition/<样式>/，
+# 再用 assemble_transition.sh 拼视频：拼的时候按日志里的 RECORD_START 和 TRANSITION_BEGIN / TRANSITION_END 对齐，
+# 从过渡开始前一秒半截到结束后两秒半。
 # 用法: record_transition_v100.sh <工程目录> <样式> [录几秒，默认 12] [每秒存几张，默认 30]
 # 环境变量同 launch_v100.sh；SW_TRANSITION 由 agent.sh 传进来。
 PROJECT="$1"; STYLE="${2:-tiles}"; SECS="${3:-12}"; FPS="${4:-30}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 LOG="${SW_LOG:-/tmp/shouwang_run.log}"
 PORT="${SW_DEBUG_PORT:-9878}"
-DIR="/tmp/sw_transition_$STYLE"
+DIR="/tmp/sw_transition_$(basename "${SW_RUN:-x}")_$STYLE"     # 带上标签：几个标签同时录同一种样式的时侯，别写进同一个目录
 RC="bash $HERE/rc.sh"
 rm -rf "$DIR"
 export SW_TRANSITION="$STYLE" SW_OPENING=off SW_BOOT_WAIT=2 SW_RULESET=normal SW_REC="$DIR"
