@@ -2,21 +2,23 @@ shader_type canvas_item;
 // 换关的过渡「墨迹晕开」（scripts/uis/transitions/transition_ink.gd）里那一层墨。
 // 晕开的算法是从开场的 opening_ink.gdshader 学来的：每一点算一个数，墨的前沿是一个阈值，边的不规则揉在那个数里。
 // 这里两头都要用——盖住是墨从落点往外晕，掀开是墨从主角落脚的地方往外化开——所以归成一个式子：
-//   F   这一点离落点多"远"：0 在落点，1 在离落点最远的那一角。大瓣、圆齿都揉在里面
+//   F   这一点离落点多"远"：0 在落点，1 在离落点最远的那一角
 //   s   这一点离墨的前沿多远，正的这边是墨：盖住 s = front - F，掀开 s = F - hole
-//   从里往外是：厚的墨、薄的一圈、湿边（最深的细细一道）、渗出去的淡墨、毛刺和几缕须。都是照着 s 画的，
-//   所以晕开的边和化开的边是同一种质感，只是褪的时侯淡墨拖得长一些、最后褪掉
+//   从里往外是：厚的墨、薄的一圈、湿边（最深的细细一道）、渗出去的淡墨、毛刺和几缕须。
+//   都是照着 s 画的，所以晕开的边和化开的边是同一种质感，只是褪的时侯淡墨拖得长一些、最后褪掉，须不出
 //
 // 边上的事按大小分开管：
-//   大瓣     沿着方向的起伏，乘着 r：离落点越远摆得越开，近处几乎是圆的（一滴墨刚落下来是圆的）
-//   圆齿     各向同性的两档起伏，波长一百多和六十来个像素：边上圆鼓鼓的小凸和小湾
-//   毛刺、须 一幅顺着半径方向拉长的噪声里，取值正好是一半的地方是一根根顺着半径的细线：密的是短毛刺，疏的、
-//            只在更湿的那几段边上的才是"几缕渗开的须"。不用"顺着半径的细扇形"：近处是炸开的太阳，远处是一块块方块
-//   湿       边上一处一处更湿的段落：那儿边更糊、湿边更宽、渗出去的淡墨更长。三者共用一个起伏，才像同一处湿
+//   大瓣      沿着方向的起伏，乘着 r：离落点越远摆得越开，近处几乎是圆的（一滴墨刚落下来是圆的）
+//   圆齿      各向同性的两档起伏，波长一百多和六十来个像素：边上圆鼓鼓的小凸和小湾
+//   湿        边上一处一处更湿的段落：那儿边更糊、湿边更宽、渗出去的淡墨更长。三者共用一个起伏，才像同一处湿
+//   毛刺      一幅顺着半径方向拉长的噪声里，取值正好是一半的地方是一根根顺着半径的细线，处处都有
+//   须        从落点出发的几条射线，逐根定角度、长短、粗细、弯势，一圈只有几根，是"几缕渗开的须"。
+//             不用"顺着半径的细扇形"从噪声里切：近处是炸开的太阳，远处是一块块方块
 // 噪声除了纸纹都是算出来的值噪声（光滑，边才像墨洇进纸里；opening_ink.gdshader 里也是这个道理）。
 //
 // 盖严是算出来的，不是试出来的：F 在画面里最大正好是 1——凹进去的湾到了画面边上要收平（见下面那一句 if）——
 // 所以 front 走到 1.05（脚本里的 FRONT_END）时，画面里每个点都在墨里面，离前沿还隔着好几条湿边的宽度。
+
 uniform sampler2D texture_flow_map: repeat_enable, filter_linear;   // 纸纹（开场动画抖笔触用的那一张）。要平铺着取样，得明说允许
 uniform vec3 ink: source_color = vec3(0.02, 0.05, 0.05);   // 厚处的墨色：脚本把要去的这一关的底色掺了一成进来
 uniform vec2 origin = vec2(0.5, 0.5);   // 墨从哪儿晕开；掀开的时侯是从哪儿化开
@@ -135,20 +137,20 @@ void fragment() {
 	for (int i = 0; i < TENDRILS; i++) {
 		vec2 k = vec2(float(i) + 0.5, seed);
 		float ang = hash21(k + 11.0) * 6.2832;
-		float len = mix(0.035, 0.11, hash21(k + 37.0));
+		float len = mix(0.035, 0.11, hash21(k + 37.0)) * mix(0.3, 1.0, smoothstep(0.08, 0.55, r));   // 墨小的时候须也短
 		vec2 axis = vec2(cos(ang), sin(ang));
 		// 离中线多远：不正正地垂直于边出去（斜势），越往外越弯
 		float lateral = (dir.x * axis.y - dir.y * axis.x) * dist - (hash21(k + 71.0) - 0.5) * 0.5 * along
-			- (hash21(k + 53.0) - 0.5) * 0.9 * along * along / len;
+			- (hash21(k + 53.0) - 0.5) * 1.6 * along * along / len;
 		float t = clamp(along / len, 0.0, 1.0);   // 0 在边上，1 在尖上
 		float reach = (1.0 - smoothstep(0.75, 1.0, t)) * step(0.0, along);
-		float w = 0.0028 * (1.0 - 0.75 * t) + px * 0.4;
-		float on = (1.0 - smoothstep(w, w + px, abs(lateral))) * reach;
+		float w = 0.0026 * (1.0 - 0.8 * t) + px * 0.4;              // 越到尖上越细
+		float on = (1.0 - smoothstep(w, w + px, abs(lateral))) * reach * (1.0 - 0.55 * t);   // 也越淡
 		tend_a = max(tend_a, on);
-		bead_a = max(bead_a, (1.0 - smoothstep(w * 1.2, w * 1.2 + px, abs(lateral))) * reach * smoothstep(0.6, 0.85, t));
+		bead_a = max(bead_a, (1.0 - smoothstep(w * 1.3, w * 1.3 + px, abs(lateral))) * reach * smoothstep(0.6, 0.85, t) * 0.8);
 		mist_a = max(mist_a, (1.0 - smoothstep(0.0, 0.022, abs(lateral))) * reach * 0.45);
 	}
-	float sprout = smoothstep(0.05, 0.2, r) * out_body * (1.0 - revealing);
+	float sprout = smoothstep(0.1, 0.26, r) * out_body * (1.0 - revealing);   // 墨还小的时候不出须
 	tend_a *= 0.6 * sprout;
 	bead_a *= 0.7 * sprout;
 	wisp_a = max(wisp_a, mist_a * WISP_ALPHA * 0.7 * sprout);
