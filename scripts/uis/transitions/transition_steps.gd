@@ -15,8 +15,7 @@ const RING_SHADER := preload("res://shaders/transition_steps_ring.gdshader")
 const INK := Color(0.04, 0.06, 0.07)     # 和 SceneTransitionControl.INK 是同一个墨色：没有关卡底色的时侯暗幕用它
 
 # ------------------------------------------------------------------ 数都在这儿调
-const COVER_SECS := 0.48          # 平时的局盖住多久（规矩是 0.35 到 0.7）。别超过 0.5：调试用的 debug_transition_test 0.5 是过了
-                                  # 0.5 秒来掀的，盖得比它久，那一下会被丢掉（见 pad_adapter.gd 的 debug_transition_test）
+const COVER_SECS := 0.48          # 平时的局盖住多久（规矩是 0.35 到 0.7，和掀开加起来不过 1.3）：外圈沉完、主角那一块落下、暗幕压严，刚好够
 const REVEAL_SECS := 0.66         # 平时的局掀开多久（规矩是 0.4 到 0.9）：一圈一圈浮上来，圈和圈之间要隔得开，看得出是一圈一圈的
 const COVER_FAST := 0.28          # 长夜、轮战的局：各 0.2 到 0.35
 const REVEAL_FAST := 0.30
