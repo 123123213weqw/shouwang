@@ -10,7 +10,7 @@ const COVER := 0.45          # 盖住（只做水层的那些场合）
 const COVER_DIVE := 0.42     # 踩水车的那一种盖住：镜头在动，短一点才量得准不超过 0.45 秒
 const REVEAL := 0.5          # 掀开（只做水层的那些场合）
 const REVEAL_DIVE := 0.42    # 镜头往回拉的那一种掀开
-const FAST := 0.25           # 换关换得快的局，两段各这么长
+const FAST := 0.3            # 换关换得快的局，两段各这么长。不能定成 0.25：量出来总比设定的短一点，会判"不到 0.25 秒"
 
 # ---- 主角沉进水车
 const FADE := 0.14           # 多久淡没。要在水漫到它之前沉完，水车才露得出来说话
@@ -51,7 +51,7 @@ func build() -> void:
 	_mat = rect.material as ShaderMaterial
 
 func cover(ctx: Dictionary) -> void:
-	_begin(ctx, 0.0, 0.0)                            # 还没有水
+	_begin(ctx, 0.0, 0.0, true)                      # 还没有水；水色按要去的这一关定
 	_dived = false
 	var portal := _wheel(ctx)                        # 这趟是不是踩着水车换的关
 	var secs := duration(ctx, COVER, FAST)
@@ -68,7 +68,10 @@ func cover(ctx: Dictionary) -> void:
 	_give_back()
 
 func reveal(ctx: Dictionary) -> void:
-	_begin(ctx, 1.0, 0.0)                            # 盖严的；掀幕那一趟没盖过，也是从盖严的开始
+	# 盖严的；掀幕那一趟没盖过，也是从盖严的开始。水色沿用盖住时定的那一个：盖严着的那一会儿画面是看得见的，
+	# 这会儿再换一次色，水底会跳一下（换场景的时侯盖住那头还不知道要去哪一关，两头取到的本来就不是同一个色）
+	var fresh := str(ctx.get("mode", "level")) == "boot"
+	_begin(ctx, 1.0, 0.0, fresh)
 	var surfacing := _dived
 	_dived = false
 	var secs := duration(ctx, REVEAL, FAST)
@@ -92,12 +95,12 @@ func dispose() -> void:
 	_give_back()
 	super()
 
-## 每一段开头：把这一趟的数交给着色器
-func _begin(ctx: Dictionary, wet_from: float, drain_from: float) -> void:
+## 每一段开头：把这一趟的数交给着色器。tint_now = true 才重新取水色（见 cover、reveal）
+func _begin(ctx: Dictionary, wet_from: float, drain_from: float, tint_now: bool) -> void:
 	rect.visible = true
 	var size := ctl.get_viewport().get_visible_rect().size
 	_mat.set_shader_parameter("aspect", size.x / maxf(size.y, 1.0))
-	_mat.set_shader_parameter("tint", ctx.get("color"))
+	if tint_now: _mat.set_shader_parameter("tint", ctx.get("color"))
 	_mat.set_shader_parameter("seed", randf())
 	_mat.set_shader_parameter("cover", wet_from)
 	_mat.set_shader_parameter("drain", drain_from)
