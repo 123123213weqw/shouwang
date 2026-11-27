@@ -1224,9 +1224,13 @@ func debug_transition_test(hold = 0.5) -> String:
 	if ctl == null: return "找不到过渡那一层"
 	if ctl.is_opened: return "画面正盖着（正在换关），先不放"
 	var ctx := {"mode": "level"}
-	ctl.open(ctx)
-	await get_tree().create_timer(maxf(float(str(hold)), 0.05)).timeout
-	ctl.close(ctx)
+	# 停多久从盖住做完以后才算：盖住没做完就去掀，掀会被忽略，画面就一直盖着了（盖住 0.5 秒的样式配 0.5 秒就会这样）
+	var fired := [false]
+	get_tree().create_timer(maxf(float(str(hold)), 0.05)).timeout.connect(func() -> void: fired[0] = true)
+	await ctl.open(ctx)
+	while not fired[0]:
+		await get_tree().process_frame
+	await ctl.close(ctx)
 	return "放了一遍「%s」" % ctl.style_id
 
 ## 这一关摆好的那一局，画成字符画

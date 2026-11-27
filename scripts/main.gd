@@ -913,6 +913,7 @@ func load_level(level: LevelResource):
 	level_ready = false
 	_update_hud_return_visibility()
 
+	var leaving := current_level          # 离开的那一关：过渡盖住的那一段用它的底色（过了下一句 current_level 就是新一关的了）
 	current_level = level
 	level_label.text = level_title(level)
 	final_score_control.set_visible(false)
@@ -920,7 +921,8 @@ func load_level(level: LevelResource):
 
 	# 盖住画面。给过渡的说明：要去的这一关叫什么、第几关、换关换得快不快；样式从主角这会儿站的地方开始
 	#（见 scripts/uis/scene_transition_control.gd）。掀开的时候用的是同一份，再加上主角落在新一关的哪儿
-	var handover := {"level": level, "title": level_label.text, "index": current_level_index + 1, "fast": is_endless() or Game.versus == "blitz"}
+	var handover := {"level": level, "title": level_label.text, "index": current_level_index + 1, "fast": is_endless() or Game.versus == "blitz",
+		"color_from": leaving.base_color if leaving != null else Color(0.04, 0.06, 0.07)}
 	await SceneManager.scene_transition_control.open(handover)
 
 	# 棋盘：无尽模式现生成，主线用字符画
