@@ -63,7 +63,9 @@ HOST="${SW_HOST:-WZU_V100}"           # ssh 配置里的别名。换一台服务
 # 各标签的根目录：默认在那台服务器自己的家目录下（问它一声 $HOME，多一次连接而已）。SW_ROOTS 可以改
 RHOME="${SW_REMOTE_HOME:-$($SSH "$HOST" 'echo $HOME' 2>/dev/null | tail -n 1)}"      # 那台服务器的家目录（问它一声，只问这一次）
 ROOTS="${SW_ROOTS:-$RHOME/shouwang-agents}"
-[ -n "$ROOTS" ] && [ "${ROOTS%/shouwang-agents}" != "$ROOTS" ] || { echo "连不上 ${HOST}，或者读不到它的家目录（可以用 SW_ROOTS、SW_REMOTE_HOME 直接指定）"; exit 1; }
+# 家目录那一问要是返回了空的（连接时好时坏的时侯会有），根目录就成了 /shouwang-agents：后面的同步、导入都会对着一个不存在的目录空跑，还不报错。
+# 所以家目录本身必须是非空的
+[ -n "${ROOTS%/shouwang-agents}" ] || { echo "连不上 ${HOST}，或者读不到它的家目录（可以用 SW_ROOTS、SW_REMOTE_HOME 直接指定）"; exit 1; }
 REMOTE="$ROOTS/$TAG"
 OUT="${SW_OUT:-$ROOT/builds/shots/$TAG}"
 # 每个标签一套：端口 9910+编号，最多 5 个渲染线程，虚拟显示从 200+编号 试起
