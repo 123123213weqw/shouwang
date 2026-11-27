@@ -13,7 +13,7 @@ uniform float front = 0.0;              // 主圈荡到多大了：半径是画�
 uniform float soft = 0.02;              // 圈边的软边有多宽。front 减去它才是盖严的地方
 uniform float rim = 0.0;                // 圈边那道亮纹有多亮（0 到 1）
 uniform vec4 trails = vec4(0.0);        // 两圈拖尾：(第一圈的半径, 亮度, 第二圈的半径, 亮度)；半径小于 0 就是没有
-uniform vec3 water_tint = vec3(0.0);    // 这一关的水色（和游戏里那条河用同一个算式算出来的，见 transition_ripple.gd）
+uniform vec3 water_tint = vec3(0.0);    // 这一关的水色：游戏里那条河在画面上看着的颜色（sRGB，算式在 transition_ripple.gd）
 uniform float tint_amount = 0.0;        // 染多重：0 是标题页那条河本来的颜色，1 全是这一关的水色
 
 // 底下这些和标题页那条河是同一套数（lobby_river.gdshader），两边看着才是同一条河
@@ -32,6 +32,7 @@ const float FAR_LINES = 31.0;           // 画面最上面一行里横着数得�
 const float NEAR_LINES = 12.0;          // 最下面一行里几条
 const float RIM_SIGMA = 0.0055;         // 亮纹那道细线有多粗（画面高度的几分之几）
 const float RIM_GLOW = 0.02;            // 亮纹外头那层淡的光有多宽
+const float WOBBLE = 0.05;              // 圈边沿着圈起伏多大的幅度（乘上一个 0 到 1 的噪声再减一半，所以最多偏 WOBBLE 的一半）
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -67,6 +68,9 @@ void fragment() {
 	off.y /= squash;                            // 拉圆了量，扁的圈才处处一样宽
 	float d = length(off);
 	vec2 dir = off / max(d, 0.001);
+	// 圈边不是处处一样圆的：沿着圈慢慢起伏一点，像真的水纹。刚生出来的小圈是圆的，荡大了才起伏；
+	// 起伏最多往里缩 WOBBLE 的一半，外面算盖严的半径时把这一段留出来了（transition_ripple.gd 的 _apply）
+	d += (vnoise(dir * 2.6 + vec2(13.0, 5.0)) - 0.5) * WOBBLE * smoothstep(0.0, 0.3, front);
 	float inside = 1.0 - smoothstep(front - soft, front, d);    // 圈里是 1，圈外是 0
 	float e = d - (front - soft * 0.5);         // 离亮纹多远（圈外面是正的）。亮纹画在软边的正中：一半压着水，一半压着棋盘
 
@@ -92,10 +96,17 @@ void fragment() {
 	float near = smoothstep(-0.05, 1.05, w.y);                      // 0 远，1 近
 	float a = ln * stroke * line_alpha * mix(0.30, 1.0, near);
 
-	// ---- 底色：标题页那条河的渐变，再按要去的这一关的水色染一染
+	// ---- 离画面正中多远（标题页那条河拿它压暗四角）
+	float rad = length((UV - vec2(0.5, 0.55)) * vec2(asp * 0.75, 1.0));
+	float vig = smoothstep(0.55, 1.25, rad);
+
+	// ---- 底色：标题页那条河的渐变；在游戏里则换成这一关的水色，再照游戏里那条河的样子补上棋盘底下那一汪月光
+	//（中间亮一点，四角暗一点）。淹上来的水和棋盘底下原来的水才是同一片，不是一块黑压过来
 	float v = smoothstep(0.0, 1.0, UV.y);
-	vec3 col = mix(water_top, water_bottom, v);
-	col = mix(col, water_tint * mix(0.72, 1.26, v), tint_amount);
+	vec3 plain = mix(water_top, water_bottom, v);
+	vec3 dyed = water_tint + moon_color * 0.030 * (1.0 - smoothstep(0.35, 1.05, rad));
+	vec3 col = mix(plain, dyed, tint_amount);
+	col *= 1.0 - mix(0.30, 0.12, tint_amount) * vig;
 
 	// ---- 月光：月亮底下一道，越往近处越宽；水纹走进去会亮起来，两条水纹之间也浮着一点
 	float mx = moon.x * asp;
@@ -120,9 +131,11 @@ void fragment() {
 	col += moon_color * exp(-md * md / (2.0 * halo * halo)) * 0.10;
 	col = mix(col, moon_color, disc * moon_alpha);
 
-	// ---- 亮纹：细的一道亮的，外头一层淡的光；沿着圈亮度有起伏，不是一个处处一样亮的几何圆
+	// ---- 亮纹：细的一道亮的，外头一层淡的光。沿着圈亮度和粗细都有起伏，不是一个处处一样亮的几何圆
 	float uneven = 0.7 + 0.3 * vnoise(dir * 1.7 + vec2(3.1, 7.7));
-	float ring = (exp(-e * e / (2.0 * RIM_SIGMA * RIM_SIGMA)) + 0.30 * exp(-e * e / (2.0 * RIM_GLOW * RIM_GLOW))) * uneven * rim;
+	float thick = 1.0 + 0.6 * (vnoise(dir * 3.3 + vec2(27.1, 9.4)) - 0.5);
+	float core = exp(-e * e / (2.0 * RIM_SIGMA * RIM_SIGMA * thick * thick));
+	float ring = (core + 0.30 * exp(-e * e / (2.0 * RIM_GLOW * RIM_GLOW))) * uneven * rim;
 
 	// ---- 拖尾：两圈细线，各在自己的半径上；起伏的地方和亮纹错开
 	float et = d - trails.x;
@@ -134,10 +147,6 @@ void fragment() {
 	if (trails.z > 0.0) {
 		tr += exp(-et * et / (2.0 * RIM_SIGMA * RIM_SIGMA)) * (0.7 + 0.3 * vnoise(dir * 1.7 + vec2(5.3, 13.9))) * trails.w;
 	}
-
-	// ---- 四角压暗一点，把眼睛收到中间（题字在那儿）
-	float vig = smoothstep(0.55, 1.25, length((UV - vec2(0.5, 0.55)) * vec2(asp * 0.75, 1.0)));
-	col *= 1.0 - 0.30 * vig;
 
 	col += line_color * a;
 	// 底色很暗，只有几个色阶，渐变会一条一条的（banding）：掺一点抖动把它打散

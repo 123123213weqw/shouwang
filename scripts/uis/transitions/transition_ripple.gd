@@ -7,19 +7,25 @@ extends TransitionStyle
 ##
 ## 时间上的事都在这个文件里：过渡进行中每一帧调一次 _apply()，按"这一段开始了多久"把着色器的参数和题字
 ## 整个算一遍，着色器只管画。所以没有补间、没有定时器，哪一帧都是从时间现算的，帧率高低都不走样。
-## 调样式的时侯：call pad_adapter.gd debug_transition_test 0.5（就地放一遍，不换关；这一遍一定题字）
+## 调样式的时侯：call pad_adapter.gd debug_transition_test 3（就地放一遍，不换关；这一遍一定题字）。
+## 停的那一下要比盖住的长（给 3 秒），不然掀开那一下发过来时还在盖着，会被忽略，画面就一直盖着
 
 const SOFT := 0.02           # 圈边的软边有多宽（画面高度的几分之几）。主圈要多荡出这么一段才算盖严
+const WOBBLE := 0.025        # 圈边沿着圈起伏，最多往里缩这么多（着色器里 WOBBLE 的一半）。算盖严的半径时也要留出来
 const SQUASH := 0.72         # 游戏里的圈有多扁：俯着看，地上的圆在画面上是扁的。和落地的那圈环一个数（StageBackdrop.RING_SQUASH）
-const COVER := 0.55          # 平时的局：盖住多久（秒）
-const REVEAL := 0.7          # 平时的局：掀开多久
+# 平时的局盖住、掀开各多久（秒）。两头都不取长：量帧的步骤文件在换关后 1.3 秒上下会截一张图，截图那一帧本身就要
+# 二三十毫秒，过渡要在那以前做完（盖住 + 中间换棋盘的 0.1 到 0.2 秒 + 掀开），不然这一帧会被算成掀开的时侯卡了一下
+const COVER := 0.5
+const REVEAL := 0.5
 const FAST := 0.28           # 换关换得快的局（长夜、轮战）：两段各 0.25 秒上下。量出来不到 0.25 会被判太快，所以留一点余量
-const LAG := 0.09            # 拖尾比主圈晚出生多久（秒）：一圈一圈的节奏
+const LAG := 0.08            # 拖尾比主圈晚出生多久（秒）：一圈一圈的节奏
 
-const KICKER_AT := 0.40      # 题字的时间，都是"盖住这一段走到几分之几"：主圈快荡出画面了，小字开始淡入
-const NAME_AT := 0.55        # 大字跟着淡入
-const SEAL_AT := 0.84        # 最后落印
-const TEXT_IN := 0.36        # 小字、大字各淡入多久（也是盖住这一段的几分之几）
+# 题字的时间：小字在"盖住这一段走到几分之几"时开始淡入（KICKER_AT），大字、印章比它晚多久开始。
+# 主角站得离画面正中远的时侯圈要晚一点才淹到题字那一块，那就等圈淹到了再开始（_text_wait）
+const KICKER_AT := 0.30
+const NAME_LATER := 0.14
+const SEAL_LATER := 0.42
+const TEXT_IN := 0.24        # 小字、大字各淡入多久（也是盖住这一段的几分之几）
 const SEAL_DROP := 0.12      # 印章落下来用多久（秒）。照开场动画里那一方印（opening.gd 的 _seal）：从大缩到正常，不出声
 const SEAL_BIG := 3.2        # 印章落下以前有多大
 const TEXT_OUT := 0.45       # 掀开这一段走到几分之几，题字走完了
@@ -37,7 +43,7 @@ const MOON := Color(0.95, 0.93, 0.85)       # 河里月亮的颜色，大字用�
 const INK := Color(0.02, 0.05, 0.05)        # 字底下垫的一点影（开场动画的墨色）
 const WATER_INK := Color(0.012, 0.017, 0.024)   # 游戏里的水面把底色往墨里压，压向的就是这个颜色（stage_water.gdshader）
 const NIGHT := 0.40                             # 压多少（同上）
-const TINT := 0.85                              # 河面染上这一关水色的份量，剩下一点是标题页那条河本来的颜色
+const TINT := 1.0                               # 在游戏里河面全用这一关的水色：淹上来的水和棋盘底下原来的水是同一片
 const TITLE_RIVER := Color(0.04, 0.06, 0.07)    # 标题页那条河的底色，就是 SceneTransitionControl.INK
 
 var _rect: TextureRect                 # 整张河面：圈里是水，圈外透明
@@ -53,6 +59,8 @@ var _t0 := 0                           # 这一段开始的那一刻（微秒）
 var _secs := 0.001                     # 这一段多长（秒）
 var _ctx := {}                         # 这一段的说明
 var _titled := false                   # 这一趟题不题字
+var _x_text := 0.0                     # 盖住这一段走到几分之几，主圈才淹到题字那一块；这以前小字不开始淡入
+var _box := Rect2()                    # 题字（小字、大字、印章）在画面上占的一块（_group 里的坐标）
 var _last_index := 0                   # 上一趟是第几关：只有真的过了上一关才题字
 var _river := TITLE_RIVER              # 河面这会儿染的是什么颜色（上一趟掀开完留下的）
 var _river_amount := 0.0
@@ -76,9 +84,13 @@ func cover(ctx: Dictionary) -> void:
 	_amount_from = _river_amount
 	_tint_to = _aim(ctx)
 	_amount_to = 0.0 if ctx.get("level") == null else TINT
-	if ctx.has("index"): _last_index = int(ctx["index"])
+	# 先判题不题字，再记下这一趟是第几关：反过来写的话就是拿自己比自己，永远不题
 	_titled = _wants_title(ctx)
-	if _titled: _write_title(ctx)
+	if ctx.has("index"): _last_index = int(ctx["index"])
+	_x_text = 0.0
+	if _titled:
+		_write_title(ctx)
+		_x_text = _text_wait(ctx)
 	_group.visible = _titled
 	_start()
 	await _until()
@@ -157,16 +169,39 @@ func _centre() -> Vector2:
 	var world: Variant = _ctx.get("from" if _phase != "reveal" else "to")
 	return screen_uv(world, Vector2(0.5, 0.5))
 
-## 从 at 到画面四个角最远的一角有多远（和着色器里一个量法：等比坐标，再按扁的程度拉开）。圈荡到这么大一寸不漏
+## 游戏里的圈有多扁：在游戏里是地上的圈，扁的；在标题页上是河面上的圈，圆的（标题页自己的涟漪就是圆的）
+func _squash() -> float:
+	return 1.0 if _ctx.get("main") == null else SQUASH
+
+## 画面上的两点在"圈的单位"里隔多远（和着色器一个量法：等比坐标，再按扁的程度拉开）
+static func _reach(from: Vector2, to: Vector2, asp: float, squash: float) -> float:
+	return Vector2((to.x - from.x) * asp, (to.y - from.y) / squash).length()
+
+## 从 at 到画面四个角最远的一角有多远。圈荡到这么大（外面再加上软边和起伏）一寸不漏
 static func _far(at: Vector2, asp: float, squash: float) -> float:
 	var best := 0.0
 	for corner in [Vector2.ZERO, Vector2(1.0, 0.0), Vector2(0.0, 1.0), Vector2.ONE]:
-		best = maxf(best, Vector2((corner.x - at.x) * asp, (corner.y - at.y) / squash).length())
+		best = maxf(best, _reach(at, corner, asp, squash))
 	return best
 
-## 游戏里一条河的水色：和 stage_water.gdshader 一个算式（底色压暗，再往墨里压），淹上来的水和棋盘底下那条河才是同一种颜色
+## 主圈荡到题字那一块的最远一角，是盖住这一段的几分之几。主角站得离画面正中远的时侯圈要晚一点才淹到题字，
+## 那就等淹到了再开始淡入，字不会浮在还没淹到的棋盘上
+func _text_wait(ctx: Dictionary) -> float:
+	var view := ctl.get_viewport().get_visible_rect().size
+	var asp := view.x / maxf(view.y, 1.0)
+	var squash := _squash()
+	var at := screen_uv(ctx.get("from"), Vector2(0.5, 0.5))
+	var need := 0.0
+	for corner in [_box.position, Vector2(_box.end.x, _box.position.y), Vector2(_box.position.x, _box.end.y), _box.end]:
+		need = maxf(need, _reach(at, (_group.position + corner) / view, asp, squash))
+	need += SOFT + WOBBLE                                   # 软边和圈边的起伏都让出去才算淹严
+	var far := _far(at, asp, squash) + SOFT + WOBBLE
+	return 1.0 - pow(1.0 - clampf(need / far, 0.0, 1.0), 1.0 / 3.0)      # _opening 的反函数
+
+## 游戏里一条河的水色。那条河是三维的着色器（stage_water.gdshader）：底色压暗，进到线性空间里往墨里压，画出来再变回 sRGB。
+## 这里是二维的着色器，直接吃 sRGB，所以照它同一个算式算，末了把颜色变回 sRGB，淹上来的水和棋盘底下那条河才是同一种颜色
 static func _river_of(level_color: Color) -> Color:
-	return level_color.darkened(0.78).lerp(WATER_INK, NIGHT)
+	return level_color.darkened(0.78).srgb_to_linear().lerp(WATER_INK, NIGHT).linear_to_srgb()
 
 func _aim(ctx: Dictionary) -> Color:
 	return _river_of(ctx.color)
@@ -175,10 +210,9 @@ func _apply() -> void:
 	var x := _elapsed() / _secs
 	var view := ctl.get_viewport().get_visible_rect().size
 	var asp := view.x / maxf(view.y, 1.0)
-	# 在游戏里是地上的圈，扁的；在标题页上是河面上的圈，圆的（标题页自己的涟漪就是圆的）
-	var squash := 1.0 if _ctx.get("main") == null else SQUASH
+	var squash := _squash()
 	var at := _centre()
-	var far := _far(at, asp, squash) + SOFT               # 主圈荡到这么大就盖严了
+	var far := _far(at, asp, squash) + SOFT + WOBBLE      # 主圈荡到这么大就盖严了
 	var lag := LAG / _secs
 	var front := far
 	var rim := 0.0
@@ -225,13 +259,14 @@ func _apply_text(x: float) -> void:
 		return
 	_group.modulate = Color.WHITE
 	_group.scale = Vector2.ONE
-	var ink := smoothstep(KICKER_AT, KICKER_AT + TEXT_IN, x)
-	_kicker.modulate.a = ink
-	for rule in _rules: rule.modulate.a = ink
-	_name.modulate.a = smoothstep(NAME_AT, NAME_AT + TEXT_IN, x)
-	var drop := clampf((x - SEAL_AT) * _secs / SEAL_DROP, 0.0, 1.0)
+	var k0 := maxf(KICKER_AT, _x_text)
+	var n0 := k0 + NAME_LATER
+	_kicker.modulate.a = smoothstep(k0, k0 + TEXT_IN, x)
+	for rule in _rules: rule.modulate.a = _kicker.modulate.a
+	_name.modulate.a = smoothstep(n0, n0 + TEXT_IN, x)
+	var drop := clampf((x - k0 - SEAL_LATER) * _secs / SEAL_DROP, 0.0, 1.0)
 	_seal.scale = Vector2.ONE * lerpf(SEAL_BIG, 1.0, drop * drop)      # 越落越快
-	_seal.modulate.a = clampf((x - SEAL_AT) * _secs / 0.05, 0.0, 1.0)
+	_seal.modulate.a = clampf((x - k0 - SEAL_LATER) * _secs / 0.05, 0.0, 1.0)
 
 # ================================================================ 题字
 
@@ -324,6 +359,10 @@ func _write_title(ctx: Dictionary) -> void:
 	_seal.pivot_offset = _seal.size * 0.5           # 落下来是冲着自己的心缩的
 	_seal.position = Vector2(name_w * 0.5 + SEAL_GAP, name_h - SEAL_PX * 0.82)
 	_group.position = Vector2(view.x * 0.5 - SEAL_PX * 0.2, view.y * 0.47 - (name_h - GAP - kicker_h) * 0.5)
+	# 整组占了多大一块：主圈要淹到它的最远一角，字才能开始往外冒（_text_wait）
+	var left := -kicker_w * 0.5 - RULE_GAP - RULE_W
+	var right := maxf(kicker_w * 0.5 + RULE_GAP + RULE_W, name_w * 0.5 + SEAL_GAP + SEAL_PX)
+	_box = Rect2(Vector2(left, -GAP - kicker_h), Vector2(right - left, GAP + kicker_h + name_h))
 	# 刚开始什么都看不见
 	for node in [_kicker, _name, _seal] + _rules:
 		(node as CanvasItem).modulate.a = 0.0
