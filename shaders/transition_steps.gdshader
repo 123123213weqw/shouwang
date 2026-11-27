@@ -9,7 +9,9 @@ shader_type canvas_item;
 //   光柱   几道斜着落下来的软光，整片慢慢摆、亮度慢慢起伏；越往下越弱
 //   碎光   稀稀拉拉的几团小光点，顺着潜下去 / 浮上来的方向漂（潜下去的时侯它往上走，浮上来的时侯往下走）
 // 厚度也不是处处一样：四边比正中先合拢，顶上（光来的那一头）最后暗、最先清。
-// 噪声是现算的值噪声（算法和 stage_water.gdshader 的一样）。没拿 FlowMap 当噪声：那张图是逐个像素的随机色，画出来是雪花点。
+// 噪声是现算的值噪声（插值的算法和 stage_water.gdshader 的一样；哈希换成了输入到几十也稳的那一种：
+// 抄来的那个输入过了十几，噪声会沿着格子边裂开，出直缝）。
+// 没拿 FlowMap 当噪声：那张图是逐个像素的随机色，画出来是雪花点。
 
 uniform float depth = 0.0;                                   // 0 看不见，1 盖严
 uniform float flow = 0.0;                                    // -1 正在潜下去，1 正在浮上来：碎光、光柱往哪边走
@@ -21,9 +23,9 @@ uniform vec2 pool_r = vec2(0.001, 0.001);                    // 和它的半径�
 uniform float aspect = 1.6;                                  // 画面多宽（宽 / 高），按实际画面算，不写死
 
 float hash21(vec2 p) {
-	p = fract(p * vec2(123.34, 456.21));
-	p += dot(p, p + 45.32);
-	return fract(p.x * p.y);
+	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.x + p3.y) * p3.z);
 }
 
 // 平滑的值噪声，0 到 1。格子坐标按 period 取余：噪声每隔 period 个格子原样重复，漂移的偏移量也取同样的余数，
@@ -55,10 +57,10 @@ void fragment() {
 
 	// 光柱：噪声拉成斜着的长条（横着密、竖着疏），两层疏密不同，整片一起慢慢摆，也顺着潜 / 浮的方向走；会呼吸
 	float drift = mod(flow * t * 0.09, 8.0);
-	vec2 n = vec2(p.x * 2.2 - up * 1.2 + sin(t * 0.8) * 0.25 + sin(t * 2.1) * 0.06, up * 0.35 + drift);
+	vec2 n = vec2(p.x * 3.4 - up * 2.0 + sin(t * 0.8) * 0.35 + sin(t * 2.1) * 0.08, up * 0.45 + drift);
 	float a = vnoise(n, vec2(8.0, 8.0));
 	float b = vnoise(n * 2.3 + vec2(1.7, 0.9) + vec2(sin(t * 1.1 + 1.7) * 0.3, 0.0), vec2(16.0, 16.0));
-	float shaft = smoothstep(0.36, 0.78, a) * (0.55 + 0.45 * smoothstep(0.3, 0.8, b));
+	float shaft = smoothstep(0.40, 0.82, a) * (0.55 + 0.45 * smoothstep(0.3, 0.8, b));
 	shaft *= (1.0 - smoothstep(0.0, 1.2, up)) * (0.4 + 0.6 * pl);
 	shaft *= 0.8 + 0.2 * sin(t * 1.4 + p.x * 2.0);
 
