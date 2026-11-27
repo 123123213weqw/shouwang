@@ -39,30 +39,15 @@ var _covered := false          # 现在是不是盖严的。开机掀幕没盖�
 func build() -> void:
 	_sea = full_rect(shader("lanterns"))
 	_mat = _sea.material as ShaderMaterial
+	add(_sea, true)             # 着色器头一回画要编译，白画两帧先花掉（预热是外面帮着做的）。它还没开始的时侯整张透明
+	_sea.visible = false        # 平时藏着，盖、掀的时侯自己设回可见
 	_river = River.new()
 	_river.name = "Lamps"
 	# 新手教程弹出卡片的时侯会把场景树暂停。灯河是背景，暂停时也照常流，不然掀开的半路上灯会冻住
 	_river.process_mode = Node.PROCESS_MODE_ALWAYS
-	# 开机的时侯画面本来就是盖着的（SceneTransitionControl.is_opened 一开头是真）。
-	# ctl 声明的是 CanvasLayer，is_opened 是它挂的脚本上的成员，写明类型才推得出
-	var boot: bool = ctl.is_opened
 	# 先加光海、后加灯河：同一层里先加的画在底下，灯才压在光海上头
-	add(_sea, not boot)
-	if not boot:
-		# 运行中换到这个样式：画面上没盖着。光海先什么都看不见，白画两帧把编译花掉（预热是外面帮着做的）；平时藏着，
-		# 盖的时侯自己设回可见
-		_sea.visible = false
 	add(_river)
 	_river.build(_mat)
-	if boot:
-		# 开机：光海从一开始就摆成盖严的灯河，一直画着——着色器头一回画要编译，正好还在开机的黑幕底下花掉。
-		# 不能等掀幕开始了再摆：黑幕只盖几帧就撤，等预热完再掀，中间有几帧没人盖，标题页先露一下、
-		# 灯河才"啪"地出现（2026-11-27 录开机画面看到的）
-		_fit()
-		_river.speed = STREAM_S
-		_river.begin()
-		_covering(1.0)
-		_covered = true
 
 func cover(ctx: Dictionary) -> void:
 	# 测试的时侯（SW_TRANSITION 设了）把这一层下面的节点数打进日志：换多少次关它都不该涨（节点都在 build() 里建了一次）
