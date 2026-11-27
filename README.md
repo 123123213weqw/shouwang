@@ -91,14 +91,18 @@
 
 ### 音频方案 · 深水微光
 
-标题曲用微光般的钟音，棋盘曲用软合成器、轻脉冲和水纹营造水下空间。
+把实录竹笛与古琴放进钟琴、海浪鼓和水纹声中，进入水车时用低沉的中国锣加强反馈。
 
-此方案包含两首循环配乐、A/B/D 三段随动画同步的开场配乐和 43 个游戏音效。落脚、收灯、菜单操作、河灯入水、道具、水车等声音对应游戏原有触发点。新编曲和合成音频使用现有资源路径，以便 Godot 使用同一组导入和播放设置。
+本方案包含标题和关卡循环配乐、三段按动画配声的开场和 43 个交互音效。
 
-音频由 Python 和 NumPy 程序合成，未使用旧版录音或外部采样。使用 OpenAI Codex 辅助编写旋律、编排事件和实现合成代码，随后在代码中调整音量、包络和循环。生成脚本随项目提供。
+配乐和音效使用真实录音采样，逐音编排。古筝取自 [nanliu_music](https://freesound.org/people/nanliu_music/sounds/847157/)，竹笛取自 [Carlos Carty](https://freesound.org/people/CarlosCarty/sounds/339357/)，中国锣取自 [the_very_Real_Horst](https://freesound.org/people/the_very_Real_Horst/sounds/240156/)。古琴取自 [RafaelCaro 的 Guqin-open-strings.wav](https://freesound.org/people/RafaelCaro/sounds/176266/)，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)，本项目截取单音、移调并重新混音。补充乐器来自 Versilian Studios 的 [VCSL](https://github.com/sgossner/VCSL)，包括拨弦、键盘、管乐和打击乐。脚步来自 [sgossner](https://freesound.org/people/sgossner/sounds/197778/)，水花来自 [blukotek](https://freesound.org/people/blukotek/sounds/269251/) 和 [nilbul](https://freesound.org/people/nilbul/sounds/404829/)。古筝、竹笛、锣、VCSL 和拟音录音采用 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)。Freesound 使用公开试听音轨，录音文件、来源及校验值见 [采样清单](tools/audio/recorded_samples.json)。程序负责编排、裁剪、移调、叠加和混音。使用 OpenAI Codex 辅助制作与验证。
 
-```bash
-python3 tools/audio/remake.py --output assets/audio --preview builds/audio/preview.wav
+重新混音需要 Python、NumPy 与 SoundFile。
+
+```powershell
+$env:SHOUWANG_SAMPLES = 'D:\shouwang-recordings'
+python tools/audio/recorded_samples.py --fetch $env:SHOUWANG_SAMPLES
+python tools/audio/remake.py --output assets/audio --preview builds/audio/preview.wav
 ```
 
 录一段真正的开机画面来看（帧取回到 `builds/opening/<方案>/`）。录制脚本会核对游戏实际播的是不是要录的那个、声音放出来没有，不对就报错：

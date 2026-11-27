@@ -1,0 +1,661 @@
+{
+  "vcsl_revision": "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e",
+  "samples": [
+    {
+      "file": "piano-00.wav",
+      "family": "piano",
+      "note": 36,
+      "source": "Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C2_v2_rr1_Player.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C2_v2_rr1_Player.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "00838dbdbcb0dffd02529c38fa84bc514931634b485fc2ad6ecc62fe98d27a62"
+    },
+    {
+      "file": "piano-01.wav",
+      "family": "piano",
+      "note": 42,
+      "source": "Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_F#2_v2_rr1_Player.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_F%232_v2_rr1_Player.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "45be0b87b88a6789550f849da90c2b085bd7976e183850f5f359bbc843c41d64"
+    },
+    {
+      "file": "piano-02.wav",
+      "family": "piano",
+      "note": 48,
+      "source": "Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C3_v2_rr1_Player.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C3_v2_rr1_Player.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "fce33012fe900309abafd1a4d6d254d142b0cbf33834c7a72c2fd1ada4e746e1"
+    },
+    {
+      "file": "piano-03.wav",
+      "family": "piano",
+      "note": 52,
+      "source": "Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_E3_v2_rr1_Player.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_E3_v2_rr1_Player.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "51727d51e9174cd141ea202e25871a56fbd32f799d7f440d7bbeba0f1d29dc7c"
+    },
+    {
+      "file": "piano-04.wav",
+      "family": "piano",
+      "note": 58,
+      "source": "Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_A#3_v2_rr1_Player.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_A%233_v2_rr1_Player.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "3465aff6bcc622a7025fa0a0006d9aa1aeb378a6cd7ccda662225bf748e6e9f0"
+    },
+    {
+      "file": "piano-05.wav",
+      "family": "piano",
+      "note": 62,
+      "source": "Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_D4_v2_rr1_Player.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_D4_v2_rr1_Player.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "7eee232754d6e6b6b6f060b52758a971e60c2a0c651bfb1d0164b21fb32aa9ae"
+    },
+    {
+      "file": "piano-06.wav",
+      "family": "piano",
+      "note": 66,
+      "source": "Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_F#4_v2_rr1_Player.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_F%234_v2_rr1_Player.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "e2a6b1ca1b0919cf04fd3023004f352b588f471ff68543ac546726c134659cb8"
+    },
+    {
+      "file": "piano-07.wav",
+      "family": "piano",
+      "note": 72,
+      "source": "Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C5_v2_rr1_Player.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C5_v2_rr1_Player.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "f56e64651eed9bdc88abb53eff3beb9a6e89d787f29fef7758f04b6da09397c9"
+    },
+    {
+      "file": "piano-08.wav",
+      "family": "piano",
+      "note": 78,
+      "source": "Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_F#5_v2_rr1_Player.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_F%235_v2_rr1_Player.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "12235267e757ee9ced77756cb705ca1dfbdeba42a4996e7a88c5a0e81843b038"
+    },
+    {
+      "file": "piano-09.wav",
+      "family": "piano",
+      "note": 81,
+      "source": "Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_A5_v2_rr1_Player.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_A5_v2_rr1_Player.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "754e99753db108b131970fb840b712f81a1893b0c2ad6e6771f61f1793620d3c"
+    },
+    {
+      "file": "piano-10.wav",
+      "family": "piano",
+      "note": 87,
+      "source": "Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_D#6_v2_rr1_Player.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_D%236_v2_rr1_Player.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "1fb22ba8bec05bb42c654851b58a1f3d8868ac8300721a22df8bfb7c82d1e46b"
+    },
+    {
+      "file": "glass-00.wav",
+      "family": "glass",
+      "note": 63,
+      "source": "Idiophones/Friction Idiophones/Wine Glasses/Sustains/Fast/glass1_D#4_Fast_1_main.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Friction%20Idiophones/Wine%20Glasses/Sustains/Fast/glass1_D%234_Fast_1_main.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "689b0794c3ea57825e51ddac092ccfa087814c142f88ec20764681b5997a1ba3"
+    },
+    {
+      "file": "glass-01.wav",
+      "family": "glass",
+      "note": 66,
+      "source": "Idiophones/Friction Idiophones/Wine Glasses/Sustains/Fast/glass2_F#4_Fast_1_Main.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Friction%20Idiophones/Wine%20Glasses/Sustains/Fast/glass2_F%234_Fast_1_Main.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "560c2ec792a26a329bf29b17114f41cd7663b2b4a75db6f4d2a9fd145a087638"
+    },
+    {
+      "file": "glass-02.wav",
+      "family": "glass",
+      "note": 70,
+      "source": "Idiophones/Friction Idiophones/Wine Glasses/Sustains/Fast/glass3_A#4_Fast_1_Main.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Friction%20Idiophones/Wine%20Glasses/Sustains/Fast/glass3_A%234_Fast_1_Main.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "1294cd4c0a5095a3845f344069b8781bf80fcf8b2c6647f65af3b262cf8cb17e"
+    },
+    {
+      "file": "glass-03.wav",
+      "family": "glass",
+      "note": 74,
+      "source": "Idiophones/Friction Idiophones/Wine Glasses/Sustains/Fast/glass4_D5_Fast_1_Main.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Friction%20Idiophones/Wine%20Glasses/Sustains/Fast/glass4_D5_Fast_1_Main.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "1404d10e7ff4ced99db9af3d95f2aa99edca3aee4163f7a88580f438d8ea6bb0"
+    },
+    {
+      "file": "glock-00.wav",
+      "family": "glock",
+      "note": 67,
+      "source": "Idiophones/Struck Idiophones/Glockenspiel/glock_medium_G4_01.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Glockenspiel/glock_medium_G4_01.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "6c4649b13e24fa01e4634edad8fe8edf18aef33facc5d49fe53097b376bac4da"
+    },
+    {
+      "file": "glock-01.wav",
+      "family": "glock",
+      "note": 72,
+      "source": "Idiophones/Struck Idiophones/Glockenspiel/glock_medium_C5_01.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Glockenspiel/glock_medium_C5_01.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "635f898e0bcb6975b96b18efd9c896f6f1b97ff12174a339ada4814e49675660"
+    },
+    {
+      "file": "glock-02.wav",
+      "family": "glock",
+      "note": 79,
+      "source": "Idiophones/Struck Idiophones/Glockenspiel/glock_medium_G5_01.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Glockenspiel/glock_medium_G5_01.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "7045c0ef7260e2f1ad11a64406cf7575ed898d1207a91104d33d78caefac63e4"
+    },
+    {
+      "file": "glock-03.wav",
+      "family": "glock",
+      "note": 84,
+      "source": "Idiophones/Struck Idiophones/Glockenspiel/glock_medium_C6_01.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Glockenspiel/glock_medium_C6_01.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "e942cbf502cf6731df2925945fe3234c876cb63f047d91007b6929887f9e4904"
+    },
+    {
+      "file": "glock-04.wav",
+      "family": "glock",
+      "note": 91,
+      "source": "Idiophones/Struck Idiophones/Glockenspiel/glock_medium_G6_01.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Glockenspiel/glock_medium_G6_01.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "a2ba94e59119cd5272c1161fc8b8fbfb94c7b44de45a9a6cc5973b1c332103af"
+    },
+    {
+      "file": "harp-00.wav",
+      "family": "harp",
+      "note": 35,
+      "source": "Chordophones/Composite Chordophones/Concert Harp/KSHarp_B1_mf1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Composite%20Chordophones/Concert%20Harp/KSHarp_B1_mf1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "284034807efbb429cb63f6fb744834b18e6281a4914e6460de0a5818b5d0d0e6"
+    },
+    {
+      "file": "harp-01.wav",
+      "family": "harp",
+      "note": 41,
+      "source": "Chordophones/Composite Chordophones/Concert Harp/KSHarp_F2_mf1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Composite%20Chordophones/Concert%20Harp/KSHarp_F2_mf1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "d5c0fb42c176af334fd6f6d1b97858556619c51e177efb5b0c6c23bc19ce6dad"
+    },
+    {
+      "file": "harp-02.wav",
+      "family": "harp",
+      "note": 45,
+      "source": "Chordophones/Composite Chordophones/Concert Harp/KSHarp_A2_mf1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Composite%20Chordophones/Concert%20Harp/KSHarp_A2_mf1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "1df9f4d138ca3931fcb458bcdf01304cadf2e5f4eef67bbc17b0e42c0e60fce6"
+    },
+    {
+      "file": "harp-03.wav",
+      "family": "harp",
+      "note": 48,
+      "source": "Chordophones/Composite Chordophones/Concert Harp/KSHarp_C3_mf3.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Composite%20Chordophones/Concert%20Harp/KSHarp_C3_mf3.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "18e6222e8fc11a8106e8d7a875d208835eb5b45598f010b21c786b1482e09869"
+    },
+    {
+      "file": "harp-04.wav",
+      "family": "harp",
+      "note": 55,
+      "source": "Chordophones/Composite Chordophones/Concert Harp/KSHarp_G3_mf1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Composite%20Chordophones/Concert%20Harp/KSHarp_G3_mf1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "62600eb1b37bc2829ca65351f7ca7e506c9ae472abd5bea0765a8b8fa7df2772"
+    },
+    {
+      "file": "harp-05.wav",
+      "family": "harp",
+      "note": 59,
+      "source": "Chordophones/Composite Chordophones/Concert Harp/KSHarp_B3_mf1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Composite%20Chordophones/Concert%20Harp/KSHarp_B3_mf1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "f6f71be8c640822ef48a448b245585659acdfcc7ed5774e10f37be2fc02fcab4"
+    },
+    {
+      "file": "harp-06.wav",
+      "family": "harp",
+      "note": 65,
+      "source": "Chordophones/Composite Chordophones/Concert Harp/KSHarp_F4_mf1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Composite%20Chordophones/Concert%20Harp/KSHarp_F4_mf1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "db27ebbb37334c10e06f2ae63f4d9ff555e4d11704fcc6f0bcf503863867e577"
+    },
+    {
+      "file": "harp-07.wav",
+      "family": "harp",
+      "note": 69,
+      "source": "Chordophones/Composite Chordophones/Concert Harp/KSHarp_A4_mf1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Composite%20Chordophones/Concert%20Harp/KSHarp_A4_mf1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "3665f3975cad4a33f46784aa4f896f4b4319ba2b7831e892d975bc38c9f09f23"
+    },
+    {
+      "file": "harp-08.wav",
+      "family": "harp",
+      "note": 72,
+      "source": "Chordophones/Composite Chordophones/Concert Harp/KSHarp_C5_mf1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Composite%20Chordophones/Concert%20Harp/KSHarp_C5_mf1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "7c8b862f6fd3f1442ed87537af976d84bda8c05a5b4900e8907d570b5202a517"
+    },
+    {
+      "file": "harp-09.wav",
+      "family": "harp",
+      "note": 83,
+      "source": "Chordophones/Composite Chordophones/Concert Harp/KSHarp_B5_mf1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Composite%20Chordophones/Concert%20Harp/KSHarp_B5_mf1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "f2757b674c6b7301bed52e17a1ae3e3d34d628b3f7edc5773ebb25798d2541f7"
+    },
+    {
+      "file": "block-00.wav",
+      "family": "block",
+      "note": null,
+      "source": "Idiophones/Struck Idiophones/Woodblock/wood_click_mp.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Woodblock/wood_click_mp.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "00b76f9fe96c118f29dfc69866c12ec11f2e1264f6cb9c0b36912c2210b015fe"
+    },
+    {
+      "file": "block-01.wav",
+      "family": "block",
+      "note": null,
+      "source": "Idiophones/Struck Idiophones/Woodblock/wood_click_f_rr1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Woodblock/wood_click_f_rr1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "86b690a393ad62d65dc6832948adb0cc164fe22f544a8065809f000c65d615fc"
+    },
+    {
+      "file": "block-02.wav",
+      "family": "block",
+      "note": null,
+      "source": "Idiophones/Struck Idiophones/Woodblock/wood_click_pp_rr2.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Woodblock/wood_click_pp_rr2.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "94db112d562381852c6f7356a85090db25980ec6c9f1dbda0615bafac0fad7db"
+    },
+    {
+      "file": "frame-00.wav",
+      "family": "frame",
+      "note": null,
+      "source": "Membranophones/Struck Membranophones/Frame Drum/HDrumL_HitMuted_v2_rr1_Sum.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Membranophones/Struck%20Membranophones/Frame%20Drum/HDrumL_HitMuted_v2_rr1_Sum.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "fb08d2a29537fb6da0852ad8318709b8cbc312633237ca969e6e8f95ab5ca075"
+    },
+    {
+      "file": "frame-01.wav",
+      "family": "frame",
+      "note": null,
+      "source": "Membranophones/Struck Membranophones/Frame Drum/HDrumL_Hit_v2_rr1_Sum.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Membranophones/Struck%20Membranophones/Frame%20Drum/HDrumL_Hit_v2_rr1_Sum.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "ebef530c488aa67df18dc2449eaa0311fa4ebec170a1182e35737fc84a70e7b6"
+    },
+    {
+      "file": "frame-02.wav",
+      "family": "frame",
+      "note": null,
+      "source": "Membranophones/Struck Membranophones/Frame Drum/HDrumS_HitMuted_v2_rr2_Sum.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Membranophones/Struck%20Membranophones/Frame%20Drum/HDrumS_HitMuted_v2_rr2_Sum.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "5955c77d2f7124be528030a71437c352e551ba232c6ddde6e4e78ad48129198e"
+    },
+    {
+      "file": "bassdrum-00.wav",
+      "family": "bassdrum",
+      "note": null,
+      "source": "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v2_rr1_Sum.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Membranophones/Struck%20Membranophones/Bass%20Drum%201/BDrumNew_hit_v2_rr1_Sum.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "56827fe9b55f282a0db851e242bc24660d339a0e358b182966aea047240c1136"
+    },
+    {
+      "file": "bassdrum-01.wav",
+      "family": "bassdrum",
+      "note": null,
+      "source": "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v3_rr2_Sum.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Membranophones/Struck%20Membranophones/Bass%20Drum%201/BDrumNew_hit_v3_rr2_Sum.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "036c6c5fcfbcca845d92dbcdcef075ee6e0ae01636374a2f7dd1a696a7ba33f8"
+    },
+    {
+      "file": "shaker-00.wav",
+      "family": "shaker",
+      "note": null,
+      "source": "Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerHighFaster_Down_rr1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Shaker%2C%20Small/Mid_ShakerHighFaster_Down_rr1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "cf4cb388ffcff5a042149e0645123b089ae85e8342876421e817dce55ce66a5a"
+    },
+    {
+      "file": "shaker-01.wav",
+      "family": "shaker",
+      "note": null,
+      "source": "Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerLowFaster_Up_rr2.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Shaker%2C%20Small/Mid_ShakerLowFaster_Up_rr2.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "800dde7afd5e2a11093865b1ef63947721efebc3878bf1ca74fcfb57e48bd857"
+    },
+    {
+      "file": "shaker-02.wav",
+      "family": "shaker",
+      "note": null,
+      "source": "Idiophones/Struck Idiophones/Shaker, Small/Mid_Shaker_Roll_Fast_rr1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Shaker%2C%20Small/Mid_Shaker_Roll_Fast_rr1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "30e8d8d69e696237b20bf5ad676dba7e56500d89b13b36534e56252260b86eb7"
+    },
+    {
+      "file": "cymbal-00.wav",
+      "family": "cymbal",
+      "note": null,
+      "source": "Idiophones/Struck Idiophones/Suspended Cymbal 1/susCymb1_scrape_1.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Suspended%20Cymbal%201/susCymb1_scrape_1.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "c75699ffbca27b4d24b7b4a06e13e2d250805b8e5c5efae41114333a6ee9afb7"
+    },
+    {
+      "file": "cymbal-01.wav",
+      "family": "cymbal",
+      "note": null,
+      "source": "Idiophones/Struck Idiophones/Suspended Cymbal 1/susCymb1_cresc_1.5s.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Suspended%20Cymbal%201/susCymb1_cresc_1.5s.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "231ba14c10cf66eca3392d5d773c0895abf0584203f07affe173092bf0962e63"
+    },
+    {
+      "file": "ocean-00.wav",
+      "family": "ocean",
+      "note": null,
+      "source": "Membranophones/Other Membranophones/Ocean Drum/OceanDrum_Sus_1_Mid.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Membranophones/Other%20Membranophones/Ocean%20Drum/OceanDrum_Sus_1_Mid.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "ecb2134b5a34c2d7f064cc7c81e7f76e829ef981bd6ece53816536e352dcda2b"
+    },
+    {
+      "file": "ocean-01.wav",
+      "family": "ocean",
+      "note": null,
+      "source": "Membranophones/Other Membranophones/Ocean Drum/OceanDrum_Sus_2_Mid.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Membranophones/Other%20Membranophones/Ocean%20Drum/OceanDrum_Sus_2_Mid.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "6642dbaeef3f4feb94765ecdbd3d0411c623b3a6b3078110201bddd722948d9d"
+    },
+    {
+      "file": "claves-00.wav",
+      "family": "claves",
+      "note": null,
+      "source": "Idiophones/Struck Idiophones/Claves/Claves1_Hit_v2_rr1_Mid.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Claves/Claves1_Hit_v2_rr1_Mid.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "bcabe27330761309eb4b4f6207e6e3b4be59815df86449ac05bfb9b81f19efc9"
+    },
+    {
+      "file": "claves-01.wav",
+      "family": "claves",
+      "note": null,
+      "source": "Idiophones/Struck Idiophones/Claves/Claves2_Hit_v1_rr1_Mid.wav",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Claves/Claves2_Hit_v1_rr1_Mid.wav",
+      "credit": "Versilian Studios",
+      "license": "CC0-1.0",
+      "sha256": "06c7c797fcbb624de0522b27f4b8aeab5acd85fabee99c38a0da145b127adf5b"
+    },
+    {
+      "file": "step-00.ogg",
+      "family": "step",
+      "note": null,
+      "source": "https://freesound.org/people/sgossner/sounds/197778/",
+      "url": "https://cdn.freesound.org/previews/197/197778_2475994-hq.ogg",
+      "credit": "sgossner",
+      "license": "CC0-1.0",
+      "sha256": "227c05972f2b48794abaefae2a7c3d8103d3ff38977c3d73f7581e679f788881"
+    },
+    {
+      "file": "water-00.ogg",
+      "family": "water",
+      "note": null,
+      "source": "https://freesound.org/people/blukotek/sounds/269251/",
+      "url": "https://cdn.freesound.org/previews/269/269251_4451798-hq.ogg",
+      "credit": "blukotek",
+      "license": "CC0-1.0",
+      "sha256": "40f1519f104b708b4b4cc418cec8ef45e4472775c58a8dfbbd42898b3e655a2b"
+    },
+    {
+      "file": "water-01.ogg",
+      "family": "water",
+      "note": null,
+      "source": "https://freesound.org/people/nilbul/sounds/404829/",
+      "url": "https://cdn.freesound.org/previews/404/404829_262959-hq.ogg",
+      "credit": "nilbul",
+      "license": "CC0-1.0",
+      "sha256": "1dc647af950f944eafe693b8030ae19c906cebaf64b60177a3abe2c262ed8fc2"
+    },
+    {
+      "file": "china-guzheng.mp3",
+      "family": "guzheng",
+      "note": 56.9,
+      "start": 0.0,
+      "end": 4.25,
+      "credit": "nanliu_music",
+      "license": "CC0-1.0",
+      "sha256": "5e0204e3f110922f9dc19b0f24d029406ec0bc0e0ae2eaa80e27682952eacacf",
+      "source": "https://freesound.org/people/nanliu_music/sounds/847157/",
+      "url": "https://cdn.freesound.org/previews/847/847157_18537710-hq.mp3"
+    },
+    {
+      "file": "china-guzheng.mp3",
+      "family": "guzheng",
+      "note": 48.0,
+      "start": 7.34,
+      "end": 11.6,
+      "credit": "nanliu_music",
+      "license": "CC0-1.0",
+      "sha256": "5e0204e3f110922f9dc19b0f24d029406ec0bc0e0ae2eaa80e27682952eacacf",
+      "source": "https://freesound.org/people/nanliu_music/sounds/847157/",
+      "url": "https://cdn.freesound.org/previews/847/847157_18537710-hq.mp3"
+    },
+    {
+      "file": "china-guqin.mp3",
+      "family": "guqin",
+      "note": 36,
+      "start": 0.1,
+      "end": 0.91,
+      "credit": "RafaelCaro",
+      "license": "CC-BY-4.0",
+      "sha256": "47f037058591c38815d8e82c22c92c910958816f94457c27d868b398affd7b41",
+      "source": "https://freesound.org/people/RafaelCaro/sounds/176266/",
+      "url": "https://cdn.freesound.org/previews/176/176266_3274730-hq.mp3"
+    },
+    {
+      "file": "china-guqin.mp3",
+      "family": "guqin",
+      "note": 38,
+      "start": 0.92,
+      "end": 1.83,
+      "credit": "RafaelCaro",
+      "license": "CC-BY-4.0",
+      "sha256": "47f037058591c38815d8e82c22c92c910958816f94457c27d868b398affd7b41",
+      "source": "https://freesound.org/people/RafaelCaro/sounds/176266/",
+      "url": "https://cdn.freesound.org/previews/176/176266_3274730-hq.mp3"
+    },
+    {
+      "file": "china-guqin.mp3",
+      "family": "guqin",
+      "note": 41,
+      "start": 1.84,
+      "end": 2.63,
+      "credit": "RafaelCaro",
+      "license": "CC-BY-4.0",
+      "sha256": "47f037058591c38815d8e82c22c92c910958816f94457c27d868b398affd7b41",
+      "source": "https://freesound.org/people/RafaelCaro/sounds/176266/",
+      "url": "https://cdn.freesound.org/previews/176/176266_3274730-hq.mp3"
+    },
+    {
+      "file": "china-guqin.mp3",
+      "family": "guqin",
+      "note": 43,
+      "start": 2.64,
+      "end": 3.53,
+      "credit": "RafaelCaro",
+      "license": "CC-BY-4.0",
+      "sha256": "47f037058591c38815d8e82c22c92c910958816f94457c27d868b398affd7b41",
+      "source": "https://freesound.org/people/RafaelCaro/sounds/176266/",
+      "url": "https://cdn.freesound.org/previews/176/176266_3274730-hq.mp3"
+    },
+    {
+      "file": "china-guqin.mp3",
+      "family": "guqin",
+      "note": 45,
+      "start": 3.54,
+      "end": 4.55,
+      "credit": "RafaelCaro",
+      "license": "CC-BY-4.0",
+      "sha256": "47f037058591c38815d8e82c22c92c910958816f94457c27d868b398affd7b41",
+      "source": "https://freesound.org/people/RafaelCaro/sounds/176266/",
+      "url": "https://cdn.freesound.org/previews/176/176266_3274730-hq.mp3"
+    },
+    {
+      "file": "china-guqin.mp3",
+      "family": "guqin",
+      "note": 48,
+      "start": 4.55,
+      "end": 5.51,
+      "credit": "RafaelCaro",
+      "license": "CC-BY-4.0",
+      "sha256": "47f037058591c38815d8e82c22c92c910958816f94457c27d868b398affd7b41",
+      "source": "https://freesound.org/people/RafaelCaro/sounds/176266/",
+      "url": "https://cdn.freesound.org/previews/176/176266_3274730-hq.mp3"
+    },
+    {
+      "file": "china-guqin.mp3",
+      "family": "guqin",
+      "note": 50,
+      "start": 5.52,
+      "end": 7.09,
+      "credit": "RafaelCaro",
+      "license": "CC-BY-4.0",
+      "sha256": "47f037058591c38815d8e82c22c92c910958816f94457c27d868b398affd7b41",
+      "source": "https://freesound.org/people/RafaelCaro/sounds/176266/",
+      "url": "https://cdn.freesound.org/previews/176/176266_3274730-hq.mp3"
+    },
+    {
+      "file": "china-dizi.mp3",
+      "family": "dizi",
+      "note": 76.1,
+      "start": 14.3,
+      "end": 15.55,
+      "credit": "CarlosCarty",
+      "license": "CC0-1.0",
+      "sha256": "148af772608361b3aa9d30c32a3c2189dcc9bf0ee284935ce7759994bcdaff9c",
+      "source": "https://freesound.org/people/CarlosCarty/sounds/339357/",
+      "url": "https://cdn.freesound.org/previews/339/339357_197130-hq.mp3"
+    },
+    {
+      "file": "china-dizi.mp3",
+      "family": "dizi",
+      "note": 79.3,
+      "start": 12.6,
+      "end": 13.91,
+      "credit": "CarlosCarty",
+      "license": "CC0-1.0",
+      "sha256": "148af772608361b3aa9d30c32a3c2189dcc9bf0ee284935ce7759994bcdaff9c",
+      "source": "https://freesound.org/people/CarlosCarty/sounds/339357/",
+      "url": "https://cdn.freesound.org/previews/339/339357_197130-hq.mp3"
+    },
+    {
+      "file": "china-dizi.mp3",
+      "family": "dizi",
+      "note": 88.1,
+      "start": 2.88,
+      "end": 4.1,
+      "credit": "CarlosCarty",
+      "license": "CC0-1.0",
+      "sha256": "148af772608361b3aa9d30c32a3c2189dcc9bf0ee284935ce7759994bcdaff9c",
+      "source": "https://freesound.org/people/CarlosCarty/sounds/339357/",
+      "url": "https://cdn.freesound.org/previews/339/339357_197130-hq.mp3"
+    },
+    {
+      "file": "china-gong.mp3",
+      "family": "gong",
+      "note": null,
+      "start": 0.3,
+      "end": 5.2,
+      "credit": "the_very_Real_Horst",
+      "license": "CC0-1.0",
+      "sha256": "d534cb17adbad9ee3ab1357b0ccc843319b7c1760fea305c33e6d9d96f7fc067",
+      "source": "https://freesound.org/people/the_very_Real_Horst/sounds/240156/",
+      "url": "https://cdn.freesound.org/previews/240/240156_3597112-hq.mp3"
+    }
+  ]
+}

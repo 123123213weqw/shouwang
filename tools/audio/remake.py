@@ -1,9 +1,4 @@
-#!/usr/bin/env python3
-"""Synthesize the Deep Water Glow audio set and a 25-second audition.
-
-Run: python -B remake.py --output assets/audio --preview preview.wav
-Python and NumPy are the only requirements. No samples or project files are read.
-"""
+"""Render the ordered score and cues from CC0 instrument and foley recordings."""
 
 from __future__ import annotations
 
@@ -12,6 +7,8 @@ from pathlib import Path
 import wave
 
 import numpy as np
+
+import recorded_samples as rec
 
 
 RATE = 48_000
@@ -31,10 +28,6 @@ def seconds(duration: float) -> np.ndarray:
 
 def frequency(note: float) -> float:
     return float(440 * 2 ** ((note - 69) / 12))
-
-
-def phase(freq: np.ndarray) -> np.ndarray:
-    return TAU * (np.cumsum(freq) - freq[0]) / RATE
 
 
 def smooth(x: np.ndarray) -> np.ndarray:
@@ -69,105 +62,47 @@ def add(bus: np.ndarray, signal: np.ndarray, at: float, gain: float,
         bus[:len(tail)] += gain * tail
 
 
-def foam(duration: float, low: float, high: float,
-         rng: np.random.Generator) -> np.ndarray:
-    """Band-shaped noise with rounded edges, used for swells and bubbles."""
-    n = frames(duration)
-    hz = np.fft.rfftfreq(n, 1 / RATE)
-    shape = (1 - np.exp(-(hz / low) ** 2)) * np.exp(-(hz / high) ** 2)
-    tone = np.fft.irfft(np.fft.rfft(rng.normal(size=n)) * shape, n)
-    return np.tanh(tone / (2.2 * (tone.std() + 1e-9)))
+def bubble(duration, low, high, rng):
+    family = "water" if low < 660 else "block"
+    return rec.sound(family, duration, take=rng.integers(3),
+                     speed=np.clip(high / 770, .62, 1.5), cutoff=2900,
+                     release=min(.075, duration * .42))
 
 
-def bubble(duration: float, low: float, high: float,
-           rng: np.random.Generator) -> np.ndarray:
-    t = seconds(duration)
-    pitch = high + (low - high) * np.exp(-4.1 * t / duration)
-    carrier = phase(pitch)
-    breath = foam(duration, 550, 4600, rng)
-    decay = envelope(t, 0.0035, duration * 0.42) * np.exp(-2.5 * t / duration)
-    return decay * (0.78 * np.sin(carrier) + 0.16 * np.sin(2.2 * carrier) + 0.24 * breath)
+def bell(note, duration, brightness=1.0):
+    bell = rec.sound("glock", duration, note=note, cutoff=2300 + brightness * 2700,
+                     release=min(.24, duration * .32))
+    guqin = rec.sound("guqin", duration, note=note - 12, cutoff=3500)
+    return bell * .60 + guqin * .40
 
 
-def bell(note: float, duration: float, brightness: float = 1.0) -> np.ndarray:
-    """Soft sine FM with fast upper partial decay and an inharmonic ring."""
-    t = seconds(duration)
-    p = TAU * frequency(note) * t
-    depth = brightness * (0.13 + 1.2 * np.exp(-t / 0.064))
-    glass = np.sin(p + depth * np.sin(2.013 * p))
-    partial = 0.20 * brightness * np.sin(2.776 * p) * np.exp(-t / 0.145)
-    shimmer = 0.09 * brightness * np.sin(4.139 * p) * np.exp(-t / 0.063)
-    return (glass + partial + shimmer) * np.exp(-3.4 * t / duration) * envelope(
-        t, 0.005, min(0.24, duration * 0.29)
-    )
+def glass_lead(note, duration, color):
+    bow = rec.sound("glass", duration, note=note, cutoff=1600 + color * 1600,
+                    attack=.047, release=min(.35, duration * .54), offset=.12)
+    bamboo = rec.sound("dizi", duration, note=rec.pentatonic(note, 5), cutoff=2600,
+                       attack=.085, release=min(.35, duration * .49))
+    return .39 * bow + .61 * bamboo
 
 
-def glass_lead(note: float, duration: float, color: float) -> np.ndarray:
-    """Breathy submerged glass, using a short harmonic bloom above a rounded fundamental."""
-    t = seconds(duration)
-    p = TAU * frequency(note) * t
-    bend = 0.34 * np.exp(-t / 0.073) - 0.34
-    swell = 0.46 + 0.54 * np.exp(-t / 0.64)
-    edge = 0.24 * color * np.sin(1.997 * p + bend + 0.55)
-    shine = 0.067 * color * np.sin(3.011 * p) * np.exp(-t / 0.315)
-    return (0.8 * np.sin(p + bend) + edge + shine) * swell * envelope(
-        t, 0.032 + 0.013 * (1 - color), min(0.47, duration * 0.66)
-    )
+def pad(note, duration, attack, release, color, seed_phase):
+    return rec.sound("glass", duration, note=note, cutoff=950 + color * 1750,
+                     attack=attack, release=release, offset=.16 + (seed_phase % .55),
+                     trim=False)
 
 
-def pad(note: float, duration: float, attack: float, release: float,
-        color: float, seed_phase: float) -> np.ndarray:
-    t = seconds(duration)
-    p = TAU * frequency(note) * t
-    drift = 0.28 * np.sin(TAU * 0.39 * t + seed_phase)
-    drift += 0.075 * np.sin(TAU * 1.13 * t + seed_phase * 2)
-    tide = 0.5 + 0.5 * np.sin(TAU * 0.18 * t + seed_phase)
-    core = 0.59 * np.sin(p + drift)
-    overtone = np.sin(2.003 * p + 2.3 * drift + 0.5)
-    choir = np.sin(3.996 * p + 0.11 * np.sin(1.995 * p) + 0.7)
-    return envelope(t, attack, release) * (
-        core + (0.12 + 0.15 * color) * overtone * (0.55 + 0.45 * tide)
-        + 0.16 * color * choir * tide + 0.11 * np.sin(0.999 * p - drift + 1.65)
-    )
+def wash(duration, from_hz, to_hz, rng):
+    return rec.sound("cymbal", duration, take=1, speed=.67, reverse=to_hz > from_hz,
+                     cutoff=max(800, to_hz * 1.8), attack=duration * .54, release=duration * .23)
 
 
-def wash(duration: float, from_hz: float, to_hz: float,
-         rng: np.random.Generator) -> np.ndarray:
-    t = seconds(duration)
-    p = phase(from_hz * (to_hz / from_hz) ** (t / duration))
-    glimmer = np.sin(p + 0.42 * np.sin(p * 1.67))
-    water = foam(duration, 180, 2900, rng)
-    return envelope(t, duration * 0.61, duration * 0.19) * (0.53 * glimmer + 0.54 * water)
+def impact(duration, start, end, rng):
+    family = "bassdrum" if end < 95 else "frame" if end < 250 else "block"
+    return rec.sound(family, duration, take=rng.integers(3), cutoff=2600,
+                     speed=np.clip(start / (210 if end < 250 else 1000), .63, 1.37))
 
 
-def impact(duration: float, start: float, end: float,
-           rng: np.random.Generator) -> np.ndarray:
-    t = seconds(duration)
-    p = phase(end + (start - end) * np.exp(-t / (duration * 0.14)))
-    shell = 0.67 * np.sin(p) + 0.19 * np.sin(1.73 * p)
-    click = foam(duration, 400, 2900, rng) * np.exp(-t / 0.023)
-    return envelope(t, 0.003, duration * 0.2) * (
-        shell * np.exp(-t / (duration * 0.21)) + 0.39 * click
-    )
-
-
-def current(duration: float) -> np.ndarray:
-    """A periodic subsurface room tone with slow counter-moving stereo currents."""
-    samples = np.arange(frames(duration), dtype=np.float64)
-    orbit = TAU * samples / len(samples)
-    bed = np.zeros((len(samples), 2), dtype=np.float32)
-    tones = ((41.0, 0.0095, 3, 0.51), (58.0, 0.0062, 5, 1.12),
-             (84.0, 0.0060, 7, 2.49), (113.0, 0.0043, 4, 2.79),
-             (197.0, 0.0038, 6, 1.07), (318.0, 0.0028, 9, 0.44),
-             (531.0, 0.0018, 7, 4.40), (816.0, 0.0014, 11, 3.21))
-    for pitch, gain, cycle, offset in tones:
-        carrier = orbit * round(pitch * duration)
-        for channel, direction in enumerate((-1, 1)):
-            tide = orbit * cycle + direction * 0.71 + offset
-            bed[:, channel] += gain * (0.53 + 0.47 * np.sin(tide)) * np.sin(
-                carrier + offset + 0.35 * np.sin(tide * 2) + direction * 0.12
-            )
-    return bed
+def current(duration):
+    return rec.room(duration, depth=0.8, resonant=True)
 
 
 def space(bus: np.ndarray, wet: float, wrap: bool) -> np.ndarray:
@@ -408,7 +343,7 @@ def effect(name: str, take: int) -> np.ndarray:
                 j * .048 * drift, (.48, .71, .41)[j])
     elif name == "Jump_Land":
         out = np.zeros(frames(.195 * drift))
-        add(out, impact(.135 * drift, 245 * drift, 120 * drift, rng), 0, .72)
+        add(out, rec.sound("step", .135 * drift, speed=drift, cutoff=3400), 0, .72)
         add(out, bubble(.103 * drift, 766 * drift, 593 * drift, rng), .016, .61)
         add(out, bubble(.093 * drift, 182 * drift, 337 * drift, rng), .033, .30)
         add(out, bubble(.065 * drift, 497 * drift, 316 * drift, rng), .073 * drift, .16)
@@ -419,7 +354,8 @@ def effect(name: str, take: int) -> np.ndarray:
     elif name == "Portal_Loot ST":
         out = np.zeros(frames(.96))
         add(out, wash(.49, 89, 438, rng), 0, .41)
-        add(out, impact(.32, 131, 53, rng), 0, .43)
+        add(out, impact(.32, 131, 53, rng), 0, .33)
+        add(out, rec.sound("gong", .68, cutoff=2200), .08, .35)
         strikes = ((0, 207), (.13, 242), (.25, 277), (.35, 329),
                    (.43, 367), (.50, 400), (.56, 440))
         for i, (at, pitch) in enumerate(strikes):
