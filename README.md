@@ -400,7 +400,7 @@ SW_TRANSITION=ripple tools/playtest/agent.sh a7 drive tools/playtest/steps_trans
 `COVER_EASE`（前锋扫下来的缓急）、`STREAM_S`、`OUT_S`（水流多快）、`DIM`、`BOOT_HOLD`；着色器里是 `VP_Y`（透视多强）、
 `CELL_X`、`CELL_Z`（灯在河面上隔着多远）、`HALO`、`CORE`、`REFL`（光晕、亮芯、倒影多大）、`LINE_GAP`（水纹的间距）。
 量出来（外部那台 V100）：盖住 0.46 秒、最长一帧 11.4 毫秒，中间 0.14 秒，掀开 0.55 秒、最长一帧 8.9 毫秒。
-几回量下来盖住 9.5 到 18.6、掀开 8.9 到 11.1（五个人共用那台机器，忙的时侯偏高）；连换 20 次关，过渡这一层下面一直是 149 个节点。
+几回量下来盖住 9.5 到 18.6、掀开 8.9 到 10.8（五个人共用那台机器，忙的时侯偏高）；连换 20 次关，过渡这一层下面一直是 149 个节点。
 
 就地放一遍用 `call pad_adapter.gd debug_transition_test 3`（盖住、停 3 秒、掀开），停着的时侯截图就是盖严的样子。
 
