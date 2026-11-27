@@ -65,7 +65,7 @@ func _ready() -> void:
 	leader_board_return_button.pressed.connect(func(): return_to_title())
 	settings_button.pressed.connect(func(): show_settings())
 	settings_return_button.pressed.connect(func(): return_to_title())
-	SceneManager.scene_transition_control.close()
+	SceneManager.scene_transition_control.close({"mode": "boot"})      # 开机掀幕（transition_style.gd 那套样式也管这一下）
 	_add_ruleset_ui()
 	update_characters()
 	character_description.text = ""

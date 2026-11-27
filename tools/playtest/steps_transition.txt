@@ -1,0 +1,34 @@
+# 换关的过渡（样式由 SW_TRANSITION 给，不给就是原来的石砖墙）：进游戏，量两趟换关，再看一眼对战里的。
+# 第二趟才判：一个样式装上以后头一趟不判（见 SceneTransitionControl.report）。每一趟都报盖住、掀开各多久、最长的一帧多长。
+# SW_TRANSITION=ripple SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_transition.txt trans_ripple
+sleep 2
+call pad_adapter.gd debug_unlock_all
+# 现在用的是哪一种（还没放过，不判）
+call pad_adapter.gd debug_transition 0
+click_btn PlayButton
+sleep 3
+call pad_adapter.gd debug_pick_character 0
+sleep 6
+# 第一趟：跳到第 4 关（头一趟，只记下来）
+call pad_adapter.gd debug_goto_level 4
+sleep 0.3
+snap 01_covering
+sleep 5
+call pad_adapter.gd debug_transition 0
+snap 02_after_first
+# 第二趟：跳到第 8 关，这一趟判
+call pad_adapter.gd debug_goto_level 8
+sleep 0.3
+snap 03_covering
+sleep 5
+call pad_adapter.gd debug_transition 0
+snap 04_after_second
+# 回标题页，开一局对战的轮战：从标题页进游戏的那一趟也量
+click_btn HudReturnButton
+sleep 1
+click_btn MainMenu
+sleep 4
+call pad_adapter.gd debug_versus 4 1
+sleep 6
+call pad_adapter.gd debug_transition 0
+snap 05_versus

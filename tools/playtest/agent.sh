@@ -24,6 +24,8 @@
 #                             帧取回到 builds/stage/<布局>/，再拼视频：tools/playtest/assemble_stage.sh <布局>
 #   versus <1..5> [秒数=24] [每秒几张=20]   录一局对战（1 抢灯、2 追影、3 夺岸、4 轮战、5 对弈），主角交给机器人打，
 #                             帧取回到 builds/versus/<编号>/，再拼视频：tools/playtest/assemble_versus.sh <编号>
+#   transition <样式> [秒数=12] [每秒几张=30]   录一段换关的过渡（第 1 关踩上水车到进第 2 关，机器人打的），几种样式录的是同一段，
+#                             帧取回到 builds/transition/<样式>/，再拼视频：tools/playtest/assemble_transition.sh <样式>；几种并排：… compare <样式> …
 #   drive <步骤文件> [前缀]  按步骤文件操作游戏并截图（步骤怎么写见 drive_v100.sh 的开头）
 #   export                  在 V100 上把工程导出成 Linux 可执行文件（给掌机用），放在 V100 的 shouwang-agents/<标签>/shouwang.x86_64
 #   fetch                   把导出的可执行文件取回到本地 builds/linux/shouwang.x86_64
@@ -45,6 +47,7 @@
 # 机器人每一步都打进日志（查它为什么跳不到的时侯用）：SW_AUTO_TRACE=1 tools/playtest/agent.sh a7 auto campaign 1
 # 游戏里背景的三种布局（1 长河、2 远岸、3 月下；平时是月下）：SW_STAGE=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_stage.txt 远岸
 ## 让机器人换关后只等 0.2 秒（平时 1.5 秒），试它在灯还没摆完的时侯会不会乱动：SW_AUTO_EAGER=1 tools/playtest/agent.sh a7 auto campaign 1
+## 换关的过渡换成某一种（默认 tiles 是原来的石砖墙；别的见 scripts/uis/transitions/）：SW_TRANSITION=ripple tools/playtest/agent.sh a7 drive tools/playtest/steps_transition.txt 过渡
 # 渲染方式默认是游戏真正用的 Forward+（跑在服务器自带的显卡上，一个实例占 264 MB 显存）；SW_RENDERER=gl 是软件 OpenGL，不碰显卡
 TAG="$1"; CMD="$2"
 case "$TAG" in
@@ -86,11 +89,12 @@ fi
 export SW_RULESET="${SW_RULESET:-}"          # 临时指定难度（简单 easy / 中等 normal / 困难 hard / 非常困难 extreme），不写存档
 export SW_AUTO_PACE="${SW_AUTO_PACE:-}"      # 自动试玩的机器人每走一步等多久（秒），平时 0.4
 export SW_STAGE="${SW_STAGE:-}"              # 游戏里背景的布局：1 长河、2 远岸、3 月下；不写是平时用的「月下」，给 0 是原来那块网纹的水
+export SW_TRANSITION="${SW_TRANSITION:-}"    # 换关过渡的样式：tiles 原来的石砖墙（不写就是它）；别的见 scripts/uis/transitions/。不写存档
 pull() {
 	mkdir -p "$OUT"
 	rsync -a -e "$SSH" --include "${1}_*" --exclude '*' "$HOST:$REMOTE/shots/" "$OUT/" && echo "截图已取回到 ${OUT}（文件名以 ${1}_ 开头）"
 }
-ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER SW_RULESET=$SW_RULESET SW_AUTO_TRACE=$SW_AUTO_TRACE SW_AUTO_EAGER=$SW_AUTO_EAGER SW_OPENING=$SW_OPENING SW_BOOT_WAIT=$SW_BOOT_WAIT SW_OPENING_TRACE=$SW_OPENING_TRACE SW_STAGE=$SW_STAGE SW_GODOT=$SW_GODOT SW_XVFB=$SW_XVFB SW_LD_LIBRARY_PATH=$SW_LD_LIBRARY_PATH SW_AUDIO=$SW_AUDIO SW_AUTO_PACE=$SW_AUTO_PACE"
+ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER SW_RULESET=$SW_RULESET SW_AUTO_TRACE=$SW_AUTO_TRACE SW_AUTO_EAGER=$SW_AUTO_EAGER SW_OPENING=$SW_OPENING SW_BOOT_WAIT=$SW_BOOT_WAIT SW_OPENING_TRACE=$SW_OPENING_TRACE SW_STAGE=$SW_STAGE SW_GODOT=$SW_GODOT SW_XVFB=$SW_XVFB SW_LD_LIBRARY_PATH=$SW_LD_LIBRARY_PATH SW_AUDIO=$SW_AUDIO SW_AUTO_PACE=$SW_AUTO_PACE SW_TRANSITION=$SW_TRANSITION"
 BIN="$REMOTE/shouwang.x86_64"
 EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --exclude *.tmp --exclude __pycache__ --exclude tools/playtest"
 # 原作的两首曲子和音效很大，建环境的时侯从 base 复制过来，平时同步不传；开场动画的声音是我们自己的、很小，照常同步
@@ -98,7 +102,7 @@ EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --
 case "$CMD" in
 	setup)
 		$SSH "$HOST" "mkdir -p $REMOTE/project $REMOTE/bin $REMOTE/shots; if [ '$TAG' != base ] && [ ! -e $REMOTE/project/project.godot ] && [ -d $ROOTS/base/project ]; then cp -a $ROOTS/base/project/. $REMOTE/project/; fi" \
-			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100,autoplay_v100,record_opening_v100,record_lobby_v100,record_stage_v100,record_versus_v100,check_scripts}.sh "$HOST:$REMOTE/bin/" \
+			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100,autoplay_v100,record_opening_v100,record_lobby_v100,record_stage_v100,record_versus_v100,record_transition_v100,check_scripts}.sh "$HOST:$REMOTE/bin/" \
 			&& echo "V100 上的环境已建好：${REMOTE}（端口 ${SW_DEBUG_PORT}，渲染线程 ${SW_THREADS}）" ;;
 	sync)
 		[ "${SW_FULL:-}" = 1 ] && EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --exclude *.tmp --exclude __pycache__ --exclude tools/playtest"   # 整份传（连音频），当底版
@@ -228,6 +232,16 @@ REMOTE_SH
 		mkdir -p "$ROOT/builds/versus/$N" && rm -f "$ROOT/builds/versus/$N/"*.jpg
 		rsync -a -e "$SSH" "$HOST:/tmp/sw_versus_$N/" "$ROOT/builds/versus/$N/" && echo "帧已取回到 builds/versus/$N/（$(ls "$ROOT/builds/versus/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_versus.sh $N"
 		exit $code ;;
+# 录一段换关的过渡。样式放进 SW_TRANSITION 带过去（ENVS 里那一个是空的，会把先给的冲掉，所以先 export 再用）
+	transition)
+		STYLE="${3:-tiles}"; SECS="${4:-12}"; FPS="${5:-30}"
+		scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT/tools/playtest/record_transition_v100.sh" "$HOST:$REMOTE/bin/" || exit 1
+		export SW_TRANSITION="$STYLE"
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_transition_v100.sh $REMOTE/project $STYLE $SECS $FPS" | LC_ALL=C cut -c1-400
+		code=${PIPESTATUS[0]}
+		mkdir -p "$ROOT/builds/transition/$STYLE" && rm -f "$ROOT/builds/transition/$STYLE/"*
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_transition_$STYLE/" "$ROOT/builds/transition/$STYLE/" && echo "帧已取回到 builds/transition/$STYLE/（$(ls "$ROOT/builds/transition/$STYLE" | grep -c transition_) 张）；拼视频：tools/playtest/assemble_transition.sh $STYLE"
+		exit $code ;;
 	mechanics)
 		PREFIX="${3:-mechanics}"
 		$SSH "$HOST" "$ENVS bash $REMOTE/bin/mechanics_v100.sh $REMOTE/project $PREFIX" | cut -c1-900
@@ -284,6 +298,16 @@ REMOTE_SH
 			[ "$f" = versus_play ] && extra="SW_RULESET=extreme"
 			env SW_OPENING=off SW_BOOT_WAIT=2 ${extra:+"$extra"} "$0" "$TAG" drive "tools/playtest/steps_${f}.txt" "$f" || { echo "RESULT 完整回归：没过，停在「${name}」"; exit 1; }
 		done
+# 换关的过渡：scripts/uis/transitions/ 里有的每一种，再加上原来的那一种（tiles），各量两趟——盖住、掀开的时侯卡没卡、长短对不对
+		echo "========== 换关的过渡 =========="
+		for f in "$ROOT"/scripts/uis/transitions/transition_*.gd; do
+			[ -e "$f" ] || continue
+			name="$(basename "$f" .gd)"; name="${name#transition_}"
+			echo "---------- 过渡 $name ----------"
+			SW_TRANSITION="$name" SW_OPENING=off SW_BOOT_WAIT=2 "$0" "$TAG" drive tools/playtest/steps_transition.txt "trans_$name" || { echo "RESULT 完整回归：没过，停在「换关的过渡 $name」"; exit 1; }
+		done
+		echo "---------- 过渡 tiles（原来的）----------"
+		SW_TRANSITION= SW_OPENING=off SW_BOOT_WAIT=2 "$0" "$TAG" drive tools/playtest/steps_transition.txt trans_tiles || { echo "RESULT 完整回归：没过，停在「换关的过渡 tiles」"; exit 1; }
 		echo "RESULT 完整回归：通过" ;;
 	*) echo "不认识的命令: ${CMD}"; exit 1 ;;
 esac

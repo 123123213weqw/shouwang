@@ -1204,6 +1204,31 @@ func debug_versus_check() -> String:
 	if not bad.is_empty(): return "RESULT 对战的局：没过，%s" % "；".join(bad)
 	return "RESULT 对战的局：通过（%s，没套标题页上选的难度）" % VersusBase.NAMES.get(main.versus.id, "?")
 
+## 换关的过渡（scripts/uis/scene_transition_control.gd，样式在 scripts/uis/transitions/）。在游戏里调：
+##   call pad_adapter.gd debug_transition 0          现在用的是哪一种、最近一趟量出来的数（盖住和掀开各多久、最长的一帧多长；卡了就报"没过"）
+##   call pad_adapter.gd debug_transition ripple     换成某一种：tiles 是原来的石砖墙，别的见 scripts/uis/transitions/
+##   call pad_adapter.gd debug_transition_test 0.5   现在就地放一遍（不换关）：盖住、停这么久、掀开。调样式、录片子的时侯用
+func debug_transition(id = 0) -> String:
+	var ctl = SceneManager.scene_transition_control      # 不写类型：SceneManager 里它本来就没写，写 := 推断不出来
+	if ctl == null: return "RESULT 过渡：没过，找不到过渡那一层（SceneManager.scene_transition_control）"
+	if id != 0 and str(id) != "0":
+		ctl.set_style(str(id))
+		return "过渡换成「%s」" % ctl.style_id
+	# 还没放过一次的时侯不写 RESULT：测试的步骤文件一看到"RESULT …：没过"就判这一步没过
+	if ctl.records.is_empty(): return "过渡：现在用的是「%s」，还没放过一次" % ctl.style_id
+	return ctl.report()
+
+## 参数不写类型，理由同 debug_record
+func debug_transition_test(hold = 0.5) -> String:
+	var ctl = SceneManager.scene_transition_control      # 不写类型：SceneManager 里它本来就没写，写 := 推断不出来
+	if ctl == null: return "找不到过渡那一层"
+	if ctl.is_opened: return "画面正盖着（正在换关），先不放"
+	var ctx := {"mode": "level"}
+	ctl.open(ctx)
+	await get_tree().create_timer(maxf(float(str(hold)), 0.05)).timeout
+	ctl.close(ctx)
+	return "放了一遍「%s」" % ctl.style_id
+
 ## 这一关摆好的那一局，画成字符画
 func debug_deal() -> String:
 	var main := get_node_or_null("/root/Main")
@@ -1715,6 +1740,7 @@ func debug_record(seconds, fps = 20.0, name = "rec") -> String:
 	_rec_name = str(name)
 	_rec_acc = 1.0          # 第一帧马上存
 	_rec_frame = 0
+	print("RECORD_START %d %s" % [Time.get_ticks_usec(), _rec_fps])      # 录换关的过渡时，按这一行和 TRANSITION_BEGIN 对齐
 	return "recording %.1f s at %.0f frames/s to %s/%s_*.jpg" % [_rec_left, _rec_fps, _rec_dir, _rec_name]
 
 func _record_tick(delta: float) -> void:

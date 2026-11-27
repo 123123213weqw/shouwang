@@ -89,13 +89,13 @@ func set_scene(scene):
 	get_tree().current_scene = current_scene
 
 func load_scene_progress(path):
-	await scene_transition_control.open()
+	await scene_transition_control.open({"mode": "scene"})
 	
 	var s = await _thread_load(path)
 	var s_instance = s.instantiate()
 	set_scene(s_instance)
 	
-	scene_transition_control.close()
+	scene_transition_control.close({"mode": "scene"})
 	return s_instance
 
 func _thread_load(path):

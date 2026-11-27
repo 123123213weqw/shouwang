@@ -307,6 +307,46 @@ tools/playtest/agent.sh a7 drive tools/playtest/steps_aim.txt aim               
 
 对战用自己的数（`resources/versus/`），不套标题页上选的难度：对战的局里步数的加减、风向、夜巡、手里的灯都不算数，暂停菜单和结算面板上也不放难度的加减器。`all` 里跑 `steps_versus_play.txt` 的那一步故意带着 `SW_RULESET=extreme`，查的就是这个。
 
+## 换关的过渡
+
+过关换关、长夜的下一更、重来、换难度、轮战换棋盘，还有标题页和游戏之间换场景，都先把画面盖住、再掀开。
+平时是原来那一套（`tiles`）：一层石砖贴图的着色器淡入淡出，盖住、掀开各 0.5 秒。
+别的样式在 `scripts/uis/transitions/` 里，每种一个文件。接口、怎么加一种、怎么量怎么录，都在 [`docs/transitions.md`](docs/transitions.md)。
+
+```bash
+tools/playtest/agent.sh a7 transition ripple                             # 录一段（第 1 关踩上水车到进第 2 关），帧回到 builds/transition/ripple/
+tools/playtest/assemble_transition.sh ripple                              # 拼 ripple.mp4、ripple_slow.mp4（放慢 2.5 倍）、ripple_sheet.jpg（拼图）
+tools/playtest/assemble_transition.sh compare tiles ripple lanterns       # 几种并排、对齐到过渡开始的那一帧：builds/transition/compare.mp4
+SW_TRANSITION=ripple tools/playtest/agent.sh a7 drive tools/playtest/steps_transition.txt trans_ripple   # 量两趟：盖住、掀开各多久，最长的一帧多长
+```
+
+`SW_TRANSITION` 临时指定样式，不写存档；不写是 `tiles`。`all` 的最后会把有的每一种都量一遍。
+换场景和开机掀幕那两趟也走同一个样式。
+
+### `tiles`
+
+原来那一套：石砖贴图铺满的一层，`alpha` 从 0 到 1 再回去（`shaders/scene_transition.gdshader`）。
+
+### `ripple`
+
+（涟漪开合的说明写在这儿。）
+
+### `lanterns`
+
+（河灯涌来的说明写在这儿。）
+
+### `steps`
+
+（石阶沉浮的说明写在这儿。）
+
+### `wheel`
+
+（镜头钻进水车的说明写在这儿。）
+
+### `ink`
+
+（墨迹晕开的说明写在这儿。）
+
 ## 操作
 
 | | 键盘鼠标 | 手柄 |
@@ -431,7 +471,7 @@ SW_HOST=V100_222_TS tools/playtest/agent.sh a7 all                 # 以后和�
 | `a7 lobby [秒数] [每秒几张]` | 录一段标题页的背景（那条河、河灯、划过水面和挪焦点时荡开的涟漪），帧取回到 `builds/lobby/rec/` |
 | `a7 stage <1\|2\|3> [秒数] [每秒几张]` | 录一段游戏里的背景：进游戏、在棋盘上跳几下，帧取回到 `builds/stage/<布局>/` |
 | `a7 versus <1..5> [秒数] [每秒几张]` | 录一局对战（1 抢灯、2 追影、3 夺岸、4 轮战、5 对弈），主角交给机器人打，帧取回到 `builds/versus/<编号>/` |
-| `a7 all` | 一轮完整回归（它不同步工程，先 `sync`）：`import` → `boards` → 两种过关流程 → `aspect` → `mechanics` → `auto campaign 1` → 四档的规矩自检 → 换难度 → 存档隔离 → 河灯的层级 → 对战入口 → 五种对战 → 对战重来 → 技能选目标 → 关卡里的返回，哪一步没过就停在那一步 |
+| `a7 all` | 一轮完整回归（它不同步工程，先 `sync`）：`import` → `boards` → 两种过关流程 → `aspect` → `mechanics` → `auto campaign 1` → 四档的规矩自检 → 换难度 → 存档隔离 → 河灯的层级 → 对战入口 → 五种对战 → 对战重来 → 技能选目标 → 关卡里的返回 → 换关的过渡（每一种），哪一步没过就停在那一步 |
 | `a7 export`、`a7 fetch` | 导出 Linux 可执行文件（日志里有报错就不出包）；取回到 `builds/linux/shouwang.x86_64` |
 | `a7 smoke <步骤文件>` | 试跑导出来的可执行文件。`steps_export.txt` 是导出包自检：四档难度、道具、旗子和蜡烛这些按路径读的资源在包里都读得到 |
 | `a7 clean` | 删掉服务器上这个标签的目录 |
