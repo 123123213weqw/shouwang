@@ -63,7 +63,9 @@ HOST="${SW_HOST:-WZU_V100}"           # ssh 配置里的别名。换一台服务
 # 各标签的根目录：默认在那台服务器自己的家目录下（问它一声 $HOME，多一次连接而已）。SW_ROOTS 可以改
 RHOME="${SW_REMOTE_HOME:-$($SSH "$HOST" 'echo $HOME' 2>/dev/null | tail -n 1)}"      # 那台服务器的家目录（问它一声，只问这一次）
 ROOTS="${SW_ROOTS:-$RHOME/shouwang-agents}"
-[ -n "$ROOTS" ] && [ "${ROOTS%/shouwang-agents}" != "$ROOTS" ] || { echo "连不上 ${HOST}，或者读不到它的家目录（可以用 SW_ROOTS、SW_REMOTE_HOME 直接指定）"; exit 1; }
+# 家目录那一问要是返回了空的（连接时好时坏的时侯会有），根目录就成了 /shouwang-agents：后面的同步、导入都会对着一个不存在的目录空跑，还不报错。
+# 所以家目录本身必须是非空的
+[ -n "${ROOTS%/shouwang-agents}" ] || { echo "连不上 ${HOST}，或者读不到它的家目录（可以用 SW_ROOTS、SW_REMOTE_HOME 直接指定）"; exit 1; }
 REMOTE="$ROOTS/$TAG"
 OUT="${SW_OUT:-$ROOT/builds/shots/$TAG}"
 # 每个标签一套：端口 9910+编号，最多 5 个渲染线程，虚拟显示从 200+编号 试起
@@ -241,7 +243,15 @@ REMOTE_SH
 		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_transition_v100.sh $REMOTE/project $STYLE $SECS $FPS $FMT" | LC_ALL=C cut -c1-400
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/transition/$STYLE" && rm -f "$ROOT/builds/transition/$STYLE/"*
-		rsync -a -e "$SSH" "$HOST:/tmp/sw_transition_$(basename "$REMOTE")_$STYLE/" "$ROOT/builds/transition/$STYLE/" && echo "帧已取回到 builds/transition/$STYLE/（$(ls "$ROOT/builds/transition/$STYLE" | grep 'transition_' | sed 's/.*\.//' | sort | uniq -c | awk '{printf "%s 格式 %s 帧 ", $NF, $1}')）；拼视频：tools/playtest/assemble_transition.sh $STYLE"
+		# 取帧：网络慢的时侯会断。断了就接着传，最多试五回；取回来数一数，不够就不算成功（帧还在服务器上，再跑一遍这个命令就接着传）
+		for try in 1 2 3 4 5; do
+			rsync -a --partial --timeout=60 -e "$SSH" "$HOST:/tmp/sw_transition_$(basename "$REMOTE")_$STYLE/" "$ROOT/builds/transition/$STYLE/" && break
+			sleep 3
+		done
+		remote_n=$($SSH "$HOST" "ls /tmp/sw_transition_$(basename "$REMOTE")_$STYLE/ 2>/dev/null | grep -c '^transition_'" 2>/dev/null | tail -n 1)
+		local_n=$(ls "$ROOT/builds/transition/$STYLE/" | grep -c '^transition_')
+		[ "${local_n:-0}" -ge "${remote_n:-1}" ] || { echo "帧没取全：服务器上有 ${remote_n} 个，本机只有 ${local_n} 个。再跑一遍这个命令就接着传"; [ "$code" = 0 ] && code=6; }
+		echo "帧已取回到 builds/transition/$STYLE/（$(ls "$ROOT/builds/transition/$STYLE" | grep 'transition_' | sed 's/.*\.//' | sort | uniq -c | awk '{printf "%s 格式 %s 帧 ", $NF, $1}')）；拼视频：tools/playtest/assemble_transition.sh $STYLE"
 		exit $code ;;
 	mechanics)
 		PREFIX="${3:-mechanics}"

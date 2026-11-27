@@ -48,18 +48,19 @@ sleep 1
 rcc "call pad_adapter.gd debug_autoplay 1 2" >/dev/null
 for i in $(seq 1 $((SECS + 40))); do grep -a -q "RECORD_DONE" "$LOG" 2>/dev/null && break; sleep 1; done
 sleep 2
-begin=$(grep -a 'TRANSITION_BEGIN .* level' "$LOG" | tail -n 1 | awk '{print $2}')
-end=$(grep -a 'TRANSITION_END .* level' "$LOG" | tail -n 1 | awk '{print $2}')
 start=$(grep -a -m1 'RECORD_START' "$LOG" | awk '{print $2}')
-# 实际每秒存了几张（存 PNG 每帧慢，会比要求的少）：从录像开始到录完的时刻里数
+n=$(ls "$DIR"/transition_*.jpg "$DIR"/transition_*.png 2>/dev/null | sed 's/\.[a-z]*$//' | sort -u | wc -l | tr -d ' ')      # both 的时侯同一帧有两个文件，按帧数数
+# 录像开始以后的头一趟换关（机器人打得快，录着录着可能又过了一关，不能拿最后一趟）
+begin=$(awk -v s="$start" '$1=="TRANSITION_BEGIN" && $2 >= s && $4=="level" {print $2; exit}' "$LOG")
+end=$(awk -v b="${begin:-0}" '$1=="TRANSITION_END" && $2 >= b && $4=="level" {print $2; exit}' "$LOG")
+# 实际每秒存了几张（存 PNG 每帧慢，会比要求的少）：从录像开始到录完的时刻里数。n 要先数出来（先用过 n 才数，算出来是个负数）
 done_us=$(grep -a 'RECORD_DONE' "$LOG" | tail -n 1 | awk '{print $NF}')
 real="$FPS"
-[ -n "$done_us" ] && [ "${done_us:-0}" -gt "${start:-0}" ] 2>/dev/null && real=$(awk -v n="$n" -v a="$start" -v b="$done_us" 'BEGIN{printf "%.2f", (n - 1) / ((b - a) / 1000000)}')
+[ -n "$done_us" ] && [ -n "$start" ] && [ "${done_us:-0}" -gt "${start:-0}" ] 2>/dev/null && [ "${n:-0}" -gt 1 ] && real=$(awk -v n="$n" -v a="$start" -v b="$done_us" 'BEGIN{printf "%.2f", (n - 1) / ((b - a) / 1000000)}')
 echo "$start ${begin:-0} ${end:-0} $real" > "$DIR/marks.txt"
 echo "实际每秒 $real 帧（要求的是 $FPS）"
 echo "对齐（微秒，从游戏启动算起）：录像开始 ${start:-?}，过渡开始 ${begin:-没录到}，过渡结束 ${end:-没录到}"
 echo "量出来：$(rcc "call pad_adapter.gd debug_transition 0" | sed 's/^OK called debug_transition -> //')"
-n=$(ls "$DIR"/transition_*.jpg "$DIR"/transition_*.png 2>/dev/null | sed 's/\.[a-z]*$//' | sort -u | wc -l | tr -d ' ')      # both 的时侯同一帧有两个文件，按帧数数
 want=$(awk -v s="$SECS" -v f="$FPS" 'BEGIN{printf "%d", s*f*0.9}')
 [ "$n" -ge "$want" ] || echo "存帧跟不上：要 $SECS 秒 × 每秒 $FPS 张，只存到 $n 张"
 [ -n "$begin" ] && [ -n "$end" ] || echo "没录到换关：日志里没有换关的 TRANSITION_BEGIN / TRANSITION_END"
