@@ -79,11 +79,6 @@ func debug_pose(phase: int, step: int, ox: int, oy: int) -> String:
 	_begin(at, {"color": level.base_color if level != null else SceneTransitionControl.INK})
 	var x := clampf(float(step) / 1000.0, 0.0, 1.0)
 	ctl.visible = true                     # 平时这一整层是藏着的（open 才让它露面）
-	_mat.set_shader_parameter("peek", 0)
-	if phase >= 3:                         # 排查用（临时）：phase 3 起把中间量画成灰度，全盖住的状态
-		_mat.set_shader_parameter("peek", phase - 2)
-		_cover_at(1.0)
-		return "看中间量 %d" % (phase - 2)
 	if phase == 1:
 		_cover_at(clampf((x * COVER_SECS - LAND_SECS) / (COVER_SECS - LAND_SECS), 0.0, 1.0))
 		return "墨冻在盖住的第 %d 千分位，从 (%.2f, %.2f) 晕开" % [step, at.x, at.y]
@@ -125,9 +120,10 @@ func _cover_at(t: float) -> void:
 	var eased := 1.0 - pow(1.0 - pow(t, 1.6), 2.0)
 	_mat.set_shader_parameter("front", lerpf(DROP, FRONT_END, eased))
 
-## 掀开走到 x（0 到 1）：洞慢慢化开、越化越快；淡痕在后半段褪掉
+## 掀开走到 x（0 到 1）：洞慢慢化开、越化越快；淡痕在后半段褪掉。
+## 起头别太慢：盖严到洞露脸之间画面是不动的墨，那段越短越好
 func _reveal_at(x: float) -> void:
 	x = clampf(x, 0.0, 1.0)
-	var eased := lerpf(x, x * x * (3.0 - 2.0 * x), 0.6)
+	var eased := lerpf(x, x * x * (3.0 - 2.0 * x), 0.45)
 	_mat.set_shader_parameter("hole", eased * FRONT_END)
 	_mat.set_shader_parameter("residue", 1.0 - smoothstep(0.5, 1.0, x))
