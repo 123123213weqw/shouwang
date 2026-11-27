@@ -1,13 +1,14 @@
 extends TransitionStyle
 ## 涟漪开合：换关的过渡的一种。任务书在 docs/transitions.md 的「ripple」，接口在 transition_style.gd。
 ##   盖住  主角踩上水车，脚下那圈涟漪不停，一圈一圈往外荡，把棋盘淹了：圈里是夜里的河面，和标题页是同一条河
-##         （shaders/transition_ripple.gdshader，照着 lobby_river.gdshader 改的），主圈后面跟着两圈淡的拖尾
+##         （shaders/transition_ripple.gdshader，照着 lobby_river.gdshader 改的），主圈后面跟着两圈淡的拖尾。
+##         河面的颜色每帧读游戏里那条河此刻的水色，在游戏里水纹也照它画：淹上来的水和四周永远是同一片
 ##   题字  河面快盖严的时侯在正中淡入"第几关"和这一关的名字，名字右下角落一方印。只在真的过了上一关的时侯题
 ##   掀开  河面以主角落脚的那一格为中心收拢，圈外露出新的关卡，收到脚下为止；题字跟着这一圈一起走
 ##
 ## 时间上的事都在这个文件里：过渡进行中每一帧调一次 _apply()，按"这一段开始了多久"把着色器的参数和题字
 ## 整个算一遍，着色器只管画。所以没有补间、没有定时器，哪一帧都是从时间现算的，帧率高低都不走样。
-## 调样式的时侯：call pad_adapter.gd debug_transition_test 3（就地放一遍，不换关；这一遍一定题字）。
+## 调样式的时侯：call pad_adapter.gd debug_transition_test 3（就地放一遍，不换关；在游戏里这一遍一定题字）。
 ## 停的那一下要比盖住的长（给 3 秒），不然掀开那一下发过来时还在盖着，会被忽略，画面就一直盖着
 
 const SOFT := 0.02           # 圈边的软边有多宽（画面高度的几分之几）。主圈要多荡出这么一段才算盖严
