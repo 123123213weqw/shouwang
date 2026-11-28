@@ -120,6 +120,7 @@ var camera_base_dist := 0.0   # 场景里镜头到棋盘平面的距离，也是
 var camera_focus_z := 0.0     # 镜头正对着棋盘平面上的哪一点（z 坐标）
 var camera_dist := 0.0
 var camera_slack := 0.0       # 镜头左右最多跟着主角挪多远
+var camera_hold := false      # 按住镜头不跟：换关的过渡里要自己摆弄镜头的样式用（scripts/uis/transitions/），做完会放开
 const CAMERA_SLACK := 1.2
 const CAMERA_MARGIN := 1.5    # 镜头挪到头时，棋盘的边离画面边缘至少留这么远
 
@@ -430,7 +431,7 @@ func _add_over_panel_bits() -> void:
 
 
 func _process(delta: float) -> void:
-	camera_3d.global_position.x = lerp(camera_3d.global_position.x, camera_target_x(), delta * 2.0)
+	if not camera_hold: camera_3d.global_position.x = lerp(camera_3d.global_position.x, camera_target_x(), delta * 2.0)
 	score_display = lerp(score_display, float(score), delta * 5.0)
 	score_label.text = str(int(ceil(score_display)))
 	
@@ -900,21 +901,29 @@ func reset_upgrades():
 	upgrade_chance = BASE_UPGRADE_CHANCE
 
 
+## 左上角那行关卡名：对战的局是玩法的名字，长夜是"第几更"，巡夜是"第几关 · 关卡名"
+func level_title(level: LevelResource) -> String:
+	if versus != null: return versus.title()
+	if is_endless(): return str("长夜 · 第 ", current_level_index + 1, " 更")
+	return str("第 ", current_level_index + 1, " 关 · ", level.level_name)
+
 func load_level(level: LevelResource):
 	upgrade_random.rate = upgrade_chance
 	level_serial += 1
 	level_ready = false
 	_update_hud_return_visibility()
 
+	var leaving := current_level          # 离开的那一关：过渡盖住的那一段用它的底色（过了下一句 current_level 就是新一关的了）
 	current_level = level
-	if versus != null: level_label.text = versus.title()
-	elif is_endless(): level_label.text = str("长夜 · 第 ", current_level_index + 1, " 更")
-	else: level_label.text = str("第 ", current_level_index + 1, " 关 · ", level.level_name)
-
+	level_label.text = level_title(level)
 	final_score_control.set_visible(false)
 	level_label.visible = true
 
-	await SceneManager.scene_transition_control.open()
+	# 盖住画面。给过渡的说明：要去的这一关叫什么、第几关、换关换得快不快；样式从主角这会儿站的地方开始
+	#（见 scripts/uis/scene_transition_control.gd）。掀开的时候用的是同一份，再加上主角落在新一关的哪儿
+	var handover := {"level": level, "title": level_label.text, "index": current_level_index + 1, "fast": is_endless() or Game.versus == "blitz",
+		"color_from": leaving.base_color if leaving != null else Color(0.04, 0.06, 0.07)}
+	await SceneManager.scene_transition_control.open(handover)
 
 	# 棋盘：无尽模式现生成，主线用字符画
 	if is_endless():
@@ -968,7 +977,7 @@ func load_level(level: LevelResource):
 
 	water_strength = 0.0
 
-	await SceneManager.scene_transition_control.close()
+	await SceneManager.scene_transition_control.close(handover)
 
 	if not dealt and (versus == null or versus.uses_deal()):
 		# 边收边刷：步数没带满进来的话放一个蒸笼；再按关卡里的资源数刷灯

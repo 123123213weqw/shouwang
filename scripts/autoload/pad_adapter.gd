@@ -54,6 +54,7 @@ func _process(delta: float) -> void:
 	_frame_log(delta)
 	_autoplay_step(delta)
 	_record_tick(delta)
+	_ft_tick(delta)
 	# 连拍：着色器的抖动每换到一个还没拍过的相位就拍一张（见 debug_burst）
 	if _burst_left > 0:
 		var now := Time.get_ticks_msec()
@@ -1204,6 +1205,74 @@ func debug_versus_check() -> String:
 	if not bad.is_empty(): return "RESULT 对战的局：没过，%s" % "；".join(bad)
 	return "RESULT 对战的局：通过（%s，没套标题页上选的难度）" % VersusBase.NAMES.get(main.versus.id, "?")
 
+## 量一下平时每帧多长：接下来几秒里每一帧的间隔，报平均的和最长的。到掌机上验过渡以前先量这个，
+## 才知道过渡期间量出来的数算不算卡（掌机的显卡比服务器弱得多）。
+## 遥控不等带等待的函数（见 _call），所以不在函数里等：call pad_adapter.gd debug_frame_time 3 开始量 3 秒，
+## 过几秒再调 debug_frame_time（不带参数）取结果。量在 _ft_tick 里做
+## 参数不写类型，理由同 debug_record
+var _ft_left := 0.0
+var _ft_frames := 0
+var _ft_worst := 0
+var _ft_span := 0
+var _ft_last := 0
+var _ft_done := "还没量过：先 call pad_adapter.gd debug_frame_time 3"
+
+func debug_frame_time(seconds = 0) -> String:
+	if float(str(seconds)) > 0.0:
+		_ft_left = float(str(seconds))
+		_ft_frames = 0
+		_ft_worst = 0
+		_ft_span = 0
+		_ft_last = 0
+		_ft_done = "正在量，再等几秒"
+		return "开始量 %.1f 秒的帧时间；过这几秒再调 debug_frame_time（不带参数）取结果" % _ft_left
+	return _ft_done
+
+func _ft_tick(delta: float) -> void:
+	if _ft_left <= 0.0: return
+	var now := Time.get_ticks_usec()
+	if _ft_last != 0:
+		_ft_frames += 1
+		_ft_worst = maxi(_ft_worst, now - _ft_last)
+		_ft_span += now - _ft_last
+	_ft_last = now
+	_ft_left -= delta
+	if _ft_left <= 0.0 and _ft_frames > 0:
+		_ft_done = "RESULT 帧时间：平均 %.1f 毫秒，最长 %.1f 毫秒（%d 帧）" % [_ft_span / 1000.0 / _ft_frames, _ft_worst / 1000.0, _ft_frames]
+
+## 换关的过渡（scripts/uis/scene_transition_control.gd，样式在 scripts/uis/transitions/）。在游戏里调：
+##   call pad_adapter.gd debug_transition 0 [往回数第几趟]   现在是随机还是固定的一种、最近一趟（或者往回数第几趟）量出来的数
+##                                                  （用的是哪一种、盖住和掀开各多久、最长的一帧多长；卡了就报"没过"）
+##   call pad_adapter.gd debug_transition lanterns   固定成某一种：tiles 是原来的石砖墙，别的见 scripts/uis/transitions/；
+##                                                  call pad_adapter.gd debug_transition random 改回随机
+##   call pad_adapter.gd debug_transition_test 0.5   现在就地放一遍（不换关）：盖住、停这么久、掀开。调样式、录片子的时侯用
+func debug_transition(id = 0, back = 0) -> String:
+	var ctl = SceneManager.scene_transition_control      # 不写类型：SceneManager 里它本来就没写，写 := 推断不出来
+	if ctl == null: return "RESULT 过渡：没过，找不到过渡那一层（SceneManager.scene_transition_control）"
+	# 先变成文字再比：文字和数字用"不等于"比，这个语言会报运行时错（"等于"倒是可以）。遥控传过来的 0 是整数、样式名是文字
+	var name := str(id)
+	if name != "0":
+		ctl.set_style(name)
+		return "过渡换成「%s」" % ctl.style_id
+	# 还没放过一次的时侯不写 RESULT：测试的步骤文件一看到"RESULT …：没过"就判这一步没过
+	if ctl.records.is_empty(): return "过渡：现在用的是%s，还没放过一次" % ctl.describe()
+	return ctl.report(int(str(back)))
+
+## 参数不写类型，理由同 debug_record
+func debug_transition_test(hold = 0.5) -> String:
+	var ctl = SceneManager.scene_transition_control      # 不写类型：SceneManager 里它本来就没写，写 := 推断不出来
+	if ctl == null: return "找不到过渡那一层"
+	if ctl.is_opened: return "画面正盖着（正在换关），先不放"
+	var ctx := {"mode": "level"}
+	# 停多久从盖住做完以后才算：盖住没做完就去掀，掀会被忽略，画面就一直盖着了（盖住 0.5 秒的样式配 0.5 秒就会这样）
+	var fired := [false]
+	get_tree().create_timer(maxf(float(str(hold)), 0.05)).timeout.connect(func() -> void: fired[0] = true)
+	await ctl.open(ctx)
+	while not fired[0]:
+		await get_tree().process_frame
+	await ctl.close(ctx)
+	return "放了一遍「%s」" % ctl.style_id
+
 ## 这一关摆好的那一局，画成字符画
 func debug_deal() -> String:
 	var main := get_node_or_null("/root/Main")
@@ -1691,6 +1760,8 @@ func _kind_of(fish: Fish) -> int:
 ## 按帧数存的话拼出来的视频开头会比真实的慢
 ##   call pad_adapter.gd debug_record 4 20 opening      录 4 秒、每秒 20 张，存成 <目录>/opening_0000.jpg …
 ##   环境变量 SW_REC 是存的目录（默认 /tmp/sw_rec）；SW_AUTOREC="秒数,每秒几张,名字" 设了的话，游戏一启动就自动开始录（录的是真正的开机画面）
+##   SW_REC_FMT 选存成什么：jpg（默认）是 JPG；png 是无损的 PNG（暗色的画面存 JPG 会偏色，要给人看的片子用这个）；
+##   both 是同一帧两种都存（量 JPG 偏多少用）。存 PNG 每帧要二三十毫秒，录出来的帧会稀一点（按真实时间存，时间不会错）
 ##   call pad_adapter.gd debug_opening 1               在标题页上立刻重播一遍开场动画（1 到 3 是 A、B、D；不给或者给 0 就按设置里的来）
 var _rec_left := 0.0
 var _rec_fps := 20.0
@@ -1698,6 +1769,7 @@ var _rec_acc := 0.0
 var _rec_name := "rec"
 var _rec_frame := 0
 var _rec_dir := "/tmp/sw_rec"
+var _rec_fmt := "jpg"
 
 func _record_boot() -> void:
 	if OS.get_environment("SW_REC") != "": _rec_dir = OS.get_environment("SW_REC")
@@ -1715,6 +1787,7 @@ func debug_record(seconds, fps = 20.0, name = "rec") -> String:
 	_rec_name = str(name)
 	_rec_acc = 1.0          # 第一帧马上存
 	_rec_frame = 0
+	print("RECORD_START %d %s" % [Time.get_ticks_usec(), _rec_fps])      # 录换关的过渡时，按这一行和 TRANSITION_BEGIN 对齐
 	return "recording %.1f s at %.0f frames/s to %s/%s_*.jpg" % [_rec_left, _rec_fps, _rec_dir, _rec_name]
 
 func _record_tick(delta: float) -> void:
@@ -1724,9 +1797,12 @@ func _record_tick(delta: float) -> void:
 	if _rec_acc < 1.0 / _rec_fps: return
 	_rec_acc = fmod(_rec_acc, 1.0 / _rec_fps)
 	var img := get_viewport().get_texture().get_image()
-	img.save_jpg("%s/%s_%04d.jpg" % [_rec_dir, _rec_name, _rec_frame], 0.88)
+	_rec_fmt = OS.get_environment("SW_REC_FMT") if OS.get_environment("SW_REC_FMT") != "" else "jpg"
+	var base := "%s/%s_%04d" % [_rec_dir, _rec_name, _rec_frame]
+	if _rec_fmt == "png" or _rec_fmt == "both": img.save_png(base + ".png")
+	if _rec_fmt != "png": img.save_jpg(base + ".jpg", 0.88)
 	_rec_frame += 1
-	if _rec_left <= 0.0: print("RECORD_DONE %s %d" % [_rec_name, _rec_frame])
+	if _rec_left <= 0.0: print("RECORD_DONE %s %d %d" % [_rec_name, _rec_frame, Time.get_ticks_usec()])      # 最后一个数是录完的时刻：拼片子的按它算实际的帧率
 
 func debug_opening(which: int = 0) -> String:
 	var scene := get_tree().current_scene

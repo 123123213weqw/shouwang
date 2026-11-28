@@ -24,6 +24,9 @@
 #                             帧取回到 builds/stage/<布局>/，再拼视频：tools/playtest/assemble_stage.sh <布局>
 #   versus <1..5> [秒数=24] [每秒几张=20]   录一局对战（1 抢灯、2 追影、3 夺岸、4 轮战、5 对弈），主角交给机器人打，
 #                             帧取回到 builds/versus/<编号>/，再拼视频：tools/playtest/assemble_versus.sh <编号>
+#   transition <样式> [秒数=12] [每秒几张=30] [存成什么=jpg|png]   录一段换关的过渡（第 1 关踩上水车到进第 2 关，机器人打的），几种样式录的是同一段，
+#                             要给人看的片子用 png（无损；暗色的画面存 JPG 会偏色），帧会稀一点，拼的时侯按实际的帧数算帧率
+#                             帧取回到 builds/transition/<样式>/，再拼视频：tools/playtest/assemble_transition.sh <样式>；几种并排：… compare <样式> …
 #   drive <步骤文件> [前缀]  按步骤文件操作游戏并截图（步骤怎么写见 drive_v100.sh 的开头）
 #   export                  在 V100 上把工程导出成 Linux 可执行文件（给掌机用），放在 V100 的 shouwang-agents/<标签>/shouwang.x86_64
 #   fetch                   把导出的可执行文件取回到本地 builds/linux/shouwang.x86_64
@@ -45,6 +48,7 @@
 # 机器人每一步都打进日志（查它为什么跳不到的时侯用）：SW_AUTO_TRACE=1 tools/playtest/agent.sh a7 auto campaign 1
 # 游戏里背景的三种布局（1 长河、2 远岸、3 月下；平时是月下）：SW_STAGE=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_stage.txt 远岸
 ## 让机器人换关后只等 0.2 秒（平时 1.5 秒），试它在灯还没摆完的时侯会不会乱动：SW_AUTO_EAGER=1 tools/playtest/agent.sh a7 auto campaign 1
+## 换关的过渡换成别的（平时固定是墨迹晕开 ink；random 是随机；tiles 是原来的石砖墙；别的见 scripts/uis/transitions/）：SW_TRANSITION=lanterns tools/playtest/agent.sh a7 drive tools/playtest/steps_transition.txt trans_lanterns
 # 渲染方式默认是游戏真正用的 Forward+（跑在服务器自带的显卡上，一个实例占 264 MB 显存）；SW_RENDERER=gl 是软件 OpenGL，不碰显卡
 TAG="$1"; CMD="$2"
 case "$TAG" in
@@ -59,7 +63,9 @@ HOST="${SW_HOST:-WZU_V100}"           # ssh 配置里的别名。换一台服务
 # 各标签的根目录：默认在那台服务器自己的家目录下（问它一声 $HOME，多一次连接而已）。SW_ROOTS 可以改
 RHOME="${SW_REMOTE_HOME:-$($SSH "$HOST" 'echo $HOME' 2>/dev/null | tail -n 1)}"      # 那台服务器的家目录（问它一声，只问这一次）
 ROOTS="${SW_ROOTS:-$RHOME/shouwang-agents}"
-[ -n "$ROOTS" ] && [ "${ROOTS%/shouwang-agents}" != "$ROOTS" ] || { echo "连不上 ${HOST}，或者读不到它的家目录（可以用 SW_ROOTS、SW_REMOTE_HOME 直接指定）"; exit 1; }
+# 家目录那一问要是返回了空的（连接时好时坏的时侯会有），根目录就成了 /shouwang-agents：后面的同步、导入都会对着一个不存在的目录空跑，还不报错。
+# 所以家目录本身必须是非空的
+[ -n "${ROOTS%/shouwang-agents}" ] || { echo "连不上 ${HOST}，或者读不到它的家目录（可以用 SW_ROOTS、SW_REMOTE_HOME 直接指定）"; exit 1; }
 REMOTE="$ROOTS/$TAG"
 OUT="${SW_OUT:-$ROOT/builds/shots/$TAG}"
 # 每个标签一套：端口 9910+编号，最多 5 个渲染线程，虚拟显示从 200+编号 试起
@@ -86,11 +92,13 @@ fi
 export SW_RULESET="${SW_RULESET:-}"          # 临时指定难度（简单 easy / 中等 normal / 困难 hard / 非常困难 extreme），不写存档
 export SW_AUTO_PACE="${SW_AUTO_PACE:-}"      # 自动试玩的机器人每走一步等多久（秒），平时 0.4
 export SW_STAGE="${SW_STAGE:-}"              # 游戏里背景的布局：1 长河、2 远岸、3 月下；不写是平时用的「月下」，给 0 是原来那块网纹的水
+export SW_TRANSITION="${SW_TRANSITION:-}"    # 换关过渡的样式：不写是平时用的墨迹晕开（ink）；random 是随机（河灯、石阶、水车、墨迹里每次抽一种）；
+                                             # tiles 是原来的石砖墙；别的见 scripts/uis/transitions/。不写存档
 pull() {
 	mkdir -p "$OUT"
 	rsync -a -e "$SSH" --include "${1}_*" --exclude '*' "$HOST:$REMOTE/shots/" "$OUT/" && echo "截图已取回到 ${OUT}（文件名以 ${1}_ 开头）"
 }
-ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER SW_RULESET=$SW_RULESET SW_AUTO_TRACE=$SW_AUTO_TRACE SW_AUTO_EAGER=$SW_AUTO_EAGER SW_OPENING=$SW_OPENING SW_BOOT_WAIT=$SW_BOOT_WAIT SW_OPENING_TRACE=$SW_OPENING_TRACE SW_STAGE=$SW_STAGE SW_GODOT=$SW_GODOT SW_XVFB=$SW_XVFB SW_LD_LIBRARY_PATH=$SW_LD_LIBRARY_PATH SW_AUDIO=$SW_AUDIO SW_AUTO_PACE=$SW_AUTO_PACE"
+ENVS="SW_RUN=$SW_RUN SW_LOG=$SW_LOG SW_DEBUG_PORT=$SW_DEBUG_PORT SW_SNAP=$SW_SNAP SW_THREADS=$SW_THREADS SW_DISPLAYS='$SW_DISPLAYS' SW_RES=$SW_RES SW_RENDERER=$SW_RENDERER SW_RULESET=$SW_RULESET SW_AUTO_TRACE=$SW_AUTO_TRACE SW_AUTO_EAGER=$SW_AUTO_EAGER SW_OPENING=$SW_OPENING SW_BOOT_WAIT=$SW_BOOT_WAIT SW_OPENING_TRACE=$SW_OPENING_TRACE SW_STAGE=$SW_STAGE SW_GODOT=$SW_GODOT SW_XVFB=$SW_XVFB SW_LD_LIBRARY_PATH=$SW_LD_LIBRARY_PATH SW_AUDIO=$SW_AUDIO SW_AUTO_PACE=$SW_AUTO_PACE SW_TRANSITION=$SW_TRANSITION"
 BIN="$REMOTE/shouwang.x86_64"
 EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --exclude *.tmp --exclude __pycache__ --exclude tools/playtest"
 # 原作的两首曲子和音效很大，建环境的时侯从 base 复制过来，平时同步不传；开场动画的声音是我们自己的、很小，照常同步
@@ -98,7 +106,7 @@ EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --
 case "$CMD" in
 	setup)
 		$SSH "$HOST" "mkdir -p $REMOTE/project $REMOTE/bin $REMOTE/shots; if [ '$TAG' != base ] && [ ! -e $REMOTE/project/project.godot ] && [ -d $ROOTS/base/project ]; then cp -a $ROOTS/base/project/. $REMOTE/project/; fi" \
-			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100,autoplay_v100,record_opening_v100,record_lobby_v100,record_stage_v100,record_versus_v100,check_scripts}.sh "$HOST:$REMOTE/bin/" \
+			&& scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT"/tools/playtest/{rc,launch_v100,stop_v100,drive_v100,snap_levels_v100,flowtest_v100,aspect_v100,mechanics_v100,autoplay_v100,record_opening_v100,record_lobby_v100,record_stage_v100,record_versus_v100,record_transition_v100,check_scripts}.sh "$HOST:$REMOTE/bin/" \
 			&& echo "V100 上的环境已建好：${REMOTE}（端口 ${SW_DEBUG_PORT}，渲染线程 ${SW_THREADS}）" ;;
 	sync)
 		[ "${SW_FULL:-}" = 1 ] && EXCLUDE="--exclude .git --exclude .godot --exclude builds --exclude .DS_Store --exclude *.tmp --exclude __pycache__ --exclude tools/playtest"   # 整份传（连音频），当底版
@@ -123,9 +131,9 @@ sed 's/\x1b\[[0-9;]*m//g' "$R/import2.log" | grep -A4 'SCRIPT ERROR\|^ERROR' | h
 # 再不开窗口启动一回（跑三帧就退）：自动加载的脚本和主场景都会被编译一遍。
 # 导入那一遍只处理资源，脚本里有编译错误它不一定报（2026-11-25 就这样导出过一个脚本跑不起来的包）
 timeout 90 $G --headless --path . --quit-after 3 > "$R/boot.log" 2>&1
-p=$(grep -c 'SCRIPT ERROR\|is not compiling\|Failed to create an autoload' "$R/boot.log")
-echo "启动检查: 脚本报错 $p 条（应为 0）"
-sed 's/\x1b\[[0-9;]*m//g' "$R/boot.log" | grep -A4 'SCRIPT ERROR\|is not compiling\|Failed to create an autoload' | head -n 24 | cut -c1-220
+p=$(grep -c 'SCRIPT ERROR\|is not compiling\|Failed to create an autoload\|SHADER ERROR\|Shader compilation failed' "$R/boot.log")
+echo "启动检查: 脚本和着色器的报错 $p 条（应为 0）"
+sed 's/\x1b\[[0-9;]*m//g' "$R/boot.log" | grep -A4 'SCRIPT ERROR\|is not compiling\|Failed to create an autoload\|SHADER ERROR\|Shader compilation failed' | head -n 24 | cut -c1-220
 [ "$e" = 0 ] && [ "$o" = 0 ] && [ "$p" = 0 ]
 REMOTE_SH
 		code=$?
@@ -205,28 +213,46 @@ REMOTE_SH
 		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_opening_v100.sh $REMOTE/project $WHICH $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/opening/$WHICH" && rm -f "$ROOT/builds/opening/$WHICH/"*.jpg
-		rsync -a -e "$SSH" "$HOST:/tmp/sw_opening_$WHICH/" "$ROOT/builds/opening/$WHICH/" && echo "帧已取回到 builds/opening/$WHICH/（$(ls "$ROOT/builds/opening/$WHICH" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_opening.sh $WHICH"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_opening_$(basename "${SW_RUN:-x}")_$WHICH/" "$ROOT/builds/opening/$WHICH/" && echo "帧已取回到 builds/opening/$WHICH/（$(ls "$ROOT/builds/opening/$WHICH" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_opening.sh $WHICH"
 		exit $code ;;
 	lobby)
 		SECS="${3:-20}"; FPS="${4:-20}"
 		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_lobby_v100.sh $REMOTE/project $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/lobby/rec" && rm -f "$ROOT/builds/lobby/rec/"*.jpg
-		rsync -a -e "$SSH" "$HOST:/tmp/sw_lobby/" "$ROOT/builds/lobby/rec/" && echo "帧已取回到 builds/lobby/rec/（$(ls "$ROOT/builds/lobby/rec" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_lobby.sh $FPS"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_lobby_$(basename "${SW_RUN:-x}")/" "$ROOT/builds/lobby/rec/" && echo "帧已取回到 builds/lobby/rec/（$(ls "$ROOT/builds/lobby/rec" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_lobby.sh $FPS"
 		exit $code ;;
 	stage)
 		N="${3:-1}"; SECS="${4:-18}"; FPS="${5:-20}"
 		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_stage_v100.sh $REMOTE/project $N $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/stage/$N" && rm -f "$ROOT/builds/stage/$N/"*.jpg
-		rsync -a -e "$SSH" "$HOST:/tmp/sw_stage_$N/" "$ROOT/builds/stage/$N/" && echo "帧已取回到 builds/stage/$N/（$(ls "$ROOT/builds/stage/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_stage.sh $N $FPS"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_stage_$(basename "${SW_RUN:-x}")_$N/" "$ROOT/builds/stage/$N/" && echo "帧已取回到 builds/stage/$N/（$(ls "$ROOT/builds/stage/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_stage.sh $N $FPS"
 		exit $code ;;
 	versus)
 		N="${3:-1}"; SECS="${4:-24}"; FPS="${5:-20}"
 		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_versus_v100.sh $REMOTE/project $N $SECS $FPS" | cut -c1-300
 		code=${PIPESTATUS[0]}
 		mkdir -p "$ROOT/builds/versus/$N" && rm -f "$ROOT/builds/versus/$N/"*.jpg
-		rsync -a -e "$SSH" "$HOST:/tmp/sw_versus_$N/" "$ROOT/builds/versus/$N/" && echo "帧已取回到 builds/versus/$N/（$(ls "$ROOT/builds/versus/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_versus.sh $N"
+		rsync -a -e "$SSH" "$HOST:/tmp/sw_versus_$(basename "${SW_RUN:-x}")_$N/" "$ROOT/builds/versus/$N/" && echo "帧已取回到 builds/versus/$N/（$(ls "$ROOT/builds/versus/$N" | wc -l | tr -d ' ') 张）；拼视频：tools/playtest/assemble_versus.sh $N"
+		exit $code ;;
+# 录一段换关的过渡。样式放进 SW_TRANSITION 带过去（ENVS 里那一个是空的，会把先给的冲掉，所以先 export 再用）
+	transition)
+		STYLE="${3:-tiles}"; SECS="${4:-12}"; FPS="${5:-30}"; FMT="${6:-jpg}"
+		scp -q -o ConnectTimeout=30 -o BatchMode=yes "$ROOT/tools/playtest/record_transition_v100.sh" "$HOST:$REMOTE/bin/" || exit 1
+		export SW_TRANSITION="$STYLE"
+		$SSH "$HOST" "$ENVS bash $REMOTE/bin/record_transition_v100.sh $REMOTE/project $STYLE $SECS $FPS $FMT" | LC_ALL=C cut -c1-400
+		code=${PIPESTATUS[0]}
+		mkdir -p "$ROOT/builds/transition/$STYLE" && rm -f "$ROOT/builds/transition/$STYLE/"*
+		# 取帧：网络慢的时侯会断。断了就接着传，最多试五回；取回来数一数，不够就不算成功（帧还在服务器上，再跑一遍这个命令就接着传）
+		for try in 1 2 3 4 5; do
+			rsync -a --partial --timeout=60 -e "$SSH" "$HOST:/tmp/sw_transition_$(basename "$REMOTE")_$STYLE/" "$ROOT/builds/transition/$STYLE/" && break
+			sleep 3
+		done
+		remote_n=$($SSH "$HOST" "ls /tmp/sw_transition_$(basename "$REMOTE")_$STYLE/ 2>/dev/null | grep -c '^transition_'" 2>/dev/null | tail -n 1)
+		local_n=$(ls "$ROOT/builds/transition/$STYLE/" | grep -c '^transition_')
+		[ "${local_n:-0}" -ge "${remote_n:-1}" ] || { echo "帧没取全：服务器上有 ${remote_n} 个，本机只有 ${local_n} 个。再跑一遍这个命令就接着传"; [ "$code" = 0 ] && code=6; }
+		echo "帧已取回到 builds/transition/$STYLE/（$(ls "$ROOT/builds/transition/$STYLE" | grep 'transition_' | sed 's/.*\.//' | sort | uniq -c | awk '{printf "%s 格式 %s 帧 ", $NF, $1}')）；拼视频：tools/playtest/assemble_transition.sh $STYLE"
 		exit $code ;;
 	mechanics)
 		PREFIX="${3:-mechanics}"
@@ -284,6 +310,19 @@ REMOTE_SH
 			[ "$f" = versus_play ] && extra="SW_RULESET=extreme"
 			env SW_OPENING=off SW_BOOT_WAIT=2 ${extra:+"$extra"} "$0" "$TAG" drive "tools/playtest/steps_${f}.txt" "$f" || { echo "RESULT 完整回归：没过，停在「${name}」"; exit 1; }
 		done
+# 换关的过渡：scripts/uis/transitions/ 里有的每一种各量两趟——盖住、掀开的时侯卡没卡、长短对不对（涟漪开合不进随机，文件在，也量）
+		echo "========== 换关的过渡 =========="
+		for f in "$ROOT"/scripts/uis/transitions/transition_*.gd; do
+			[ -e "$f" ] || continue
+			name="$(basename "$f" .gd)"; name="${name#transition_}"
+			echo "---------- 过渡 $name ----------"
+			SW_TRANSITION="$name" SW_OPENING=off SW_BOOT_WAIT=2 "$0" "$TAG" drive tools/playtest/steps_transition.txt "trans_$name" || { echo "RESULT 完整回归：没过，停在「换关的过渡 $name」"; exit 1; }
+		done
+		# 上面按文件扫的时候涟漪开合也量过了（它的文件在）；原来的石砖墙没有文件，单独量一遍。两种都不进随机，但还留着、能单独指定
+		echo "---------- 过渡 tiles（原来的，不进随机的）----------"
+		SW_TRANSITION=tiles SW_OPENING=off SW_BOOT_WAIT=2 "$0" "$TAG" drive tools/playtest/steps_transition.txt trans_tiles || { echo "RESULT 完整回归：没过，停在「换关的过渡 tiles」"; exit 1; }
+		echo "---------- 过渡 随机（备选，SW_TRANSITION=random）----------"
+		SW_TRANSITION=random SW_OPENING=off SW_BOOT_WAIT=2 "$0" "$TAG" drive tools/playtest/steps_transition_random.txt trans_random || { echo "RESULT 完整回归：没过，停在「换关的过渡 随机」"; exit 1; }
 		echo "RESULT 完整回归：通过" ;;
 	*) echo "不认识的命令: ${CMD}"; exit 1 ;;
 esac

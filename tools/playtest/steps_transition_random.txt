@@ -1,0 +1,41 @@
+# 换关的过渡是随机的（SW_TRANSITION=random；平时固定是墨迹晕开）：连着换十次关，每次报抽到的是哪一种、量出来的数。第二趟起判。
+# 十次里池里的四种差不多都能轮到；原来的石砖墙（tiles）和涟漪开合（ripple）不在池里，一次都不该出现。
+# SW_TRANSITION=random SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_transition_random.txt trans_random
+sleep 2
+call pad_adapter.gd debug_unlock_all
+call pad_adapter.gd debug_transition 0
+click_btn PlayButton
+sleep 3
+call pad_adapter.gd debug_pick_character 0
+sleep 6
+call pad_adapter.gd debug_goto_level 2
+sleep 3
+call pad_adapter.gd debug_transition 0
+call pad_adapter.gd debug_goto_level 3
+sleep 3
+call pad_adapter.gd debug_transition 0
+call pad_adapter.gd debug_goto_level 4
+sleep 3
+call pad_adapter.gd debug_transition 0
+call pad_adapter.gd debug_goto_level 5
+sleep 3
+call pad_adapter.gd debug_transition 0
+call pad_adapter.gd debug_goto_level 6
+sleep 3
+call pad_adapter.gd debug_transition 0
+call pad_adapter.gd debug_goto_level 7
+sleep 3
+call pad_adapter.gd debug_transition 0
+call pad_adapter.gd debug_goto_level 8
+sleep 3
+call pad_adapter.gd debug_transition 0
+call pad_adapter.gd debug_goto_level 9
+sleep 3
+call pad_adapter.gd debug_transition 0
+call pad_adapter.gd debug_goto_level 10
+sleep 3
+call pad_adapter.gd debug_transition 0
+call pad_adapter.gd debug_goto_level 11
+sleep 3
+call pad_adapter.gd debug_transition 0
+snap 01_after
