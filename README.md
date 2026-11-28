@@ -310,9 +310,9 @@ tools/playtest/agent.sh a7 drive tools/playtest/steps_aim.txt aim               
 ## 换关的过渡
 
 过关换关、长夜的下一更、重来、换难度、轮战换棋盘，还有标题页和游戏之间换场景，都先把画面盖住、再掀开。
-平时是**随机**的：每一趟从「河灯涌来、石阶沉浮、镜头钻进水车、墨迹晕开、原来的石砖墙」里抽一种，不连着两趟一样
-（池写在 `scripts/uis/scene_transition_control.gd` 的 `RANDOM_POOL` 里）。原来的那一套（`tiles`）是一层石砖贴图的着色器淡入淡出，各 0.5 秒。
-涟漪开合（`ripple`）不进随机，要看就单独指定。
+平时是**随机**的：每一趟从「河灯涌来、石阶沉浮、镜头钻进水车、墨迹晕开」里抽一种，不连着两趟一样
+（池写在 `scripts/uis/scene_transition_control.gd` 的 `RANDOM_POOL` 里）。原来的那一套石砖墙（`tiles`，一层石砖贴图的着色器淡入淡出，各 0.5 秒）
+和涟漪开合（`ripple`）都不在池里，玩家平时见不到；要看就单独指定。
 别的样式在 `scripts/uis/transitions/` 里，每种一个文件。接口、怎么加一种、怎么量怎么录，都在 [`docs/transitions.md`](docs/transitions.md)。
 
 ```bash
@@ -323,12 +323,12 @@ SW_TRANSITION=lanterns tools/playtest/agent.sh a7 drive tools/playtest/steps_tra
 tools/playtest/agent.sh a7 drive tools/playtest/steps_transition_random.txt trans_random   # 随机（平时的样子）：连换十次关，看抽到哪些、每一趟的数
 ```
 
-`SW_TRANSITION` 临时固定成某一种（写 `random` 是随机），不写存档；不写就是随机。`all` 的最后会把有的每一种都量一遍，再量一遍随机。
+`SW_TRANSITION` 临时固定成某一种（写 `random` 是随机），不写存档；不写就是随机。`all` 的最后会把有的每一种都量一遍（不进池的也量），再量一遍随机。
 换场景和开机掀幕那两趟也是每一趟抽一种。开机的时候一池里的样式都建好、一起预热（在黑幕底下），换关途中只抽签，不现建。
 
 ### `tiles`
 
-原来那一套：石砖贴图铺满的一层，`alpha` 从 0 到 1 再回去（`shaders/scene_transition.gdshader`）。
+原来那一套：石砖贴图铺满的一层，`alpha` 从 0 到 1 再回去（`shaders/scene_transition.gdshader`）。不在随机里，玩家平时见不到；要看就 `SW_TRANSITION=tiles`。
 
 ### `ripple`
 

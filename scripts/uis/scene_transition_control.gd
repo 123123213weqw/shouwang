@@ -1,7 +1,8 @@
 class_name SceneTransitionControl extends CanvasLayer
 ## 换关、换场景时把画面盖住、再掀开：main.load_level 和 SceneManager.load_scene_progress 调它。
-## 平时是随机的：每一趟从 RANDOM_POOL 里抽一种，不连着两趟一样。池里是原来那一套（tiles，一层石砖贴图的着色器，
-## alpha 从 0 到 1 再回去，就是下面的 TextureRect 和 AnimationPlayer）和 scripts/uis/transitions/ 里的几种（接口见 transition_style.gd）。
+## 平时是随机的：每一趟从 RANDOM_POOL 里抽一种，不连着两趟一样。池里是 scripts/uis/transitions/ 里的几种（接口见 transition_style.gd）。
+## 原来那一套（tiles，一层石砖贴图的着色器，alpha 从 0 到 1 再回去，就是下面的 TextureRect 和 AnimationPlayer）
+## 和涟漪开合都不在池里，玩家平时见不到；要固定看哪一种用 SW_TRANSITION=<样式>。
 ## 要固定一种：环境变量 SW_TRANSITION=<样式>（random 是随机），或者在游戏里 call pad_adapter.gd debug_transition <样式>。
 ## 每一趟都量：盖住、掀开各用了多久，中间最长的一帧有多长（report）。怎么加一种、怎么录片子见 docs/transitions.md。
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
@@ -9,7 +10,7 @@ class_name SceneTransitionControl extends CanvasLayer
 
 const STYLES := ["tiles", "ripple", "lanterns", "steps", "wheel", "ink"]     # 有哪几种：tiles 是原来那一套；别的对应 scripts/uis/transitions/transition_<名字>.gd
 const RANDOM := "random"
-const RANDOM_POOL := ["lanterns", "steps", "wheel", "ink", "tiles"]          # 随机的那一池。涟漪开合（ripple）不进随机，要看得单独指定
+const RANDOM_POOL := ["lanterns", "steps", "wheel", "ink"]          # 随机的那一池。原来的石砖墙（tiles）和涟漪开合（ripple）不进随机，要看得单独指定
 const STYLE_DIR := "res://scripts/uis/transitions/"
 const HITCH_MS := 25.0        # 过渡里最长的一帧过了这么多毫秒，就算卡了一下（服务器上平时一帧 10 毫秒上下）
 const INK := Color(0.04, 0.06, 0.07)
