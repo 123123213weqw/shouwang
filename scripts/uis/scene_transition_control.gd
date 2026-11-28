@@ -1,14 +1,15 @@
 class_name SceneTransitionControl extends CanvasLayer
 ## 换关、换场景时把画面盖住、再掀开：main.load_level 和 SceneManager.load_scene_progress 调它。
-## 平时是随机的：每一趟从 RANDOM_POOL 里抽一种，不连着两趟一样。池里是 scripts/uis/transitions/ 里的几种（接口见 transition_style.gd）。
-## 原来那一套（tiles，一层石砖贴图的着色器，alpha 从 0 到 1 再回去，就是下面的 TextureRect 和 AnimationPlayer）
-## 和涟漪开合都不在池里，玩家平时见不到；要固定看哪一种用 SW_TRANSITION=<样式>。
-## 要固定一种：环境变量 SW_TRANSITION=<样式>（random 是随机），或者在游戏里 call pad_adapter.gd debug_transition <样式>。
+## 平时固定用墨迹晕开（DEFAULT，scripts/uis/transitions/transition_ink.gd，接口见 transition_style.gd）。
+## 环境变量 SW_TRANSITION=<样式> 换一种（在游戏里也行：call pad_adapter.gd debug_transition <样式>）：
+## random 是随机的——每一趟从 RANDOM_POOL 里抽一种，不连着两趟一样。原来那一套（tiles，一层石砖贴图的着色器，
+## alpha 从 0 到 1 再回去，就是下面的 TextureRect 和 AnimationPlayer）、涟漪开合和别的几种都还在，只是平时不用。
 ## 每一趟都量：盖住、掀开各用了多久，中间最长的一帧有多长（report）。怎么加一种、怎么录片子见 docs/transitions.md。
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
 @onready var tiles: TextureRect = $TextureRect
 
 const STYLES := ["tiles", "ripple", "lanterns", "steps", "wheel", "ink"]     # 有哪几种：tiles 是原来那一套；别的对应 scripts/uis/transitions/transition_<名字>.gd
+const DEFAULT := "ink"             # 平时用的那一种：墨迹晕开
 const RANDOM := "random"
 const RANDOM_POOL := ["lanterns", "steps", "wheel", "ink"]          # 随机的那一池。原来的石砖墙（tiles）和涟漪开合（ripple）不进随机，要看得单独指定
 const STYLE_DIR := "res://scripts/uis/transitions/"
@@ -16,12 +17,12 @@ const HITCH_MS := 25.0        # 过渡里最长的一帧过了这么多毫秒，
 const INK := Color(0.04, 0.06, 0.07)
 
 var is_opened: bool = true    ## 画面是不是盖着的（或者正在盖）。开机的时候是盖着的
-var style_id := RANDOM        ## 现在是随机（RANDOM）还是固定的一种
+var style_id := DEFAULT       ## 平时用的是哪一种（DEFAULT）；改成随机（RANDOM）或者别的样式以后跟着变
 var style: TransitionStyle    ## 这一趟用的那一种；用 tiles 的时侯是空，走原来那套动画
 var records: Array = []       ## 最近几趟量出来的数，最新的一趟在最后（每趟一个 Dictionary，见 report）
 
 var _styles: Dictionary = {}  # 建好的样式：名字 → TransitionStyle。开机就把要用的都建好、预热好，换关途中不现建（现建要加载、编译，会卡一下）
-var _random := false          # 现在是不是随机
+var _random := false          # 现在是不是随机（平时不是）
 var _pick := "tiles"          # 这一趟用的是哪一种（随机的时侯是抽到的那一种）
 var _last_pick := ""          # 上一趟抽到的是哪一种：不连着两趟一样
 var _busy := false            # 正在盖或者正在掀。这中间又有谁来盖、来掀，不理
@@ -37,10 +38,10 @@ func _ready() -> void:
 		# 开机掀幕也算一趟：现在就抽好，免得头几帧画的是石砖墙、掀幕的却是别的（闪一下）
 		_use(_draw())
 
-## 固定一种，或者改成随机（RANDOM，不写也是它）。tiles 是原来那一套；别的名字到 scripts/uis/transitions/ 里找
-## transition_<名字>.gd，找不到就还是用 tiles。返回最后用的是哪一种。正在过渡的时侯不换（样式正做着事）
+## 固定一种，或者改成随机（RANDOM）。不写就用平时的那一种（DEFAULT）；tiles 是原来那一套；别的名字到
+## scripts/uis/transitions/ 里找 transition_<名字>.gd，找不到就还是用 tiles。返回最后用的是哪一种。正在过渡的时侯不换
 func set_style(id: String) -> String:
-	if id == "": id = RANDOM
+	if id == "": id = DEFAULT
 	if _busy: return style_id
 	_random = id == RANDOM
 	var warm: Array = []               # 这回要预热的样式

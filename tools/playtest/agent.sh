@@ -48,7 +48,7 @@
 # 机器人每一步都打进日志（查它为什么跳不到的时侯用）：SW_AUTO_TRACE=1 tools/playtest/agent.sh a7 auto campaign 1
 # 游戏里背景的三种布局（1 长河、2 远岸、3 月下；平时是月下）：SW_STAGE=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_stage.txt 远岸
 ## 让机器人换关后只等 0.2 秒（平时 1.5 秒），试它在灯还没摆完的时侯会不会乱动：SW_AUTO_EAGER=1 tools/playtest/agent.sh a7 auto campaign 1
-## 换关的过渡固定成某一种（平时是随机的；tiles 是原来的石砖墙；别的见 scripts/uis/transitions/）：SW_TRANSITION=lanterns tools/playtest/agent.sh a7 drive tools/playtest/steps_transition.txt trans_lanterns
+## 换关的过渡换成别的（平时固定是墨迹晕开 ink；random 是随机；tiles 是原来的石砖墙；别的见 scripts/uis/transitions/）：SW_TRANSITION=lanterns tools/playtest/agent.sh a7 drive tools/playtest/steps_transition.txt trans_lanterns
 # 渲染方式默认是游戏真正用的 Forward+（跑在服务器自带的显卡上，一个实例占 264 MB 显存）；SW_RENDERER=gl 是软件 OpenGL，不碰显卡
 TAG="$1"; CMD="$2"
 case "$TAG" in
@@ -92,7 +92,8 @@ fi
 export SW_RULESET="${SW_RULESET:-}"          # 临时指定难度（简单 easy / 中等 normal / 困难 hard / 非常困难 extreme），不写存档
 export SW_AUTO_PACE="${SW_AUTO_PACE:-}"      # 自动试玩的机器人每走一步等多久（秒），平时 0.4
 export SW_STAGE="${SW_STAGE:-}"              # 游戏里背景的布局：1 长河、2 远岸、3 月下；不写是平时用的「月下」，给 0 是原来那块网纹的水
-export SW_TRANSITION="${SW_TRANSITION:-}"    # 换关过渡的样式：不写是随机（河灯、石阶、水车、墨迹里每次抽一种）；tiles 是原来的石砖墙（不进随机）；别的见 scripts/uis/transitions/。不写存档
+export SW_TRANSITION="${SW_TRANSITION:-}"    # 换关过渡的样式：不写是平时用的墨迹晕开（ink）；random 是随机（河灯、石阶、水车、墨迹里每次抽一种）；
+                                             # tiles 是原来的石砖墙；别的见 scripts/uis/transitions/。不写存档
 pull() {
 	mkdir -p "$OUT"
 	rsync -a -e "$SSH" --include "${1}_*" --exclude '*' "$HOST:$REMOTE/shots/" "$OUT/" && echo "截图已取回到 ${OUT}（文件名以 ${1}_ 开头）"
@@ -320,7 +321,7 @@ REMOTE_SH
 		# 上面按文件扫的时候涟漪开合也量过了（它的文件在）；原来的石砖墙没有文件，单独量一遍。两种都不进随机，但还留着、能单独指定
 		echo "---------- 过渡 tiles（原来的，不进随机的）----------"
 		SW_TRANSITION=tiles SW_OPENING=off SW_BOOT_WAIT=2 "$0" "$TAG" drive tools/playtest/steps_transition.txt trans_tiles || { echo "RESULT 完整回归：没过，停在「换关的过渡 tiles」"; exit 1; }
-		echo "---------- 过渡 随机（平时的样子）----------"
+		echo "---------- 过渡 随机（备选，SW_TRANSITION=random）----------"
 		SW_TRANSITION=random SW_OPENING=off SW_BOOT_WAIT=2 "$0" "$TAG" drive tools/playtest/steps_transition_random.txt trans_random || { echo "RESULT 完整回归：没过，停在「换关的过渡 随机」"; exit 1; }
 		echo "RESULT 完整回归：通过" ;;
 	*) echo "不认识的命令: ${CMD}"; exit 1 ;;

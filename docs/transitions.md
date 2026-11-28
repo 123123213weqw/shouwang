@@ -14,12 +14,12 @@
 - `scripts/uis/transition_style.gd`（`TransitionStyle`）：样式的接口和公共工具。
 - `scripts/uis/transitions/transition_<样式>.gd`：每一种样式。第一行写 `extends TransitionStyle`，**不写 `class_name`**
   （调度按样式名到这个目录里找文件，`load` 了直接 `new`）。着色器放 `shaders/transition_<样式>.gdshader`。
-- 平时是**随机**的：每一趟从 `RANDOM_POOL`（`scene_transition_control.gd`）里抽一种，不连着两趟一样。池里是 `lanterns` 河灯涌来、
-  `steps` 石阶沉浮、`wheel` 镜头钻进水车和 `ink` 墨迹晕开；`tiles`（原来的石砖墙）和 `ripple` 涟漪开合不进随机，玩家平时见不到。
-  想增减就改那一个常量。
-- 要固定一种：环境变量 `SW_TRANSITION=<样式>`（启动时读，不写存档；写 `random` 是随机）；或者在游戏里
-  `call pad_adapter.gd debug_transition <样式>`（`debug_transition random` 改回随机）。
-- 开机的时侯一池里的样式都建好、一起预热（在黑幕底下），换关途中只抽签、不现建（现建要加载、编译，会卡一下）。
+- 平时固定用 `ink` 墨迹晕开（`DEFAULT`，`scene_transition_control.gd`）。别的几种都还在，只是平时不用。
+- 换一种：环境变量 `SW_TRANSITION=<样式>`（启动时读，不写存档）；或者在游戏里 `call pad_adapter.gd debug_transition <样式>`
+  （不带参数是看最近一趟的数，再带一个数是往回数第几趟；`debug_transition random` 改成随机）。
+- 写 `random` 是随机的：每一趟从 `RANDOM_POOL`（`lanterns` 河灯涌来、`steps` 石阶沉浮、`wheel` 镜头钻进水车、`ink` 墨迹晕开）里
+  抽一种，不连着两趟一样。想增减就改那一个常量。`tiles`（原来的石砖墙）和 `ripple` 涟漪开合不在池里。
+- 开机的时候要用的样式在黑幕底下建好、预热好（随机的话一池都建好），换关途中不现建（现建要加载、编译，会卡一下）。
 - 有哪几种：`tiles`（原来的），`ripple` 涟漪开合，`lanterns` 河灯涌来，`steps` 石阶沉浮，`wheel` 镜头钻进水车，`ink` 墨迹晕开。
 
 ## 接口

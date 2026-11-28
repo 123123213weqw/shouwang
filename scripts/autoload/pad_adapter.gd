@@ -54,6 +54,7 @@ func _process(delta: float) -> void:
 	_frame_log(delta)
 	_autoplay_step(delta)
 	_record_tick(delta)
+	_ft_tick(delta)
 	# 连拍：着色器的抖动每换到一个还没拍过的相位就拍一张（见 debug_burst）
 	if _burst_left > 0:
 		var now := Time.get_ticks_msec()
@@ -1205,36 +1206,57 @@ func debug_versus_check() -> String:
 	return "RESULT 对战的局：通过（%s，没套标题页上选的难度）" % VersusBase.NAMES.get(main.versus.id, "?")
 
 ## 量一下平时每帧多长：接下来几秒里每一帧的间隔，报平均的和最长的。到掌机上验过渡以前先量这个，
-## 才知道过渡期间量出来的数算不算卡（掌机的显卡比服务器弱得多）。在游戏里调：call pad_adapter.gd debug_frame_time 3
+## 才知道过渡期间量出来的数算不算卡（掌机的显卡比服务器弱得多）。
+## 遥控不等带等待的函数（见 _call），所以不在函数里等：call pad_adapter.gd debug_frame_time 3 开始量 3 秒，
+## 过几秒再调 debug_frame_time（不带参数）取结果。量在 _ft_tick 里做
 ## 参数不写类型，理由同 debug_record
-func debug_frame_time(seconds = 2) -> String:
-	var frames := 0
-	var worst := 0
-	var t0 := Time.get_ticks_usec()
-	var last := t0
-	while Time.get_ticks_usec() - t0 < int(float(str(seconds)) * 1000000.0):
-		await get_tree().process_frame
-		var now := Time.get_ticks_usec()
-		worst = maxi(worst, now - last)
-		last = now
-		frames += 1
-	var span := Time.get_ticks_usec() - t0
-	return "RESULT 帧时间：平均 %.1f 毫秒，最长 %.1f 毫秒（%d 帧 / %.1f 秒）" % [span / 1000.0 / maxi(frames, 1), worst / 1000.0, frames, span / 1000000.0]
+var _ft_left := 0.0
+var _ft_frames := 0
+var _ft_worst := 0
+var _ft_span := 0
+var _ft_last := 0
+var _ft_done := "还没量过：先 call pad_adapter.gd debug_frame_time 3"
+
+func debug_frame_time(seconds = 0) -> String:
+	if float(str(seconds)) > 0.0:
+		_ft_left = float(str(seconds))
+		_ft_frames = 0
+		_ft_worst = 0
+		_ft_span = 0
+		_ft_last = 0
+		_ft_done = "正在量，再等几秒"
+		return "开始量 %.1f 秒的帧时间；过这几秒再调 debug_frame_time（不带参数）取结果" % _ft_left
+	return _ft_done
+
+func _ft_tick(delta: float) -> void:
+	if _ft_left <= 0.0: return
+	var now := Time.get_ticks_usec()
+	if _ft_last != 0:
+		_ft_frames += 1
+		_ft_worst = maxi(_ft_worst, now - _ft_last)
+		_ft_span += now - _ft_last
+	_ft_last = now
+	_ft_left -= delta
+	if _ft_left <= 0.0 and _ft_frames > 0:
+		_ft_done = "RESULT 帧时间：平均 %.1f 毫秒，最长 %.1f 毫秒（%d 帧）" % [_ft_span / 1000.0 / _ft_frames, _ft_worst / 1000.0, _ft_frames]
 
 ## 换关的过渡（scripts/uis/scene_transition_control.gd，样式在 scripts/uis/transitions/）。在游戏里调：
-##   call pad_adapter.gd debug_transition 0          现在是随机还是固定的一种、最近一趟量出来的数（用的是哪一种、盖住和掀开各多久、最长的一帧多长；卡了就报"没过"）
+##   call pad_adapter.gd debug_transition 0 [往回数第几趟]   现在是随机还是固定的一种、最近一趟（或者往回数第几趟）量出来的数
+##                                                  （用的是哪一种、盖住和掀开各多久、最长的一帧多长；卡了就报"没过"）
 ##   call pad_adapter.gd debug_transition lanterns   固定成某一种：tiles 是原来的石砖墙，别的见 scripts/uis/transitions/；
 ##                                                  call pad_adapter.gd debug_transition random 改回随机
 ##   call pad_adapter.gd debug_transition_test 0.5   现在就地放一遍（不换关）：盖住、停这么久、掀开。调样式、录片子的时侯用
-func debug_transition(id = 0) -> String:
+func debug_transition(id = 0, back = 0) -> String:
 	var ctl = SceneManager.scene_transition_control      # 不写类型：SceneManager 里它本来就没写，写 := 推断不出来
 	if ctl == null: return "RESULT 过渡：没过，找不到过渡那一层（SceneManager.scene_transition_control）"
-	if id != 0 and str(id) != "0":
-		ctl.set_style(str(id))
+	# 先变成文字再比：文字和数字用"不等于"比，这个语言会报运行时错（"等于"倒是可以）。遥控传过来的 0 是整数、样式名是文字
+	var name := str(id)
+	if name != "0":
+		ctl.set_style(name)
 		return "过渡换成「%s」" % ctl.style_id
 	# 还没放过一次的时侯不写 RESULT：测试的步骤文件一看到"RESULT …：没过"就判这一步没过
 	if ctl.records.is_empty(): return "过渡：现在用的是%s，还没放过一次" % ctl.describe()
-	return ctl.report()
+	return ctl.report(int(str(back)))
 
 ## 参数不写类型，理由同 debug_record
 func debug_transition_test(hold = 0.5) -> String:

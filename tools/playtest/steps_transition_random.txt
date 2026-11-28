@@ -1,4 +1,4 @@
-# 换关的过渡是随机的（平时的样子）：连着换十次关，每次报抽到的是哪一种、量出来的数。第二趟起判。
+# 换关的过渡是随机的（SW_TRANSITION=random；平时固定是墨迹晕开）：连着换十次关，每次报抽到的是哪一种、量出来的数。第二趟起判。
 # 十次里池里的四种差不多都能轮到；原来的石砖墙（tiles）和涟漪开合（ripple）不在池里，一次都不该出现。
 # SW_TRANSITION=random SW_OPENING=off SW_BOOT_WAIT=2 tools/playtest/agent.sh a7 drive tools/playtest/steps_transition_random.txt trans_random
 sleep 2

@@ -310,29 +310,31 @@ tools/playtest/agent.sh a7 drive tools/playtest/steps_aim.txt aim               
 ## 换关的过渡
 
 过关换关、长夜的下一更、重来、换难度、轮战换棋盘，还有标题页和游戏之间换场景，都先把画面盖住、再掀开。
-平时是**随机**的：每一趟从「河灯涌来、石阶沉浮、镜头钻进水车、墨迹晕开」里抽一种，不连着两趟一样
-（池写在 `scripts/uis/scene_transition_control.gd` 的 `RANDOM_POOL` 里）。原来的那一套石砖墙（`tiles`，一层石砖贴图的着色器淡入淡出，各 0.5 秒）
-和涟漪开合（`ripple`）都不在池里，玩家平时见不到；要看就单独指定。
+平时固定用**墨迹晕开**（`ink`，`scripts/uis/scene_transition_control.gd` 的 `DEFAULT`）。另外还做了四种，都在仓库里、平时不出现：
+河灯涌来（`lanterns`）、石阶沉浮（`steps`）、镜头钻进水车（`wheel`）、涟漪开合（`ripple`），以及原来那一套石砖墙
+（`tiles`，一层石砖贴图的着色器淡入淡出，各 0.5 秒）。想让它们每一趟随机出现，把 `SW_TRANSITION` 设成 `random`
+（池是 `RANDOM_POOL`：河灯、石阶、水车、墨迹；不连着两趟一样）。
 别的样式在 `scripts/uis/transitions/` 里，每种一个文件。接口、怎么加一种、怎么量怎么录，都在 [`docs/transitions.md`](docs/transitions.md)。
 
 ```bash
 tools/playtest/agent.sh a7 transition ripple                             # 录一段（第 1 关踩上水车到进第 2 关），帧回到 builds/transition/ripple/
 tools/playtest/assemble_transition.sh ripple                              # 拼 ripple.mp4、ripple_slow.mp4（放慢 2.5 倍）、ripple_sheet.jpg（拼图）
 tools/playtest/assemble_transition.sh compare tiles ripple lanterns       # 几种并排、对齐到过渡开始的那一帧：builds/transition/compare.mp4
-SW_TRANSITION=lanterns tools/playtest/agent.sh a7 drive tools/playtest/steps_transition.txt trans_lanterns   # 固定成一种，量两趟：盖住、掀开各多久，最长的一帧多长
-tools/playtest/agent.sh a7 drive tools/playtest/steps_transition_random.txt trans_random   # 随机（平时的样子）：连换十次关，看抽到哪些、每一趟的数
+tools/playtest/agent.sh a7 drive tools/playtest/steps_transition.txt trans_ink          # 平时那一种，量两趟：盖住、掀开各多久、最长的一帧多长
+SW_TRANSITION=lanterns tools/playtest/agent.sh a7 drive tools/playtest/steps_transition.txt trans_lanterns   # 换一种量
+SW_TRANSITION=random tools/playtest/agent.sh a7 drive tools/playtest/steps_transition_random.txt trans_random   # 随机：连换十次关，看抽到哪些、每一趟的数
 ```
 
-`SW_TRANSITION` 临时固定成某一种（写 `random` 是随机），不写存档；不写就是随机。`all` 的最后会把有的每一种都量一遍（不进池的也量），再量一遍随机。
-换场景和开机掀幕那两趟也是每一趟抽一种。开机的时候一池里的样式都建好、一起预热（在黑幕底下），换关途中只抽签，不现建。
+`SW_TRANSITION` 临时换成别的一种（写 `random` 是随机），不写存档；不写就是墨迹晕开。`all` 的最后会把有的每一种都量一遍，再量一遍随机。
+开机的时候要用的样式在黑幕底下建好、预热好（随机的话一池都建好），换关途中不现建。
 
 ### `tiles`
 
-原来那一套：石砖贴图铺满的一层，`alpha` 从 0 到 1 再回去（`shaders/scene_transition.gdshader`）。不在随机里，玩家平时见不到；要看就 `SW_TRANSITION=tiles`。
+原来那一套：石砖贴图铺满的一层，`alpha` 从 0 到 1 再回去（`shaders/scene_transition.gdshader`）。平时不用（固定的是墨迹晕开）；要看就 `SW_TRANSITION=tiles`。
 
 ### `ripple`
 
-不进随机（`RANDOM_POOL` 里没有它）；要看就 `SW_TRANSITION=ripple`。
+平时不用（固定的是墨迹晕开）；要看就 `SW_TRANSITION=ripple`。
 
 涟漪开合：`scripts/uis/transitions/transition_ripple.gd`，着色器 `shaders/transition_ripple.gdshader`
 （照着标题页那条河 `lobby_river.gdshader` 抄的，那一份没动）。

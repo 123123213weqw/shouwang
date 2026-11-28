@@ -8,7 +8,7 @@ rc() { exec 3<>/dev/tcp/127.0.0.1/9878 || return 1; printf "%s\n" "$1" >&3; slee
 if [ "${1:-}" != yes ]; then
 	echo "没有带参数 yes：没确认过掌机上没人在玩，不启动"; exit 3
 fi
-STYLES="${2:-tiles lanterns steps wheel ink}"
+STYLES="${2:-ink}"
 bash ~/apps/shouwang/launch.sh
 for i in $(seq 1 60); do (echo > /dev/tcp/127.0.0.1/9878) 2>/dev/null && break; sleep 1; done
 sleep 12            # 第一次启动要编译着色器，读早了 ui 会返回空
@@ -25,16 +25,29 @@ rc "click $target" 1 >/dev/null
 sleep 6
 rc "call pad_adapter.gd debug_pick_character 0" 1 >/dev/null
 sleep 16
-echo "平时一帧多长（进游戏、什么都不做）：$(rc "call pad_adapter.gd debug_frame_time 3" 4 10 | sed 's/^OK called debug_frame_time -> //')"
+# 遥控不等带等待的函数：debug_frame_time 发出去就返回，量在游戏里做，过几秒再取结果
+rc "call pad_adapter.gd debug_frame_time 3" 1 >/dev/null
+sleep 5
+echo "平时一帧多长（进游戏、什么都不做）：$(rc "call pad_adapter.gd debug_frame_time" 1 | sed 's/^OK called debug_frame_time -> //')"
 for S in $STYLES; do
-	rc "call pad_adapter.gd debug_transition $S" 1 >/dev/null
-	# 放两遍：头一趟不判，第二趟的数才是稳的（见 SceneTransitionControl.report）
-	for k in 1 2; do
+	echo "固定成 $S：$(rc "call pad_adapter.gd debug_transition $S" 1 | sed 's/^OK called debug_transition -> //')"
+	# 放三遍：遥控不等"就地放"做完，每遍放完等几秒。头一趟不判，报的是最后一遍的数（见 SceneTransitionControl.report）
+	for k in 1 2 3; do
 		rc "call pad_adapter.gd debug_transition_test 0.5" 1 >/dev/null
 		sleep 4
 	done
-	echo "$S：$(rc "call pad_adapter.gd debug_transition 0" 1 | sed 's/^OK called debug_transition -> //' | cut -c1-220)"
+	for back in 0 1 2; do
+		echo "  第 $((3 - back)) 遍：$(rc "call pad_adapter.gd debug_transition 0 $back" 1 | sed 's/^OK called debug_transition -> //' | cut -c1-220)"
+	done
 done
-echo "随机：$(rc "call pad_adapter.gd debug_transition random" 1 | sed 's/^OK called debug_transition -> //')"
+echo "改回平时那一种：$(rc "call pad_adapter.gd debug_transition ink" 1 | sed 's/^OK called debug_transition -> //')"
+# 真的换两回关（跳到别的关），量真实换关时的数：和就地放的不一样，盖住是从水车那儿开始的
+for lv in 4 7; do
+	rc "call pad_adapter.gd debug_goto_level $lv" 1 >/dev/null
+	sleep 5
+done
+for back in 0 1; do
+	echo "  真换关（往回数第 $back 趟）：$(rc "call pad_adapter.gd debug_transition 0 $back" 1 | sed 's/^OK called debug_transition -> //' | cut -c1-220)"
+done
 errs=$(grep -c 'SCRIPT ERROR' "$HOME/apps/shouwang/game.log" 2>/dev/null)
 echo "日志里的报错: SCRIPT ERROR=${errs:-0}"
