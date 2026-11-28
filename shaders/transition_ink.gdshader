@@ -16,6 +16,12 @@ shader_type canvas_item;
 //             不用"顺着半径的细扇形"从噪声里切：近处是炸开的太阳，远处是一块块方块
 // 噪声除了纸纹都是算出来的值噪声（光滑，边才像墨洇进纸里；opening_ink.gdshader 里也是这个道理）。
 //
+// 开销：这一层是铺满整个窗口画的，掌机的窗口是 2560×1600（四百多万像素），每像素都从头算一遍的时侯过渡期间一帧要 20 毫秒
+// （平时 7 毫秒）。所以按离前沿多远分三路，画面和全算一模一样：
+//   离前沿够远的外面   淡墨、毛刺、须都够不着，这一格透明，什么都不算
+//   离前沿够远的里面   只有墨心（湿边、淡墨、毛刺、须都到不了这儿），只算墨色和纸纹
+//   其余（前沿那一圈） 全算
+// 两头的界限都按最坏情况留了余量（见下面的 reach、OUTSIDE、INSIDE）
 // 盖严是算出来的，不是试出来的：F 在画面里最大正好是 1——凹进去的湾到了画面边上要收平（见下面那一句 if）——
 // 所以 front 走到 1.05（脚本里的 FRONT_END）时，画面里每个点都在墨里面，离前沿还隔着好几条湿边的宽度。
 
@@ -28,6 +34,10 @@ uniform float hole = 0.0;               // 掀开：化开的洞走到哪儿了�
 uniform float revealing = 0.0;          // 0 盖住（或者还没开始），1 掀开
 uniform float residue = 1.0;            // 掀开的时侯前沿外面拖着的淡墨还剩多少，收尾时褪到 0
 uniform float seed = 0.0;               // 每一趟换一个形状
+// 几缕须的角度、长短、弯势只跟这一趟的 seed 有关，整张画面是一样的：脚本算好了给进来。
+// 原来在着色器里逐像素现算，每个像素多算 6 次正弦余弦、24 个随机数，掌机上这一层贵就贵在这儿
+uniform vec4 tendril_shape[6];          // 每一缕：(轴的 x, 轴的 y, 基本长度, 斜势)
+uniform float tendril_bend[6];          //        弯势
 
 // 几个宽度都按"到最远那一角的距离"算（1152×720 的画面上，0.01 大概是 7 到 8 个像素）
 const float BAND = 0.07;          // 湿边往里多远是薄的：刚晕到的墨薄，透一点、淡一些，湿边才看得出是一道边
@@ -65,121 +75,163 @@ vec4 over(vec4 c, vec3 rgb, float a) {
 	return vec4(out_rgb, out_a);
 }
 
+// 两头的余量（都是照最坏情况算的）：
+//   reach    边上的起伏 d 最大能有多大：大瓣小瓣各乘 r 的一半幅度，加圆齿、细毛：0.30r + 0.045
+//   OUTSIDE  前沿外面的东西最远伸到哪儿：淡墨最长 0.04 × 1.6 × 1.6，须最长 0.11（换成这一套单位不到 0.12）。取 0.14
+//   INSIDE   前沿里面多深就只剩墨心：湿边最宽 0.002 + 0.014，薄的一圈最宽 BAND（0.07）。取 0.075
+const float OUTSIDE = 0.14;
+const float INSIDE = 0.075;
+
+// 墨心的颜色（全算的那一路和只算墨心的那一路都用）。纸纹的纤维上面算形状的时侯已经取过一次了，传进来不重取
+vec3 ink_body(vec2 q, vec3 fiber, float thick) {
+	vec3 pale = mix(ink, vec3(0.36, 0.40, 0.39), 0.6);            // 薄处：墨淡了，纸的颜色透上来
+	vec3 body = mix(pale, ink, thick);
+	float fuzz = (fiber.r + fiber.g) * 0.5;
+	float pulp = texture(texture_flow_map, q * 5.8 + seed * 0.61).b - 0.82;   // 0 上下的一个小数；铺得比纤维细一档
+	body += pulp * (0.10 + 0.24 * (1.0 - thick));                  // 纸纹：墨越薄越看得见纸
+	body += (fuzz - 0.5) * (0.015 + 0.04 * (1.0 - thick));          // 纤维只留一点点
+	// 按屏幕像素掺的那一点抖动不在这儿加：FRAGCOORD 只有 fragment() 里能用，自定义的函数里取不到。在 fragment() 里加
+	return body;
+}
+
 void fragment() {
 	vec2 p = UV;
 	vec2 q = (p - origin) * vec2(aspect, 1.0);
 	vec2 far = vec2(max(origin.x, 1.0 - origin.x) * aspect, max(origin.y, 1.0 - origin.y));
+	float rmax = max(length(far), 0.001);        // "到最远那一角"在 q 的单位里有多长
 	float dist = length(q);
-	float r = dist / max(length(far), 0.001);
+	float r = dist / rmax;
 	vec2 dir = q / max(dist, 1e-4);
 	vec2 o1 = vec2(seed, seed * 1.37 + 7.1);
 	vec2 o2 = vec2(seed * 0.71 + 31.7, seed * 1.91 + 3.3);
 	vec2 o3 = vec2(seed * 1.13 + 17.9, seed * 0.53 + 23.3);
-
-	// ---- 纸纹。那张小图里 R 是竖纤维、G 是横纤维、B 是纸浆似的小颗粒。
-	// 墨心的颗粒用 B：竖纤维加横纤维是规则的布纹，放大了看像布不像纸；纤维只拿来做边上细碎的起伏和淡墨里的纹路
-	vec3 fiber = texture(texture_flow_map, q * 3.2 + seed * 0.37).rgb;
-	float fuzz = (fiber.r + fiber.g) * 0.5;
-	float pulp = texture(texture_flow_map, q * 5.8 + seed * 0.61).b - 0.82;   // 0 上下的一个小数；铺得比纤维细一档
-
-	// ---- 形状
-	float lobe = vnoise(dir * 1.7 + q * 0.45 + o1) - 0.5;
-	float lobe2 = vnoise(dir * 4.2 + q * 0.9 + o2.yx) - 0.5;
-	float bump = vnoise(q * 5.0 + o2) * 0.6 + vnoise(q * 11.0 + o3) * 0.4 - 0.5;
-	// 正的那一半最大是 0.28r + 0.005：大瓣小瓣各乘 r 的一半幅度，圆齿和细毛是定长的那一点
-	float d = r * (lobe * 0.44 + lobe2 * 0.12) + bump * (0.012 + 0.028 * r) + (fuzz - 0.5) * 0.006;
-	// 凹进去的湾（d > 0，这一边的墨走得慢）到了画面边上要收平：不然盖满的那一帧，远的那个角会漏出一条棋盘。
-	// 收平以后 F 在画面里最大正好是 1：正的那一半不超过 0.3r + 0.011，乘上 (1 - r) / 0.3 以后
-	// 加到 r 上不超过 2r - r² + 0.04(1 - r)，r 不超过 1 的时侯它也不超过 1
-	if (d > 0.0) d *= clamp((1.0 - r) / 0.3, 0.0, 1.0);
-	float f = r + d;
-
-	// ---- 离前沿多远（正的这边是墨）
-	float s = revealing > 0.5 ? f - hole : front - f;
-	float x = -s;                                // 这一点在墨的外面多远
-	float grow = 0.6 + 0.8 * r;                  // 离落点越远，墨往外渗得越远
-	float wet = vnoise(q * 8.0 + o2.yx);
-	float wet2 = wet * wet;
-	float aa = fwidth(s) + 1e-4;                 // 一个像素
-	float feather = aa + 0.0035 * wet2;          // 边糊开多宽：一个像素到四个像素
-	float in_body = smoothstep(-feather, feather, s);
-	float out_body = 1.0 - in_body;
-
-	// ---- 湿边：最深的细细一道，宽窄、深浅一处一个
-	float rim_w = 0.002 + 0.014 * wet2;
-	float rim_a = in_body * (1.0 - smoothstep(rim_w - feather, rim_w + feather, s)) * (0.45 + 0.55 * wet2);
-	// 墨心：刚晕到的地方薄，透一点（薄的这一圈一处宽一处窄，不是匀匀的一道）；
-	// 盖满之前墨就实了（盖满的那一帧后面不能看见棋盘）
-	float thin_band = (1.0 - smoothstep(0.0, BAND * mix(1.0, 0.55, revealing) * (0.35 + 0.65 * wet), s)) * smoothstep(0.06, 0.2, front);
-	float set = smoothstep(SET_AT, 0.98, front);
-	float body_a = in_body * (1.0 - 0.28 * thin_band * (1.0 - set) * (1.0 - revealing));
-
-	// ---- 前沿外面拖着的淡墨：长短一处一个，里面带着纸纹，不是匀匀一圈
-	float wisp_w = WISP * mix(1.0, STAIN, revealing) * (0.4 + 1.2 * wet);
-	float wisp_a = WISP_ALPHA * pow(1.0 - smoothstep(0.0, wisp_w, x), 1.3) * (0.7 + 0.3 * fuzz) * out_body;
-	// ---- 毛刺：一幅顺着半径方向拉长的噪声里，取值正好是一半的地方是一根根顺着半径的细线。
-	// 线的宽窄按"离中线几个像素"算（取值的差除以一个像素里取值变多少），所以处处一样细；
-	// 噪声太平的地方中线说不清在哪儿，会糊成一团，那种地方就不要
+	// 导数要在分路以前取：分路以后相邻的像素走的可能不是同一条路，导数就不准了
 	float px = fwidth(dist) + 1e-5;              // 一个像素在 q 的单位里有多大
-	float hair_n = vnoise(dir * 22.0 + q * vec2(0.5, 0.8) + o3.yx);
-	float hair_px = 1.2 + 0.6 * wet;
-	float hair = (1.0 - smoothstep(hair_px, hair_px + 1.0, abs(hair_n - 0.5) / max(fwidth(hair_n), 1e-5)))
-		* smoothstep(0.004, 0.012, fwidth(hair_n)) * smoothstep(0.03, 0.12, r);   // 墨还小的时候不出毛刺
-	float tail_a = hair * (1.0 - smoothstep(0.0, 0.012 * grow, x)) * 0.4 * out_body;
-	// ---- 几缕渗开的须：从落点出发的几条射线，角度、长短、粗细、弯势都由这一趟的 seed 定，所以每趟不一样。
-	// 都是越到尖上越细的淡墨，尖上聚着一粒更深的（湿边缩成的一点），周围洇着一小片淡墨。
-	// 墨还小的时候不出须；褪的时侯也不出：掀开的洞里横着几根直挺挺的线，像划痕，不像墨
-	float rmax = max(length(far), 0.001);        // "到最远那一角"在 q 的单位里有多长
-	float along = x * rmax;                      // 离前沿多远（q 的单位）
-	float tend_a = 0.0;
-	float bead_a = 0.0;
-	float mist_a = 0.0;
-	for (int i = 0; i < TENDRILS; i++) {
-		vec2 k = vec2(float(i) + 0.5, seed);
-		float ang = hash21(k + 11.0) * 6.2832;
-		float len = mix(0.035, 0.11, hash21(k + 37.0)) * mix(0.3, 1.0, smoothstep(0.08, 0.55, r));   // 墨小的时候须也短
-		vec2 axis = vec2(cos(ang), sin(ang));
-		// 离中线多远：不正正地垂直于边出去（斜势），越往外越弯
-		float lateral = (dir.x * axis.y - dir.y * axis.x) * dist - (hash21(k + 71.0) - 0.5) * 0.5 * along
-			- (hash21(k + 53.0) - 0.5) * 1.6 * along * along / len;
-		float t = clamp(along / len, 0.0, 1.0);   // 0 在边上，1 在尖上
-		float reach = (1.0 - smoothstep(0.75, 1.0, t)) * step(0.0, along);
-		float w = 0.0026 * (1.0 - 0.8 * t) + px * 0.4;              // 越到尖上越细
-		float on = (1.0 - smoothstep(w, w + px, abs(lateral))) * reach * (1.0 - 0.55 * t);   // 也越淡
-		tend_a = max(tend_a, on);
-		bead_a = max(bead_a, (1.0 - smoothstep(w * 1.3, w * 1.3 + px, abs(lateral))) * reach * smoothstep(0.6, 0.85, t) * 0.8);
-		mist_a = max(mist_a, (1.0 - smoothstep(0.0, 0.022, abs(lateral))) * reach * 0.45);
+
+	// ---- 先按"离落点多远"粗判一次（这时还没算边上的起伏）：前沿外面够远的，连淡墨、须都够不着，透明
+	float rough = revealing > 0.5 ? r - hole : front - r;
+	// 这个着色器语言不让在 fragment() 里提前 return，所以三路是嵌着的 if / else（缩进看着深，路其实只有三条）
+	if (rough < -(0.30 * r + 0.045 + OUTSIDE)) {
+		COLOR = vec4(0.0);                  // 前沿外面够远：透明
+	} else {
+
+		// 底色很暗，只有几个色阶：按屏幕像素掺一点抖动，免得一条一条的。要 FRAGCOORD，只有 fragment() 里取得到，
+		// 所以在这儿取了往下传（粗判就透明的那一路用不着它）
+		vec3 dither = vec3((hash21(FRAGCOORD.xy) - 0.5) / 255.0);
+
+		// ---- 纸纹。那张小图里 R 是竖纤维、G 是横纤维、B 是纸浆似的小颗粒。
+		// 墨心的颗粒用 B：竖纤维加横纤维是规则的布纹，放大了看像布不像纸；纤维只拿来做边上细碎的起伏和淡墨里的纹路
+		vec3 fiber = texture(texture_flow_map, q * 3.2 + seed * 0.37).rgb;
+		float fuzz = (fiber.r + fiber.g) * 0.5;
+
+		// ---- 形状
+		float lobe = vnoise(dir * 1.7 + q * 0.45 + o1) - 0.5;
+		float lobe2 = vnoise(dir * 4.2 + q * 0.9 + o2.yx) - 0.5;
+		float bump = vnoise(q * 5.0 + o2) * 0.6 + vnoise(q * 11.0 + o3) * 0.4 - 0.5;
+		// 正的那一半最大是 0.28r + 0.005：大瓣小瓣各乘 r 的一半幅度，圆齿和细毛是定长的那一点
+		float d = r * (lobe * 0.44 + lobe2 * 0.12) + bump * (0.012 + 0.028 * r) + (fuzz - 0.5) * 0.006;
+		// 凹进去的湾（d > 0，这一边的墨走得慢）到了画面边上要收平：不然盖满的那一帧，远的那个角会漏出一条棋盘。
+		// 收平以后 F 在画面里最大正好是 1：正的那一半不超过 0.3r + 0.011，乘上 (1 - r) / 0.3 以后
+		// 加到 r 上不超过 2r - r² + 0.04(1 - r)，r 不超过 1 的时侯它也不超过 1
+		if (d > 0.0) d *= clamp((1.0 - r) / 0.3, 0.0, 1.0);
+		float f = r + d;
+
+		// ---- 离前沿多远（正的这边是墨）
+		float s = revealing > 0.5 ? f - hole : front - f;
+		float x = -s;                                // 这一点在墨的外面多远
+
+		// ---- 这回是准的了：外面够远的是透明；里面够深的只有墨心
+		if (x > OUTSIDE) {
+			COLOR = vec4(0.0);              // 前沿外面够远：透明
+		} else {
+			float pool_ = vnoise(q * 1.7 + o2.yx + TIME * 0.01) * 0.6 + vnoise(q * 3.9 + o3 + TIME * 0.014) * 0.4;
+			float thick_ = clamp(0.95 - 0.6 * smoothstep(0.0, 1.0, r) + (pool_ - 0.5) * 1.3 + 0.18 * smoothstep(0.42, 0.52, pool_), 0.0, 1.0);
+			thick_ = max(thick_, 1.0 - smoothstep(0.02, 0.3, r));
+			if (s > INSIDE) {
+				// 薄的一圈（最宽 BAND）、湿边都到不了这儿：墨是实的，thick 也不用减
+				COLOR = vec4(ink_body(q, fiber, thick_) + dither, 1.0);
+			} else {
+				float grow = 0.6 + 0.8 * r;                  // 离落点越远，墨往外渗得越远
+				float wet = vnoise(q * 8.0 + o2.yx);
+				float wet2 = wet * wet;
+				float aa = fwidth(s) + 1e-4;                 // 一个像素
+				float feather = aa + 0.0035 * wet2;          // 边糊开多宽：一个像素到四个像素
+				float in_body = smoothstep(-feather, feather, s);
+				float out_body = 1.0 - in_body;
+
+				// ---- 湿边：最深的细细一道，宽窄、深浅一处一个
+				float rim_w = 0.002 + 0.014 * wet2;
+				float rim_a = in_body * (1.0 - smoothstep(rim_w - feather, rim_w + feather, s)) * (0.45 + 0.55 * wet2);
+				// 墨心：刚晕到的地方薄，透一点（薄的这一圈一处宽一处窄，不是匀匀的一道）；
+				// 盖满之前墨就实了（盖满的那一帧后面不能看见棋盘）
+				float thin_band = (1.0 - smoothstep(0.0, BAND * mix(1.0, 0.55, revealing) * (0.35 + 0.65 * wet), s)) * smoothstep(0.06, 0.2, front);
+				float set = smoothstep(SET_AT, 0.98, front);
+				float body_a = in_body * (1.0 - 0.28 * thin_band * (1.0 - set) * (1.0 - revealing));
+
+				// ---- 前沿外面拖着的淡墨：长短一处一个，里面带着纸纹，不是匀匀一圈
+				float wisp_w = WISP * mix(1.0, STAIN, revealing) * (0.4 + 1.2 * wet);
+				float wisp_a = WISP_ALPHA * pow(1.0 - smoothstep(0.0, wisp_w, x), 1.3) * (0.7 + 0.3 * fuzz) * out_body;
+				// ---- 毛刺：一幅顺着半径方向拉长的噪声里，取值正好是一半的地方是一根根顺着半径的细线。
+				// 线的宽窄按"离中线几个像素"算（取值的差除以一个像素里取值变多少），所以处处一样细；
+				// 噪声太平的地方中线说不清在哪儿，会糊成一团，那种地方就不要
+				float hair_n = vnoise(dir * 22.0 + q * vec2(0.5, 0.8) + o3.yx);
+				float hair_px = 1.2 + 0.6 * wet;
+				float hair = (1.0 - smoothstep(hair_px, hair_px + 1.0, abs(hair_n - 0.5) / max(fwidth(hair_n), 1e-5)))
+					* smoothstep(0.004, 0.012, fwidth(hair_n)) * smoothstep(0.03, 0.12, r);   // 墨还小的时候不出毛刺
+				float tail_a = hair * (1.0 - smoothstep(0.0, 0.012 * grow, x)) * 0.4 * out_body;
+				// ---- 几缕渗开的须：从落点出发的几条射线，角度、长短、粗细、弯势都由这一趟的 seed 定，所以每趟不一样。
+				// 都是越到尖上越细的淡墨，尖上聚着一粒更深的（湿边缩成的一点），周围洇着一小片淡墨。
+				// 墨还小的时候不出须；褪的时侯也不出：掀开的洞里横着几根直挺挺的线，像划痕，不像墨
+				float along = x * rmax;                      // 离前沿多远（q 的单位）
+				float tend_a = 0.0;
+				float bead_a = 0.0;
+				float mist_a = 0.0;
+				// 须只长在前沿外面、最长 0.11（换成 q 的单位，见 along），褪的时侯不出（下面乘的 sprout 是 0）：
+				// 不在这个范围里的像素不用过这个循环
+				if (revealing < 0.5 && x >= 0.0 && along < 0.115) {
+					for (int i = 0; i < TENDRILS; i++) {
+						vec4 shape = tendril_shape[i];
+						float len = shape.z * mix(0.3, 1.0, smoothstep(0.08, 0.55, r));   // 墨小的时候须也短
+						// 离中线多远：不正正地垂直于边出去（斜势），越往外越弯
+						float lateral = (dir.x * shape.y - dir.y * shape.x) * dist - shape.w * 0.5 * along
+							- tendril_bend[i] * 1.6 * along * along / len;
+						float t = clamp(along / len, 0.0, 1.0);   // 0 在边上，1 在尖上
+						float reach = (1.0 - smoothstep(0.75, 1.0, t)) * step(0.0, along);
+						float w = 0.0026 * (1.0 - 0.8 * t) + px * 0.4;              // 越到尖上越细
+						float on = (1.0 - smoothstep(w, w + px, abs(lateral))) * reach * (1.0 - 0.55 * t);   // 也越淡
+						tend_a = max(tend_a, on);
+						bead_a = max(bead_a, (1.0 - smoothstep(w * 1.3, w * 1.3 + px, abs(lateral))) * reach * smoothstep(0.6, 0.85, t) * 0.8);
+						mist_a = max(mist_a, (1.0 - smoothstep(0.0, 0.022, abs(lateral))) * reach * 0.45);
+					}
+				}
+				float sprout = smoothstep(0.1, 0.26, r) * out_body * (1.0 - revealing);   // 墨还小的时候不出须
+				tend_a *= 0.6 * sprout;
+				bead_a *= 0.7 * sprout;
+				wisp_a = max(wisp_a, mist_a * WISP_ALPHA * 0.7 * sprout);
+				// 还没开始落墨的时侯（装上样式预热的那两帧）整张要透明；掀开的淡墨收尾时褪掉
+				float live = smoothstep(0.0, 0.02, front) * mix(1.0, residue, revealing);
+				wisp_a *= live;
+				tail_a *= live;
+				tend_a *= live;
+				bead_a *= live;
+
+				// ---- 墨色。落点那一团是实的，越往外越薄；大块的深浅不匀（渗进纸里有的地方吃墨多，干了留下一圈圈的痕）；细的是纸纹
+				//（怎么调色见 ink_body；thick_ 是上面分路的时侯算的）
+				float thick = thick_;
+				thick *= 1.0 - 0.6 * thin_band;                               // 紧挨着湿边的里面是薄的
+				vec3 body = ink_body(q, fiber, thick) + dither;
+				vec3 rim = ink * 0.2;                                          // 湿边：墨往前走的时侯色都堆在边上
+				vec3 wisp_col = mix(ink, vec3(0.50, 0.56, 0.54), mix(0.85, 0.45, revealing));   // 淡墨：渗出去的比退掉的浅一些
+				vec3 tail_col = mix(ink, vec3(0.40, 0.44, 0.43), 0.5);      // 须是渗出去的淡墨，比墨心浅
+
+				vec4 c = over(vec4(0.0), wisp_col, wisp_a);
+				c = over(c, tail_col, tail_a);
+				c = over(c, tail_col, tend_a);
+				c = over(c, rim, bead_a);
+				c = over(c, body, body_a);
+				c = over(c, rim, rim_a);
+				COLOR = c;
+			}
+		}
 	}
-	float sprout = smoothstep(0.1, 0.26, r) * out_body * (1.0 - revealing);   // 墨还小的时候不出须
-	tend_a *= 0.6 * sprout;
-	bead_a *= 0.7 * sprout;
-	wisp_a = max(wisp_a, mist_a * WISP_ALPHA * 0.7 * sprout);
-	// 还没开始落墨的时侯（装上样式预热的那两帧）整张要透明；掀开的淡墨收尾时褪掉
-	float live = smoothstep(0.0, 0.02, front) * mix(1.0, residue, revealing);
-	wisp_a *= live;
-	tail_a *= live;
-	tend_a *= live;
-	bead_a *= live;
-
-	// ---- 墨色。落点那一团是实的，越往外越薄；大块的深浅不匀（渗进纸里有的地方吃墨多，干了留下一圈圈的痕）；细的是纸纹
-	float pool = vnoise(q * 1.7 + o2.yx + TIME * 0.01) * 0.6 + vnoise(q * 3.9 + o3 + TIME * 0.014) * 0.4;
-	float thick = clamp(0.95 - 0.6 * smoothstep(0.0, 1.0, r) + (pool - 0.5) * 1.3 + 0.18 * smoothstep(0.42, 0.52, pool), 0.0, 1.0);
-	thick = max(thick, 1.0 - smoothstep(0.02, 0.3, r));
-	thick *= 1.0 - 0.6 * thin_band;                               // 紧挨着湿边的里面是薄的
-	vec3 pale = mix(ink, vec3(0.36, 0.40, 0.39), 0.6);            // 薄处：墨淡了，纸的颜色透上来
-	vec3 body = mix(pale, ink, thick);
-	body += pulp * (0.10 + 0.24 * (1.0 - thick));                  // 纸纹：墨越薄越看得见纸
-	body += (fuzz - 0.5) * (0.015 + 0.04 * (1.0 - thick));          // 纤维只留一点点
-	body += (hash21(FRAGCOORD.xy) - 0.5) / 255.0;                 // 底色很暗，只有几个色阶：掺一点抖动，免得一条一条的
-	vec3 rim = ink * 0.2;                                          // 湿边：墨往前走的时侯色都堆在边上
-	vec3 wisp_col = mix(ink, vec3(0.50, 0.56, 0.54), mix(0.85, 0.45, revealing));   // 淡墨：渗出去的比退掉的浅一些
-	vec3 tail_col = mix(ink, vec3(0.40, 0.44, 0.43), 0.5);      // 须是渗出去的淡墨，比墨心浅
-
-	vec4 c = over(vec4(0.0), wisp_col, wisp_a);
-	c = over(c, tail_col, tail_a);
-	c = over(c, tail_col, tend_a);
-	c = over(c, rim, bead_a);
-	c = over(c, body, body_a);
-	c = over(c, rim, rim_a);
-	COLOR = c;
 }

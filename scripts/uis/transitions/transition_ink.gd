@@ -26,6 +26,8 @@ const REVEAL_FAST := 0.30
 ## 1.3 秒上下截图的（call 一步等 1 秒、再 sleep 0.3），截图那一帧本身要 30 毫秒以上；过渡拖过了那一刻，量帧时间的
 ## 时候就会把截图算成"掀开的时候卡了一下"。要拖节奏也不该在这儿拖
 
+const TENDRILS := 6                     ## 一圈里几缕长的须（和着色器里的 TENDRILS、那两个数组的大小要对上）
+
 const PAPER := Color(0.88, 0.85, 0.74)     ## 留白的纸色（宣纸，比开场动画里的纸暗一点：这是夜里）
 const TITLE_BIG := 76                   ## 题字：关卡名多大
 const TITLE_SMALL := 30                 ##       上面那一小行"第 N 关"多大
@@ -87,7 +89,7 @@ func reveal(ctx: Dictionary) -> void:
 	_mat.set_shader_parameter("revealing", 1.0)
 	_mat.set_shader_parameter("front", FRONT_END)      # 开机掀幕没盖过：这一帧先铺满，下一帧才开始化开
 	_mat.set_shader_parameter("origin", screen_uv(ctx.to, CENTRE))
-	_mat.set_shader_parameter("seed", randf() * 20.0)   # 化开的形状和晕开的不是一套
+	_set_seed(randf() * 20.0)                          # 化开的形状和晕开的不是一套
 	_last_index = int(ctx.get("index", _last_index))     # 开机第一关没经过盖住，关号在这儿记
 	if _title.visible:                     # 题着的字跟着墨一起褪
 		_kill_title_tween()
@@ -176,12 +178,39 @@ func _begin(at: Vector2, ctx: Dictionary) -> void:
 	var colour: Color = ctx.get("color", SceneTransitionControl.INK)
 	_ink_to = INK.lerp(colour, TINT)
 	_ink_from = INK.lerp(ctx.get("color_from", colour), TINT)
-	_mat.set_shader_parameter("seed", randf() * 20.0)
+	_set_seed(randf() * 20.0)
 	_mat.set_shader_parameter("revealing", 0.0)
 	_mat.set_shader_parameter("hole", 0.0)
 	_mat.set_shader_parameter("residue", 1.0)
 	_cover_at(0.0)                        # 第一帧就看得见那一滴
 	rect.visible = true
+
+## 这一趟的形状：换一个 seed，顺带把几缕须的角度、长短、弯势按它算出来交给着色器。
+## 这几样只跟 seed 有关、整张画面一样，在着色器里逐像素算的话每个像素要多算 6 次正弦余弦、24 个随机数（掌机上贵）
+func _set_seed(seed_value: float) -> void:
+	_mat.set_shader_parameter("seed", seed_value)
+	var shape := PackedVector4Array()
+	var bend := PackedFloat32Array()
+	shape.resize(TENDRILS)
+	bend.resize(TENDRILS)
+	for i in TENDRILS:
+		var k := float(i) + 0.5
+		var ang := _hash21(k + 11.0, seed_value + 11.0) * TAU
+		var base := lerpf(0.035, 0.11, _hash21(k + 37.0, seed_value + 37.0))
+		var skew := _hash21(k + 71.0, seed_value + 71.0) - 0.5
+		shape[i] = Vector4(cos(ang), sin(ang), base, skew)
+		bend[i] = _hash21(k + 53.0, seed_value + 53.0) - 0.5
+	_mat.set_shader_parameter("tendril_shape", shape)
+	_mat.set_shader_parameter("tendril_bend", bend)
+
+## 和着色器里的 hash21 是同一个式子（格点上的随机数，0 到 1）。着色器里是单精度，这儿是双精度，
+## 算出来的数不完全一样——须的角度本来就是每趟随机的，差一点看不出来
+static func _hash21(x: float, y: float) -> float:
+	var p := Vector3(x, y, x) * 0.1031
+	p = Vector3(fposmod(p.x, 1.0), fposmod(p.y, 1.0), fposmod(p.z, 1.0))
+	# 着色器里是 p3 += dot(p3, p3.yzx + 33.33)：向量加减一个数、加上一个数，都是每个分量各自算
+	p += Vector3.ONE * p.dot(Vector3(p.y + 33.33, p.z + 33.33, p.x + 33.33))
+	return fposmod((p.x + p.y) * p.z, 1.0)
 
 ## 回到"还没开始"：整张透明
 func _reset() -> void:

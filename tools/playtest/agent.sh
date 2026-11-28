@@ -131,9 +131,9 @@ sed 's/\x1b\[[0-9;]*m//g' "$R/import2.log" | grep -A4 'SCRIPT ERROR\|^ERROR' | h
 # 再不开窗口启动一回（跑三帧就退）：自动加载的脚本和主场景都会被编译一遍。
 # 导入那一遍只处理资源，脚本里有编译错误它不一定报（2026-11-25 就这样导出过一个脚本跑不起来的包）
 timeout 90 $G --headless --path . --quit-after 3 > "$R/boot.log" 2>&1
-p=$(grep -c 'SCRIPT ERROR\|is not compiling\|Failed to create an autoload' "$R/boot.log")
-echo "启动检查: 脚本报错 $p 条（应为 0）"
-sed 's/\x1b\[[0-9;]*m//g' "$R/boot.log" | grep -A4 'SCRIPT ERROR\|is not compiling\|Failed to create an autoload' | head -n 24 | cut -c1-220
+p=$(grep -c 'SCRIPT ERROR\|is not compiling\|Failed to create an autoload\|SHADER ERROR\|Shader compilation failed' "$R/boot.log")
+echo "启动检查: 脚本和着色器的报错 $p 条（应为 0）"
+sed 's/\x1b\[[0-9;]*m//g' "$R/boot.log" | grep -A4 'SCRIPT ERROR\|is not compiling\|Failed to create an autoload\|SHADER ERROR\|Shader compilation failed' | head -n 24 | cut -c1-220
 [ "$e" = 0 ] && [ "$o" = 0 ] && [ "$p" = 0 ]
 REMOTE_SH
 		code=$?
