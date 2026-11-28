@@ -50,10 +50,12 @@ var _title_tween: Tween
 func build() -> void:
 	rect = full_rect(SHADER)
 	rect.set_script(LAYER)                 # 在加进场景树以前换上：和直接用那个脚本建节点是一回事
-	rect.visible = false                   # 预热是外面帮着做的（warm_up 会临时让它可见）；平时藏着，盖的时候自己设回可见
+	rect.visible = false                   # 平时藏着，盖的时侯自己设回可见（预热是外面帮着做的）
 	_mat = rect.material as ShaderMaterial
 	_mat.set_shader_parameter("texture_flow_map", FLOW)
-	add(rect, true)
+	# 这一层按逻辑分辨率（1152×720）画，再放大铺满窗口：墨是软的，放大了看不出；掌机的窗口是 2560×1600，
+	# 整屏逐像素算的着色器按窗口画的话每帧要多花十几毫秒（见 add_lowres）。题字不放在这里面，字还是清楚的
+	add_lowres(rect)
 	rect.set("ink", self)                  # 那个脚本里的 ink 不是 TextureRect 自带的，只能这么给
 	# 题字也在这儿建好（过渡途中不新建节点）：一个跟着整张画面的空节点，字挂在它下面，淡入淡出只动它一个
 	_title = Control.new()
@@ -83,6 +85,9 @@ func cover(ctx: Dictionary) -> void:
 
 ## 掀开。to 是主角落脚的地方；回标题页、掀幕的时侯没有，就从画面正中化开
 func reveal(ctx: Dictionary) -> void:
+	# 开机掀幕没经过盖住：那一层还藏着，这儿先露出来（换关的时侯盖住已经露过了，再设一遍不要紧）
+	rect.visible = true
+	showing(true)
 	var colour: Color = ctx.get("color", SceneTransitionControl.INK)
 	_ink_to = INK.lerp(colour, TINT)          # 开机掀幕没盖过：这儿的墨色是现定的
 	_mat.set_shader_parameter("ink", _ink_to)
@@ -102,6 +107,7 @@ func reveal(ctx: Dictionary) -> void:
 	_tween = null
 	_reset()
 	rect.visible = false
+	showing(false)                        # 平时这一层不画
 	_kill_title_tween()
 	_title.modulate.a = 0.0
 	_title.visible = false
@@ -153,6 +159,7 @@ func debug_pose(phase: int, step: int, ox: int, oy: int) -> String:
 		_tween = null
 		_reset()
 		rect.visible = false
+		showing(false)
 		ctl.visible = false
 		return "墨收起来了"
 	var main := ctl.get_node_or_null("/root/Main") as Main
@@ -162,6 +169,8 @@ func debug_pose(phase: int, step: int, ox: int, oy: int) -> String:
 	_begin(at, {"color": level.base_color if level != null else SceneTransitionControl.INK})
 	var x := clampf(float(step) / 1000.0, 0.0, 1.0)
 	ctl.visible = true                     # 平时这一整层是藏着的（open 才让它露面）
+	rect.visible = true                    # 收起来的时候这一层也藏了
+	showing(true)
 	if phase == 1:
 		_cover_at(clampf((x * COVER_SECS - LAND_SECS) / (COVER_SECS - LAND_SECS), 0.0, 1.0))
 		return "墨冻在盖住的第 %d 千分位，从 (%.2f, %.2f) 晕开" % [step, at.x, at.y]
@@ -184,6 +193,7 @@ func _begin(at: Vector2, ctx: Dictionary) -> void:
 	_mat.set_shader_parameter("residue", 1.0)
 	_cover_at(0.0)                        # 第一帧就看得见那一滴
 	rect.visible = true
+	showing(true)                         # 从现在起这一层每帧都画
 
 ## 这一趟的形状：换一个 seed，顺带把几缕须的角度、长短、弯势按它算出来交给着色器。
 ## 这几样只跟 seed 有关、整张画面一样，在着色器里逐像素算的话每个像素要多算 6 次正弦余弦、24 个随机数（掌机上贵）

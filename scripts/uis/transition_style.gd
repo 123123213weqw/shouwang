@@ -23,6 +23,9 @@ class_name TransitionStyle extends RefCounted
 var ctl: CanvasLayer                 ## 挂在谁下面：SceneTransitionControl.set_style 建好它以后给上
 var nodes: Array[Node] = []          ## 自己加的节点（add() 记的账）：换样式的时候一起收走
 var _warm: Array[Node] = []          ## 其中要预热的那几个（add 的时候给了 warm）
+var _inner: Array[Node] = []          # 按逻辑分辨率画的那一层里面的节点（见 add_lowres）：着色器在它们身上，预热时要查参数登记好了没有
+var _lowres: SubViewport              # 那一层的小画布（见 add_lowres）
+var _lowres_screen: TextureRect       # 把小画布放大铺满窗口的那一张
 
 ## 建好以后调一次：把要用的节点先建出来（先藏着）。这时候 ctl 已经有了
 func build() -> void:
@@ -35,6 +38,44 @@ func cover(ctx: Dictionary) -> void:
 ## 掀开：做完再返回
 func reveal(ctx: Dictionary) -> void:
 	pass
+
+## 把一整层画面放进一个小的 SubViewport，按画面的逻辑分辨率（1152×720）画，再铺满整个窗口放大显示。给墨、水这种本来就软的
+## 整屏着色器省显卡用：着色器是按窗口的像素画的，掌机的窗口是 2560×1600，每像素的工作量是 1152×720 的四倍。
+## 按逻辑分辨率画，像素数只有四分之一，画面就是 1152×720 下看到的样子（细线的宽窄本来就是按那一套像素定的），放大两倍多显示。
+## 细字、清楚的线条别放进来（会糊），直接挂在 ctl 下面。放进来的节点自己别再 add()。返回那个节点。
+## 平时这一层不画（省显卡）：要看它的时侯调 showing(true)，看完调 showing(false)；预热那两帧由 warm_up() 管
+func add_lowres(node: Node) -> Node:
+	_lowres = SubViewport.new()
+	_lowres.name = "LowResLayer"
+	_lowres.disable_3d = true                   # 这一层里只有二维的东西
+	_lowres.transparent_bg = true
+	_lowres.size = Vector2i(ctl.get_viewport().get_visible_rect().size)
+	_lowres.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_lowres.gui_disable_input = true
+	_lowres.handle_input_locally = false
+	ctl.add_child(_lowres)
+	nodes.append(_lowres)
+	_lowres.add_child(node)
+	_inner.append(node)
+	_lowres_screen = TextureRect.new()
+	_lowres_screen.name = "LowResScreen"
+	_lowres_screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_lowres_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_lowres_screen.texture = _lowres.get_texture()
+	_lowres_screen.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_lowres_screen.stretch_mode = TextureRect.STRETCH_SCALE
+	_lowres_screen.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	add(_lowres_screen, true)                   # 预热的就是它：露两帧，里面那一层跟着画、着色器跟着编译
+	return node
+
+## 按逻辑分辨率画的那一层要不要画（没用到 add_lowres 的样式调了也不管用）。
+## 样式在自己的画面露出来的时侯调 showing(true)，收起来的时侯调 showing(false)
+func showing(on: bool) -> void:
+	if _lowres == null or not is_instance_valid(_lowres): return
+	if on: _lowres.size = Vector2i(ctl.get_viewport().get_visible_rect().size)     # 窗口的宽高比可能换过（逻辑画面跟着变）
+	_lowres.render_target_update_mode = SubViewport.UPDATE_ALWAYS if on else SubViewport.UPDATE_DISABLED
+	# 铺满窗口的那一张也要跟着露出来：预热完了它是藏着的，只开画不显示的话墨在幕后画着、人看不见
+	if _lowres_screen != null and is_instance_valid(_lowres_screen): _lowres_screen.visible = on
 
 ## 换样式的时候调：把加过的节点收走、借走的东西还回去。默认只做这两件，自己另借了什么（主角、河灯……）在这儿还
 func dispose() -> void:
@@ -59,8 +100,10 @@ func warm_up() -> void:
 		await ctl.get_tree().process_frame
 	for n in _warm:
 		if is_instance_valid(n): n.visible = true
+	showing(true)
 	for i in 2:
 		await ctl.get_tree().process_frame
+	showing(false)
 	for n in _warm:
 		if is_instance_valid(n): n.visible = false
 	# 画过以后还要等引擎把这些材质的着色器参数登记好：着色器是在显卡那头编译的，编译完了材质上才有
@@ -72,7 +115,7 @@ func warm_up() -> void:
 
 ## 登记了预热的那些节点的材质，着色器的参数都登记好了没有
 func _params_ready() -> bool:
-	for n in _warm:
+	for n in _warm + _inner:
 		if not is_instance_valid(n) or not n is CanvasItem: continue
 		var m: Material = (n as CanvasItem).material
 		if m is ShaderMaterial and (m as ShaderMaterial).shader != null and _param_names(m).is_empty(): return false

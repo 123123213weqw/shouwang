@@ -11,14 +11,14 @@ fi
 STYLES="${2:-ink}"
 bash ~/apps/shouwang/launch.sh
 for i in $(seq 1 60); do (echo > /dev/tcp/127.0.0.1/9878) 2>/dev/null && break; sleep 1; done
-sleep 12            # 第一次启动要编译着色器，读早了 ui 会返回空
+# 新包第一次启动要重新编译着色器，开场动画放得慢：等到巡夜按钮出现为止（最多等一分半钟），开场放完按钮才露出来
 echo "画面: $(rc "size" 1 | head -n 1)   包: $(sha256sum "$HOME/apps/shouwang/shouwang.x86_64" | cut -c1-16)…"
 rc "call pad_adapter.gd debug_unlock_all" >/dev/null
 target=""
-for attempt in 1 2 3; do
+for attempt in $(seq 1 45); do
 	target=$(rc "ui" 1 10 30 | grep -F "<PlayButton>" | head -n1 | sed -E 's/^BTN \[([0-9.-]+),([0-9.-]+) ([0-9]+)x([0-9]+)\].*/\1 \2 \3 \4/' | awk '{print int($1 + $3/2), int($2 + $4/2)}')
 	[ -n "$target" ] && break
-	sleep 3
+	sleep 2
 done
 [ -n "$target" ] || { echo "标题页上找不到巡夜按钮（游戏可能已经被别人操作过了），停在这里"; exit 4; }
 rc "click $target" 1 >/dev/null
